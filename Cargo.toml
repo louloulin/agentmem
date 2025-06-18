@@ -1,0 +1,30 @@
+[package]
+name = "agent-state-db"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "agent_state_db_rust"
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+lancedb = "0.20.0"
+arrow = "55.1"
+arrow-array = "55.1"
+arrow-schema = "55.1"
+tokio = { version = "1.0", features = ["full"] }
+futures = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.0", features = ["v4"] }
+thiserror = "1.0"
+anyhow = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+cbindgen = "0.26"
+
+[build-dependencies]
+cbindgen = "0.26"
+
+[[bin]]
+name = "generate_bindings"
+path = "src/generate_bindings.rs"

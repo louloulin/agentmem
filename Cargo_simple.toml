@@ -1,0 +1,11 @@
+[package]
+name = "agent_state_db_simple"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "agent_state_db_simple"
+crate-type = ["cdylib"]
+path = "src/simple_lib.rs"
+
+[dependencies]
