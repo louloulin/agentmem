@@ -55,6 +55,12 @@ pub const AgentState = struct {
     }
 
     pub fn setMetadata(self: *Self, allocator: std.mem.Allocator, key: []const u8, value: []const u8) !void {
+        // 检查是否已存在该键，如果存在则先释放旧的内存
+        if (self.metadata.fetchRemove(key)) |old_entry| {
+            allocator.free(old_entry.key);
+            allocator.free(old_entry.value);
+        }
+
         const key_copy = try allocator.dupe(u8, key);
         const value_copy = try allocator.dupe(u8, value);
         try self.metadata.put(key_copy, value_copy);
@@ -243,6 +249,10 @@ pub const AgentState = struct {
         self.checksum = checksum;
 
         // 移除压缩标记
-        _ = self.metadata.remove("compressed");
+        if (self.metadata.fetchRemove("compressed")) |removed| {
+            // 释放分配的内存
+            allocator.free(removed.key);
+            allocator.free(removed.value);
+        }
     }
 };

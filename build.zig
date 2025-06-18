@@ -27,6 +27,15 @@ pub fn build(b: *std.Build) void {
     agent_db_lib.linkSystemLibrary("agent_state_db_rust");
     agent_db_lib.linkLibC();
 
+    // 在Windows上需要链接额外的系统库
+    if (target.result.os.tag == .windows) {
+        agent_db_lib.linkSystemLibrary("ws2_32");
+        agent_db_lib.linkSystemLibrary("advapi32");
+        agent_db_lib.linkSystemLibrary("userenv");
+        agent_db_lib.linkSystemLibrary("ntdll");
+        agent_db_lib.linkSystemLibrary("bcrypt");
+    }
+
     // 确保Rust库先构建
     agent_db_lib.step.dependOn(&generate_bindings.step);
 
@@ -50,7 +59,25 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    tests.linkLibrary(agent_db_lib);
+    // 添加头文件路径
+    tests.addIncludePath(b.path("include"));
+
+    // 链接Rust库
+    tests.addLibraryPath(b.path("target/release"));
+    tests.linkSystemLibrary("agent_state_db_rust");
+    tests.linkLibC();
+
+    // 在Windows上需要链接额外的系统库
+    if (target.result.os.tag == .windows) {
+        tests.linkSystemLibrary("ws2_32");
+        tests.linkSystemLibrary("advapi32");
+        tests.linkSystemLibrary("userenv");
+        tests.linkSystemLibrary("ntdll");
+        tests.linkSystemLibrary("bcrypt");
+    }
+
+    // 确保Rust库先构建
+    tests.step.dependOn(&generate_bindings.step);
 
     const run_tests = b.addRunArtifact(tests);
     const test_step = b.step("test", "Run unit tests");
@@ -64,7 +91,35 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    example.linkLibrary(agent_db_lib);
+    // 添加模块依赖
+    const agent_db_module = b.addModule("agent_db", .{
+        .root_source_file = b.path("src/main.zig"),
+    });
+
+    // 为模块添加include路径
+    agent_db_module.addIncludePath(b.path("include"));
+
+    example.root_module.addImport("agent_db", agent_db_module);
+
+    // 添加头文件路径
+    example.addIncludePath(b.path("include"));
+
+    // 链接Rust库
+    example.addLibraryPath(b.path("target/release"));
+    example.linkSystemLibrary("agent_state_db_rust");
+    example.linkLibC();
+
+    // 在Windows上需要链接额外的系统库
+    if (target.result.os.tag == .windows) {
+        example.linkSystemLibrary("ws2_32");
+        example.linkSystemLibrary("advapi32");
+        example.linkSystemLibrary("userenv");
+        example.linkSystemLibrary("ntdll");
+        example.linkSystemLibrary("bcrypt");
+    }
+
+    // 确保Rust库先构建
+    example.step.dependOn(&generate_bindings.step);
     b.installArtifact(example);
 
     const run_example = b.addRunArtifact(example);
@@ -79,7 +134,25 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    benchmark.linkLibrary(agent_db_lib);
+    // 添加头文件路径
+    benchmark.addIncludePath(b.path("include"));
+
+    // 链接Rust库
+    benchmark.addLibraryPath(b.path("target/release"));
+    benchmark.linkSystemLibrary("agent_state_db_rust");
+    benchmark.linkLibC();
+
+    // 在Windows上需要链接额外的系统库
+    if (target.result.os.tag == .windows) {
+        benchmark.linkSystemLibrary("ws2_32");
+        benchmark.linkSystemLibrary("advapi32");
+        benchmark.linkSystemLibrary("userenv");
+        benchmark.linkSystemLibrary("ntdll");
+        benchmark.linkSystemLibrary("bcrypt");
+    }
+
+    // 确保Rust库先构建
+    benchmark.step.dependOn(&generate_bindings.step);
     b.installArtifact(benchmark);
 
     const run_benchmark = b.addRunArtifact(benchmark);
