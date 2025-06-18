@@ -66,31 +66,8 @@ pub const AgentState = struct {
 
     // 序列化为JSON字符串（用于存储到LanceDB）
     pub fn toJson(self: *const Self, allocator: std.mem.Allocator) ![]u8 {
-        // 创建一个包含所有字段的结构用于序列化
-        const SerializableState = struct {
-            agent_id: u64,
-            session_id: u64,
-            timestamp: i64,
-            state_type: []const u8,
-            data: []const u8,
-            metadata: std.HashMap([]const u8, []const u8),
-            version: u32,
-            checksum: u32,
-        };
-
-        const serializable = SerializableState{
-            .agent_id = self.agent_id,
-            .session_id = self.session_id,
-            .timestamp = self.timestamp,
-            .state_type = self.state_type.toString(),
-            .data = self.data,
-            .metadata = self.metadata,
-            .version = self.version,
-            .checksum = self.checksum,
-        };
-
-        // 简化的JSON序列化
-        return try std.fmt.allocPrint(allocator, "{{\"agent_id\":{},\"session_id\":{},\"timestamp\":{},\"state_type\":\"{s}\",\"version\":{},\"checksum\":{}}}", .{ serializable.agent_id, serializable.session_id, serializable.timestamp, serializable.state_type, serializable.version, serializable.checksum });
+        // 简化的JSON序列化，不包含复杂的metadata
+        return try std.fmt.allocPrint(allocator, "{{\"agent_id\":{},\"session_id\":{},\"timestamp\":{},\"state_type\":\"{s}\",\"version\":{},\"checksum\":{}}}", .{ self.agent_id, self.session_id, self.timestamp, self.state_type.toString(), self.version, self.checksum });
     }
 
     // 从JSON字符串反序列化（简化版本）
@@ -136,7 +113,7 @@ pub const AgentState = struct {
             .timestamp = std.time.timestamp(),
             .state_type = self.state_type,
             .data = try allocator.dupe(u8, self.data),
-            .metadata = std.HashMap([]const u8, []const u8).init(allocator),
+            .metadata = std.StringHashMap([]const u8).init(allocator),
             .version = self.version + 1,
             .checksum = self.checksum,
         };

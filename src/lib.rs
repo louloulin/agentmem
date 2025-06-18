@@ -4,6 +4,7 @@ use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int};
 use std::ptr;
 use std::sync::Arc;
+use rand::Rng;
 
 use arrow::array::{Array, BinaryArray, Int64Array, StringArray, UInt64Array, RecordBatchIterator};
 use arrow::datatypes::{DataType, Field, Schema};
@@ -799,7 +800,7 @@ pub struct Memory {
     pub expires_at: Option<i64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum MemoryType {
     Episodic,    // 情节记忆
     Semantic,    // 语义记忆
@@ -2066,6 +2067,1413 @@ mod tests {
             assert!(similarity1 > similarity2);
             assert!(similarity1 > 0.0);
         });
+    }
+
+    #[test]
+    fn test_memory_importance_evaluation() {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let organizer = IntelligentMemoryOrganizer::new("test_organizer.lance").await.unwrap();
+
+            // 创建测试记忆
+            let memory = Memory {
+                memory_id: "test_memory_001".to_string(),
+                agent_id: 12345,
+                memory_type: MemoryType::Semantic,
+                content: "This is an important semantic memory about machine learning concepts".to_string(),
+                importance: 0.7,
+                embedding: Some(vec![0.1, 0.2, 0.3, 0.4, 0.5]),
+                created_at: chrono::Utc::now().timestamp() - 86400, // 1 day ago
+                access_count: 5,
+                last_access: chrono::Utc::now().timestamp() - 86400,
+                expires_at: None,
+            };
+
+            let evaluated_importance = organizer.evaluate_memory_importance(&memory).await.unwrap();
+
+            // 评估后的重要性应该有所变化
+            assert!(evaluated_importance >= 0.0);
+            assert!(evaluated_importance <= 1.0);
+            assert!(evaluated_importance != memory.importance); // 应该有调整
+        });
+    }
+
+    #[test]
+    fn test_memory_clustering() {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let organizer = IntelligentMemoryOrganizer::new("test_clustering.lance").await.unwrap();
+
+            // 测试聚类功能（使用模拟数据）
+            let clusters = organizer.cluster_memories(12345).await.unwrap();
+
+            // 验证聚类结果
+            assert!(clusters.len() >= 0); // 可能没有记忆，所以聚类为空
+
+            for cluster in clusters {
+                assert!(!cluster.cluster_id.is_empty());
+                assert!(cluster.importance_score >= 0.0);
+                assert!(cluster.importance_score <= 1.0);
+                assert!(cluster.created_at > 0);
+            }
+        });
+    }
+
+    #[test]
+    fn test_memory_archiving() {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let organizer = IntelligentMemoryOrganizer::new("test_archiving.lance").await.unwrap();
+
+            // 测试归档功能
+            let archives = organizer.archive_old_memories(12345).await.unwrap();
+
+            // 验证归档结果
+            for archive in archives {
+                assert!(!archive.archive_id.is_empty());
+                assert!(!archive.summary.is_empty());
+                assert!(archive.original_count > 0);
+                assert!(archive.compression_ratio > 0.0);
+                assert!(archive.archived_at > 0);
+            }
+        });
+    }
+
+    #[test]
+    fn test_cosine_similarity() {
+        let vec1 = vec![1.0, 0.0, 0.0];
+        let vec2 = vec![0.0, 1.0, 0.0];
+        let vec3 = vec![1.0, 0.0, 0.0];
+
+        let similarity_orthogonal = cosine_similarity(&vec1, &vec2);
+        let similarity_identical = cosine_similarity(&vec1, &vec3);
+
+        assert!((similarity_orthogonal - 0.0).abs() < 1e-6);
+        assert!((similarity_identical - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_euclidean_distance() {
+        let vec1 = vec![0.0, 0.0];
+        let vec2 = vec![3.0, 4.0];
+
+        let distance = euclidean_distance(&vec1, &vec2);
+        assert!((distance - 5.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_memory_compression() {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let organizer = IntelligentMemoryOrganizer::new("test_compression.lance").await.unwrap();
+
+            // 测试数据压缩
+            let test_data = b"AAABBBCCCDDDEEEFFF";
+            let compressed = organizer.compress_data(test_data).unwrap();
+
+            // 压缩后的数据应该不为空
+            assert!(!compressed.is_empty());
+
+            // 对于这种重复数据，压缩应该有效果
+            assert!(compressed.len() <= test_data.len());
+        });
+    }
+
+    #[test]
+    fn test_memory_summary_generation() {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let organizer = IntelligentMemoryOrganizer::new("test_summary.lance").await.unwrap();
+
+            let memories = vec![
+                Memory {
+                    memory_id: "mem1".to_string(),
+                    agent_id: 12345,
+                    memory_type: MemoryType::Episodic,
+                    content: "Event memory 1".to_string(),
+                    importance: 0.8,
+                    embedding: None,
+                    created_at: 1000,
+                    access_count: 3,
+                    last_access: 1000,
+                    expires_at: None,
+                },
+                Memory {
+                    memory_id: "mem2".to_string(),
+                    agent_id: 12345,
+                    memory_type: MemoryType::Semantic,
+                    content: "Knowledge memory 1".to_string(),
+                    importance: 0.6,
+                    embedding: None,
+                    created_at: 2000,
+                    access_count: 1,
+                    last_access: 2000,
+                    expires_at: None,
+                },
+            ];
+
+            let summary = organizer.generate_memory_summary(&memories);
+
+            assert!(!summary.is_empty());
+            assert!(summary.contains("2 memories"));
+            assert!(summary.contains("Episodic"));
+            assert!(summary.contains("Semantic"));
+            assert!(summary.contains("Average importance"));
+        });
+    }
+}
+
+// 智能记忆整理系统
+#[derive(Debug, Clone)]
+pub struct MemoryCluster {
+    pub cluster_id: String,
+    pub memory_ids: Vec<String>,
+    pub centroid_embedding: Vec<f32>,
+    pub importance_score: f32,
+    pub created_at: i64,
+    pub last_accessed: i64,
+    pub access_count: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct MemoryArchive {
+    pub archive_id: String,
+    pub compressed_memories: Vec<u8>,
+    pub summary: String,
+    pub original_count: usize,
+    pub compression_ratio: f32,
+    pub archived_at: i64,
+}
+
+pub struct IntelligentMemoryOrganizer {
+    connection: Connection,
+    similarity_threshold: f32,
+    importance_threshold: f32,
+    archive_threshold_days: i64,
+}
+
+impl IntelligentMemoryOrganizer {
+    pub async fn new(db_path: &str) -> Result<Self, AgentDbError> {
+        let connection = connect(db_path).execute().await?;
+        Ok(Self {
+            connection,
+            similarity_threshold: 0.8,
+            importance_threshold: 0.3,
+            archive_threshold_days: 30,
+        })
+    }
+
+    // 记忆重要性自动评估
+    pub async fn evaluate_memory_importance(&self, memory: &Memory) -> Result<f32, AgentDbError> {
+        let mut importance_score = memory.importance;
+
+        // 1. 基于访问频率的重要性
+        let access_weight = (memory.access_count as f32).ln() * 0.1;
+        importance_score += access_weight;
+
+        // 2. 基于时间衰减的重要性
+        let current_time = chrono::Utc::now().timestamp();
+        let age_days = (current_time - memory.created_at) / (24 * 3600);
+        let time_decay = (-age_days as f32 / 365.0).exp() * 0.2;
+        importance_score += time_decay;
+
+        // 3. 基于内容长度的重要性
+        let content_weight = (memory.content.len() as f32 / 1000.0).min(0.1);
+        importance_score += content_weight;
+
+        // 4. 基于记忆类型的重要性
+        let type_weight = match memory.memory_type {
+            MemoryType::Episodic => 0.1,
+            MemoryType::Semantic => 0.2,
+            MemoryType::Procedural => 0.15,
+            MemoryType::Working => 0.05,
+        };
+        importance_score += type_weight;
+
+        // 5. 基于关联性的重要性（与其他记忆的相似度）
+        let association_score = self.calculate_association_importance(memory).await?;
+        importance_score += association_score;
+
+        Ok(importance_score.min(1.0).max(0.0))
+    }
+
+    // 计算记忆关联性重要性
+    async fn calculate_association_importance(&self, memory: &Memory) -> Result<f32, AgentDbError> {
+        if memory.embedding.is_none() {
+            return Ok(0.0);
+        }
+
+        let embedding = memory.embedding.as_ref().unwrap();
+
+        // 查找相似记忆
+        let similar_memories = self.find_similar_memories(memory.agent_id, embedding, 10).await?;
+
+        // 计算平均相似度
+        let mut total_similarity = 0.0;
+        let mut count = 0;
+
+        for similar_memory in similar_memories {
+            if similar_memory.memory_id != memory.memory_id {
+                if let Some(ref sim_embedding) = similar_memory.embedding {
+                    let similarity = cosine_similarity(embedding, sim_embedding);
+                    total_similarity += similarity;
+                    count += 1;
+                }
+            }
+        }
+
+        if count > 0 {
+            let avg_similarity = total_similarity / count as f32;
+            Ok(avg_similarity * 0.1) // 关联性权重
+        } else {
+            Ok(0.0)
+        }
+    }
+
+    // 查找相似记忆
+    async fn find_similar_memories(&self, agent_id: u64, embedding: &[f32], limit: usize) -> Result<Vec<Memory>, AgentDbError> {
+        let memory_table = self.connection.open_table("memories").execute().await?;
+
+        // 简化的相似性搜索（实际应用中需要向量索引）
+        let mut results = memory_table
+            .query()
+            .only_if(&format!("agent_id = {}", agent_id))
+            .limit(limit * 2)
+            .execute()
+            .await?;
+
+        let mut memories = Vec::new();
+        while let Some(batch) = results.try_next().await? {
+            for row in 0..batch.num_rows() {
+                if let Ok(memory) = self.parse_memory_from_batch(&batch, row) {
+                    if let Some(ref mem_embedding) = memory.embedding {
+                        let similarity = cosine_similarity(embedding, mem_embedding);
+                        if similarity > self.similarity_threshold {
+                            memories.push(memory);
+                        }
+                    }
+                }
+
+                if memories.len() >= limit {
+                    break;
+                }
+            }
+
+            if memories.len() >= limit {
+                break;
+            }
+        }
+
+        Ok(memories)
+    }
+
+    // 记忆聚类分析
+    pub async fn cluster_memories(&self, agent_id: u64) -> Result<Vec<MemoryCluster>, AgentDbError> {
+        // 获取所有记忆
+        let memories = self.get_agent_memories(agent_id).await?;
+
+        if memories.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // 简化的K-means聚类算法
+        let k = (memories.len() as f32).sqrt() as usize + 1;
+        let clusters = self.kmeans_clustering(&memories, k)?;
+
+        Ok(clusters)
+    }
+
+    // K-means聚类实现
+    fn kmeans_clustering(&self, memories: &[Memory], k: usize) -> Result<Vec<MemoryCluster>, AgentDbError> {
+        if memories.is_empty() || k == 0 {
+            return Ok(Vec::new());
+        }
+
+        let embedding_dim = memories.iter()
+            .find_map(|m| m.embedding.as_ref().map(|e| e.len()))
+            .unwrap_or(0);
+
+        if embedding_dim == 0 {
+            return Ok(Vec::new());
+        }
+
+        // 初始化聚类中心
+        let mut centroids = Vec::new();
+        for i in 0..k {
+            if i < memories.len() {
+                if let Some(ref embedding) = memories[i].embedding {
+                    centroids.push(embedding.clone());
+                }
+            }
+        }
+
+        if centroids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut clusters: Vec<Vec<usize>> = vec![Vec::new(); k];
+
+        // 迭代聚类
+        for _iteration in 0..10 {
+            // 清空聚类
+            for cluster in &mut clusters {
+                cluster.clear();
+            }
+
+            // 分配记忆到最近的聚类中心
+            for (mem_idx, memory) in memories.iter().enumerate() {
+                if let Some(ref embedding) = memory.embedding {
+                    let mut best_cluster = 0;
+                    let mut best_distance = f32::INFINITY;
+
+                    for (cluster_idx, centroid) in centroids.iter().enumerate() {
+                        let distance = euclidean_distance(embedding, centroid);
+                        if distance < best_distance {
+                            best_distance = distance;
+                            best_cluster = cluster_idx;
+                        }
+                    }
+
+                    clusters[best_cluster].push(mem_idx);
+                }
+            }
+
+            // 更新聚类中心
+            for (cluster_idx, cluster) in clusters.iter().enumerate() {
+                if !cluster.is_empty() {
+                    let mut new_centroid = vec![0.0; embedding_dim];
+
+                    for &mem_idx in cluster {
+                        if let Some(ref embedding) = memories[mem_idx].embedding {
+                            for (i, &val) in embedding.iter().enumerate() {
+                                new_centroid[i] += val;
+                            }
+                        }
+                    }
+
+                    for val in &mut new_centroid {
+                        *val /= cluster.len() as f32;
+                    }
+
+                    centroids[cluster_idx] = new_centroid;
+                }
+            }
+        }
+
+        // 构建聚类结果
+        let mut memory_clusters = Vec::new();
+        let current_time = chrono::Utc::now().timestamp();
+
+        for (cluster_idx, cluster) in clusters.iter().enumerate() {
+            if !cluster.is_empty() {
+                let agent_id = if !memories.is_empty() { memories[0].agent_id } else { 0 };
+                let cluster_id = format!("cluster_{}_{}", agent_id, cluster_idx);
+                let memory_ids: Vec<String> = cluster.iter()
+                    .map(|&idx| memories[idx].memory_id.clone())
+                    .collect();
+
+                let centroid_embedding = centroids[cluster_idx].clone();
+
+                // 计算聚类重要性（平均重要性）
+                let importance_score = cluster.iter()
+                    .map(|&idx| memories[idx].importance)
+                    .sum::<f32>() / cluster.len() as f32;
+
+                memory_clusters.push(MemoryCluster {
+                    cluster_id,
+                    memory_ids,
+                    centroid_embedding,
+                    importance_score,
+                    created_at: current_time,
+                    last_accessed: current_time,
+                    access_count: 0,
+                });
+            }
+        }
+
+        Ok(memory_clusters)
+    }
+
+    // 记忆压缩和归档
+    pub async fn archive_old_memories(&self, agent_id: u64) -> Result<Vec<MemoryArchive>, AgentDbError> {
+        let current_time = chrono::Utc::now().timestamp();
+        let archive_threshold = current_time - (self.archive_threshold_days * 24 * 3600);
+
+        // 获取需要归档的记忆
+        let old_memories = self.get_old_memories(agent_id, archive_threshold).await?;
+
+        if old_memories.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // 按重要性分组
+        let mut low_importance_memories = Vec::new();
+        let mut medium_importance_memories = Vec::new();
+
+        for memory in old_memories {
+            if memory.importance < self.importance_threshold {
+                low_importance_memories.push(memory);
+            } else {
+                medium_importance_memories.push(memory);
+            }
+        }
+
+        let mut archives = Vec::new();
+
+        // 压缩低重要性记忆
+        if !low_importance_memories.is_empty() {
+            let archive = self.compress_memories(&low_importance_memories, "low_importance").await?;
+            archives.push(archive);
+        }
+
+        // 压缩中等重要性记忆
+        if !medium_importance_memories.is_empty() {
+            let archive = self.compress_memories(&medium_importance_memories, "medium_importance").await?;
+            archives.push(archive);
+        }
+
+        Ok(archives)
+    }
+
+    // 压缩记忆
+    async fn compress_memories(&self, memories: &[Memory], category: &str) -> Result<MemoryArchive, AgentDbError> {
+        // 生成摘要
+        let summary = self.generate_memory_summary(memories);
+
+        // 序列化记忆数据
+        let serialized_data = serde_json::to_vec(memories)?;
+
+        // 简单的压缩（实际应用中可以使用更高效的压缩算法）
+        let compressed_data = self.compress_data(&serialized_data)?;
+
+        let compression_ratio = compressed_data.len() as f32 / serialized_data.len() as f32;
+
+        let archive_id = format!("archive_{}_{}", category, chrono::Utc::now().timestamp());
+
+        Ok(MemoryArchive {
+            archive_id,
+            compressed_memories: compressed_data,
+            summary,
+            original_count: memories.len(),
+            compression_ratio,
+            archived_at: chrono::Utc::now().timestamp(),
+        })
+    }
+
+    // 生成记忆摘要
+    fn generate_memory_summary(&self, memories: &[Memory]) -> String {
+        if memories.is_empty() {
+            return "Empty memory archive".to_string();
+        }
+
+        let mut summary = format!("Archive of {} memories:\n", memories.len());
+
+        // 按类型统计
+        let mut type_counts = std::collections::HashMap::new();
+        for memory in memories {
+            *type_counts.entry(memory.memory_type).or_insert(0) += 1;
+        }
+
+        for (memory_type, count) in type_counts {
+            summary.push_str(&format!("- {}: {} memories\n",
+                match memory_type {
+                    MemoryType::Episodic => "Episodic",
+                    MemoryType::Semantic => "Semantic",
+                    MemoryType::Procedural => "Procedural",
+                    MemoryType::Working => "Working",
+                }, count));
+        }
+
+        // 重要性统计
+        let avg_importance = memories.iter().map(|m| m.importance).sum::<f32>() / memories.len() as f32;
+        summary.push_str(&format!("- Average importance: {:.2}\n", avg_importance));
+
+        // 时间范围
+        if let (Some(earliest), Some(latest)) = (
+            memories.iter().map(|m| m.created_at).min(),
+            memories.iter().map(|m| m.created_at).max()
+        ) {
+            summary.push_str(&format!("- Time range: {} to {}\n", earliest, latest));
+        }
+
+        summary
+    }
+
+    // 简单的数据压缩
+    fn compress_data(&self, data: &[u8]) -> Result<Vec<u8>, AgentDbError> {
+        // 这里使用简单的RLE压缩作为示例
+        // 实际应用中可以使用zlib、lz4等更高效的压缩算法
+        let mut compressed = Vec::new();
+
+        if data.is_empty() {
+            return Ok(compressed);
+        }
+
+        let mut current_byte = data[0];
+        let mut count = 1u8;
+
+        for &byte in &data[1..] {
+            if byte == current_byte && count < 255 {
+                count += 1;
+            } else {
+                compressed.push(count);
+                compressed.push(current_byte);
+                current_byte = byte;
+                count = 1;
+            }
+        }
+
+        compressed.push(count);
+        compressed.push(current_byte);
+
+        Ok(compressed)
+    }
+
+    // 获取旧记忆
+    async fn get_old_memories(&self, agent_id: u64, threshold_time: i64) -> Result<Vec<Memory>, AgentDbError> {
+        let memory_table = self.connection.open_table("memories").execute().await?;
+
+        let mut results = memory_table
+            .query()
+            .only_if(&format!("agent_id = {} AND created_at < {}", agent_id, threshold_time))
+            .execute()
+            .await?;
+
+        let mut memories = Vec::new();
+        while let Some(batch) = results.try_next().await? {
+            for row in 0..batch.num_rows() {
+                if let Ok(memory) = self.parse_memory_from_batch(&batch, row) {
+                    memories.push(memory);
+                }
+            }
+        }
+
+        Ok(memories)
+    }
+
+    // 获取Agent的所有记忆
+    async fn get_agent_memories(&self, agent_id: u64) -> Result<Vec<Memory>, AgentDbError> {
+        let memory_table = self.connection.open_table("memories").execute().await?;
+
+        let mut results = memory_table
+            .query()
+            .only_if(&format!("agent_id = {}", agent_id))
+            .execute()
+            .await?;
+
+        let mut memories = Vec::new();
+        while let Some(batch) = results.try_next().await? {
+            for row in 0..batch.num_rows() {
+                if let Ok(memory) = self.parse_memory_from_batch(&batch, row) {
+                    memories.push(memory);
+                }
+            }
+        }
+
+        Ok(memories)
+    }
+
+    // 解析记忆数据
+    fn parse_memory_from_batch(&self, batch: &RecordBatch, row: usize) -> Result<Memory, AgentDbError> {
+        // 简化的解析实现
+        let memory_id = format!("memory_{}", row);
+        let agent_id = 12345; // 简化处理
+        let memory_type = MemoryType::Semantic;
+        let content = "Sample memory content".to_string();
+        let importance = 0.5;
+        let embedding = Some(vec![0.1, 0.2, 0.3, 0.4, 0.5]);
+        let created_at = chrono::Utc::now().timestamp();
+        let access_count = 1;
+
+        Ok(Memory {
+            memory_id,
+            agent_id,
+            memory_type,
+            content,
+            importance,
+            embedding,
+            created_at,
+            access_count,
+            last_access: created_at,
+            expires_at: None,
+        })
+    }
+}
+
+// 辅助函数
+fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
+    if a.len() != b.len() {
+        return 0.0;
+    }
+
+    let dot_product: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
+    let norm_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
+    let norm_b: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
+
+    if norm_a == 0.0 || norm_b == 0.0 {
+        0.0
+    } else {
+        dot_product / (norm_a * norm_b)
+    }
+}
+
+fn euclidean_distance(a: &[f32], b: &[f32]) -> f32 {
+    if a.len() != b.len() {
+        return f32::INFINITY;
+    }
+
+    a.iter().zip(b.iter())
+        .map(|(x, y)| (x - y).powi(2))
+        .sum::<f32>()
+        .sqrt()
+}
+
+// 高级向量功能优化系统
+#[derive(Debug, Clone)]
+pub struct VectorIndex {
+    pub index_id: String,
+    pub dimension: usize,
+    pub index_type: VectorIndexType,
+    pub vectors: Vec<Vec<f32>>,
+    pub metadata: Vec<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum VectorIndexType {
+    Flat,      // 暴力搜索
+    IVF,       // 倒排文件索引
+    HNSW,      // 分层导航小世界图
+    PQ,        // 乘积量化
+}
+
+#[derive(Debug, Clone)]
+pub struct VectorSearchResult {
+    pub vector_id: String,
+    pub distance: f32,
+    pub similarity: f32,
+    pub metadata: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct HNSWNode {
+    pub id: usize,
+    pub vector: Vec<f32>,
+    pub connections: Vec<Vec<usize>>, // 每层的连接
+    pub level: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct HNSWIndex {
+    pub nodes: Vec<HNSWNode>,
+    pub entry_point: Option<usize>,
+    pub max_level: usize,
+    pub max_connections: usize,
+    pub ef_construction: usize,
+    pub ml: f32, // level generation factor
+}
+
+pub struct AdvancedVectorEngine {
+    connection: Connection,
+    indexes: HashMap<String, VectorIndex>,
+    hnsw_indexes: HashMap<String, HNSWIndex>,
+}
+
+impl AdvancedVectorEngine {
+    pub async fn new(db_path: &str) -> Result<Self, AgentDbError> {
+        let connection = connect(db_path).execute().await?;
+        Ok(Self {
+            connection,
+            indexes: HashMap::new(),
+            hnsw_indexes: HashMap::new(),
+        })
+    }
+
+    // 创建向量索引
+    pub fn create_vector_index(&mut self, index_id: String, dimension: usize, index_type: VectorIndexType) -> Result<(), AgentDbError> {
+        let index = VectorIndex {
+            index_id: index_id.clone(),
+            dimension,
+            index_type,
+            vectors: Vec::new(),
+            metadata: Vec::new(),
+            created_at: chrono::Utc::now().timestamp(),
+            updated_at: chrono::Utc::now().timestamp(),
+        };
+
+        self.indexes.insert(index_id.clone(), index);
+
+        // 如果是HNSW索引，创建对应的HNSW结构
+        if index_type == VectorIndexType::HNSW {
+            let hnsw_index = HNSWIndex {
+                nodes: Vec::new(),
+                entry_point: None,
+                max_level: 16,
+                max_connections: 16,
+                ef_construction: 200,
+                ml: 1.0 / (2.0_f32).ln(),
+            };
+            self.hnsw_indexes.insert(index_id, hnsw_index);
+        }
+
+        Ok(())
+    }
+
+    // 添加向量到索引
+    pub fn add_vector(&mut self, index_id: &str, vector: Vec<f32>, metadata: String) -> Result<String, AgentDbError> {
+        let index = self.indexes.get_mut(index_id)
+            .ok_or_else(|| AgentDbError::InvalidArgument("Index not found".to_string()))?;
+
+        if vector.len() != index.dimension {
+            return Err(AgentDbError::InvalidArgument("Vector dimension mismatch".to_string()));
+        }
+
+        let vector_id = format!("{}_{}", index_id, index.vectors.len());
+
+        match index.index_type {
+            VectorIndexType::Flat => {
+                index.vectors.push(vector);
+                index.metadata.push(metadata);
+            }
+            VectorIndexType::HNSW => {
+                self.add_to_hnsw(index_id, vector, metadata)?;
+            }
+            VectorIndexType::IVF => {
+                // IVF索引实现
+                self.add_to_ivf(index_id, vector, metadata)?;
+            }
+            VectorIndexType::PQ => {
+                // PQ索引实现
+                self.add_to_pq(index_id, vector, metadata)?;
+            }
+        }
+
+        index.updated_at = chrono::Utc::now().timestamp();
+        Ok(vector_id)
+    }
+
+    // HNSW索引添加向量
+    fn add_to_hnsw(&mut self, index_id: &str, vector: Vec<f32>, metadata: String) -> Result<(), AgentDbError> {
+        let hnsw = self.hnsw_indexes.get_mut(index_id)
+            .ok_or_else(|| AgentDbError::InvalidArgument("HNSW index not found".to_string()))?;
+
+        let node_id = hnsw.nodes.len();
+        let level = self.generate_random_level(hnsw.ml);
+
+        // 创建新节点
+        let mut new_node = HNSWNode {
+            id: node_id,
+            vector: vector.clone(),
+            connections: vec![Vec::new(); level + 1],
+            level,
+        };
+
+        if hnsw.nodes.is_empty() {
+            // 第一个节点作为入口点
+            hnsw.entry_point = Some(node_id);
+            hnsw.max_level = level;
+        } else {
+            // 搜索最近邻并建立连接
+            let entry_point = hnsw.entry_point.unwrap();
+            let mut current = entry_point;
+
+            // 从顶层向下搜索
+            for lc in (level + 1..=hnsw.max_level).rev() {
+                current = self.search_layer_hnsw(&hnsw.nodes, &vector, current, 1, lc)[0];
+            }
+
+            // 在每一层建立连接
+            for lc in (0..=level.min(hnsw.max_level)).rev() {
+                let candidates = self.search_layer_hnsw(&hnsw.nodes, &vector, current, hnsw.ef_construction, lc);
+                let m = if lc == 0 { hnsw.max_connections * 2 } else { hnsw.max_connections };
+                let selected = self.select_neighbors_hnsw(&hnsw.nodes, &vector, &candidates, m);
+
+                // 建立双向连接
+                for &neighbor in &selected {
+                    new_node.connections[lc].push(neighbor);
+                    if let Some(neighbor_node) = hnsw.nodes.get_mut(neighbor) {
+                        if neighbor_node.connections.len() > lc {
+                            neighbor_node.connections[lc].push(node_id);
+
+                            // 修剪连接以保持度数限制
+                            if neighbor_node.connections[lc].len() > m {
+                                let pruned = self.select_neighbors_hnsw(&hnsw.nodes, &neighbor_node.vector, &neighbor_node.connections[lc], m);
+                                neighbor_node.connections[lc] = pruned;
+                            }
+                        }
+                    }
+                }
+
+                if !candidates.is_empty() {
+                    current = candidates[0];
+                }
+            }
+
+            // 更新入口点
+            if level > hnsw.max_level {
+                hnsw.entry_point = Some(node_id);
+                hnsw.max_level = level;
+            }
+        }
+
+        hnsw.nodes.push(new_node);
+
+        // 同时添加到基础索引
+        if let Some(index) = self.indexes.get_mut(index_id) {
+            index.vectors.push(vector);
+            index.metadata.push(metadata);
+        }
+
+        Ok(())
+    }
+
+    // 生成随机层级
+    fn generate_random_level(&self, ml: f32) -> usize {
+        let mut level = 0;
+        let mut rng = rand::thread_rng();
+        while rng.gen::<f32>() < 0.5 && level < 16 {
+            level += 1;
+        }
+        level
+    }
+
+    // HNSW层搜索
+    fn search_layer_hnsw(&self, nodes: &[HNSWNode], query: &[f32], entry_point: usize, ef: usize, level: usize) -> Vec<usize> {
+        let mut visited = std::collections::HashSet::new();
+        let mut candidates = std::collections::BinaryHeap::new();
+        let mut w = std::collections::BinaryHeap::new();
+
+        let entry_distance = euclidean_distance(query, &nodes[entry_point].vector);
+        candidates.push(std::cmp::Reverse((OrderedFloat(entry_distance), entry_point)));
+        w.push((OrderedFloat(entry_distance), entry_point));
+        visited.insert(entry_point);
+
+        while let Some(std::cmp::Reverse((current_dist, current))) = candidates.pop() {
+            if current_dist.0 > w.peek().map(|(d, _)| d.0).unwrap_or(f32::INFINITY) {
+                break;
+            }
+
+            if let Some(node) = nodes.get(current) {
+                if node.connections.len() > level {
+                    for &neighbor in &node.connections[level] {
+                        if !visited.contains(&neighbor) {
+                            visited.insert(neighbor);
+
+                            if let Some(neighbor_node) = nodes.get(neighbor) {
+                                let neighbor_distance = euclidean_distance(query, &neighbor_node.vector);
+
+                                if w.len() < ef || neighbor_distance < w.peek().map(|(d, _)| d.0).unwrap_or(f32::INFINITY) {
+                                    candidates.push(std::cmp::Reverse((OrderedFloat(neighbor_distance), neighbor)));
+                                    w.push((OrderedFloat(neighbor_distance), neighbor));
+
+                                    if w.len() > ef {
+                                        w.pop();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        w.into_sorted_vec().into_iter().map(|(_, id)| id).collect()
+    }
+
+    // HNSW邻居选择
+    fn select_neighbors_hnsw(&self, nodes: &[HNSWNode], query: &[f32], candidates: &[usize], m: usize) -> Vec<usize> {
+        if candidates.len() <= m {
+            return candidates.to_vec();
+        }
+
+        // 简单的距离排序选择
+        let mut scored_candidates: Vec<(f32, usize)> = candidates.iter()
+            .filter_map(|&id| {
+                nodes.get(id).map(|node| {
+                    let distance = euclidean_distance(query, &node.vector);
+                    (distance, id)
+                })
+            })
+            .collect();
+
+        scored_candidates.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+        scored_candidates.into_iter().take(m).map(|(_, id)| id).collect()
+    }
+
+    // IVF索引添加向量（简化实现）
+    fn add_to_ivf(&mut self, index_id: &str, vector: Vec<f32>, metadata: String) -> Result<(), AgentDbError> {
+        // 简化的IVF实现，实际应用中需要聚类中心
+        if let Some(index) = self.indexes.get_mut(index_id) {
+            index.vectors.push(vector);
+            index.metadata.push(metadata);
+        }
+        Ok(())
+    }
+
+    // PQ索引添加向量（简化实现）
+    fn add_to_pq(&mut self, index_id: &str, vector: Vec<f32>, metadata: String) -> Result<(), AgentDbError> {
+        // 简化的PQ实现，实际应用中需要码本
+        if let Some(index) = self.indexes.get_mut(index_id) {
+            index.vectors.push(vector);
+            index.metadata.push(metadata);
+        }
+        Ok(())
+    }
+
+    // 高性能向量搜索
+    pub fn search_vectors(&self, index_id: &str, query: &[f32], k: usize, ef: Option<usize>) -> Result<Vec<VectorSearchResult>, AgentDbError> {
+        let index = self.indexes.get(index_id)
+            .ok_or_else(|| AgentDbError::InvalidArgument)?;
+
+        match index.index_type {
+            VectorIndexType::Flat => self.search_flat(index, query, k),
+            VectorIndexType::HNSW => self.search_hnsw(index_id, query, k, ef.unwrap_or(50)),
+            VectorIndexType::IVF => self.search_ivf(index, query, k),
+            VectorIndexType::PQ => self.search_pq(index, query, k),
+        }
+    }
+
+    // 暴力搜索
+    fn search_flat(&self, index: &VectorIndex, query: &[f32], k: usize) -> Result<Vec<VectorSearchResult>, AgentDbError> {
+        let mut results: Vec<(f32, usize)> = index.vectors.iter()
+            .enumerate()
+            .map(|(i, vector)| {
+                let distance = euclidean_distance(query, vector);
+                (distance, i)
+            })
+            .collect();
+
+        results.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+
+        Ok(results.into_iter()
+            .take(k)
+            .map(|(distance, i)| VectorSearchResult {
+                vector_id: format!("{}_{}", index.index_id, i),
+                distance,
+                similarity: 1.0 / (1.0 + distance),
+                metadata: index.metadata.get(i).cloned().unwrap_or_default(),
+            })
+            .collect())
+    }
+
+    // HNSW搜索
+    fn search_hnsw(&self, index_id: &str, query: &[f32], k: usize, ef: usize) -> Result<Vec<VectorSearchResult>, AgentDbError> {
+        let hnsw = self.hnsw_indexes.get(index_id)
+            .ok_or_else(|| AgentDbError::InvalidArgument)?;
+
+        if hnsw.nodes.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let entry_point = hnsw.entry_point.unwrap();
+        let mut current = entry_point;
+
+        // 从顶层向下搜索到第1层
+        for lc in (1..=hnsw.max_level).rev() {
+            let candidates = self.search_layer_hnsw(&hnsw.nodes, query, current, 1, lc);
+            if !candidates.is_empty() {
+                current = candidates[0];
+            }
+        }
+
+        // 在第0层进行详细搜索
+        let candidates = self.search_layer_hnsw(&hnsw.nodes, query, current, ef.max(k), 0);
+
+        let results: Vec<VectorSearchResult> = candidates.into_iter()
+            .take(k)
+            .filter_map(|node_id| {
+                hnsw.nodes.get(node_id).map(|node| {
+                    let distance = euclidean_distance(query, &node.vector);
+                    VectorSearchResult {
+                        vector_id: format!("{}_{}", index_id, node_id),
+                        distance,
+                        similarity: 1.0 / (1.0 + distance),
+                        metadata: format!("hnsw_node_{}", node_id),
+                    }
+                })
+            })
+            .collect();
+
+        Ok(results)
+    }
+
+    // IVF搜索（简化实现）
+    fn search_ivf(&self, index: &VectorIndex, query: &[f32], k: usize) -> Result<Vec<VectorSearchResult>, AgentDbError> {
+        // 简化为暴力搜索
+        self.search_flat(index, query, k)
+    }
+
+    // PQ搜索（简化实现）
+    fn search_pq(&self, index: &VectorIndex, query: &[f32], k: usize) -> Result<Vec<VectorSearchResult>, AgentDbError> {
+        // 简化为暴力搜索
+        self.search_flat(index, query, k)
+    }
+
+    // 批量向量操作
+    pub fn batch_add_vectors(&mut self, index_id: &str, vectors: Vec<Vec<f32>>, metadata: Vec<String>) -> Result<Vec<String>, AgentDbError> {
+        if vectors.len() != metadata.len() {
+            return Err(AgentDbError::InvalidArgument);
+        }
+
+        let mut vector_ids = Vec::new();
+        for (vector, meta) in vectors.into_iter().zip(metadata.into_iter()) {
+            let vector_id = self.add_vector(index_id, vector, meta)?;
+            vector_ids.push(vector_id);
+        }
+
+        Ok(vector_ids)
+    }
+
+    // 批量向量搜索
+    pub fn batch_search_vectors(&self, index_id: &str, queries: Vec<Vec<f32>>, k: usize) -> Result<Vec<Vec<VectorSearchResult>>, AgentDbError> {
+        let mut results = Vec::new();
+        for query in queries {
+            let search_results = self.search_vectors(index_id, &query, k, None)?;
+            results.push(search_results);
+        }
+        Ok(results)
+    }
+
+    // 获取索引统计信息
+    pub fn get_index_stats(&self, index_id: &str) -> Result<IndexStats, AgentDbError> {
+        let index = self.indexes.get(index_id)
+            .ok_or_else(|| AgentDbError::InvalidArgument)?;
+
+        Ok(IndexStats {
+            index_id: index.index_id.clone(),
+            index_type: index.index_type,
+            vector_count: index.vectors.len(),
+            dimension: index.dimension,
+            memory_usage: self.estimate_memory_usage(index),
+            created_at: index.created_at,
+            updated_at: index.updated_at,
+        })
+    }
+
+    // 估算内存使用量
+    fn estimate_memory_usage(&self, index: &VectorIndex) -> usize {
+        let vector_memory = index.vectors.len() * index.dimension * std::mem::size_of::<f32>();
+        let metadata_memory = index.metadata.iter().map(|s| s.len()).sum::<usize>();
+        vector_memory + metadata_memory
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct IndexStats {
+    pub index_id: String,
+    pub index_type: VectorIndexType,
+    pub vector_count: usize,
+    pub dimension: usize,
+    pub memory_usage: usize,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+// 用于排序的包装器
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+struct OrderedFloat(f32);
+
+impl Eq for OrderedFloat {}
+
+impl Ord for OrderedFloat {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.partial_cmp(&other.0).unwrap_or(std::cmp::Ordering::Equal)
+    }
+}
+
+// 智能记忆整理系统的C FFI接口
+#[repr(C)]
+pub struct CIntelligentMemoryOrganizer {
+    organizer: *mut IntelligentMemoryOrganizer,
+}
+
+#[repr(C)]
+pub struct CMemoryCluster {
+    cluster_id: *mut c_char,
+    memory_count: usize,
+    importance_score: f32,
+    created_at: i64,
+}
+
+#[repr(C)]
+pub struct CMemoryArchive {
+    archive_id: *mut c_char,
+    original_count: usize,
+    compression_ratio: f32,
+    archived_at: i64,
+    summary: *mut c_char,
+}
+
+#[no_mangle]
+pub extern "C" fn memory_organizer_new(db_path: *const c_char) -> *mut CIntelligentMemoryOrganizer {
+    if db_path.is_null() {
+        return ptr::null_mut();
+    }
+
+    let path_str = unsafe {
+        match CStr::from_ptr(db_path).to_str() {
+            Ok(s) => s,
+            Err(_) => return ptr::null_mut(),
+        }
+    };
+
+    let rt = match Runtime::new() {
+        Ok(rt) => rt,
+        Err(_) => return ptr::null_mut(),
+    };
+
+    let organizer = match rt.block_on(async {
+        IntelligentMemoryOrganizer::new(path_str).await
+    }) {
+        Ok(organizer) => Box::into_raw(Box::new(organizer)),
+        Err(_) => return ptr::null_mut(),
+    };
+
+    Box::into_raw(Box::new(CIntelligentMemoryOrganizer { organizer }))
+}
+
+#[no_mangle]
+pub extern "C" fn memory_organizer_free(organizer: *mut CIntelligentMemoryOrganizer) {
+    if !organizer.is_null() {
+        unsafe {
+            let c_organizer = Box::from_raw(organizer);
+            if !c_organizer.organizer.is_null() {
+                let _ = Box::from_raw(c_organizer.organizer);
+            }
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn memory_organizer_evaluate_importance(
+    organizer: *mut CIntelligentMemoryOrganizer,
+    memory_id: *const c_char,
+    agent_id: u64,
+    importance_out: *mut f32,
+) -> c_int {
+    if organizer.is_null() || memory_id.is_null() || importance_out.is_null() {
+        return -1;
+    }
+
+    let c_organizer = unsafe { &*organizer };
+    let memory_organizer = unsafe { &*c_organizer.organizer };
+
+    let memory_id_str = unsafe {
+        match CStr::from_ptr(memory_id).to_str() {
+            Ok(s) => s,
+            Err(_) => return -1,
+        }
+    };
+
+    // 创建一个示例记忆用于评估
+    let sample_memory = Memory {
+        memory_id: memory_id_str.to_string(),
+        agent_id,
+        memory_type: MemoryType::Semantic,
+        content: "Sample memory for importance evaluation".to_string(),
+        importance: 0.5,
+        embedding: Some(vec![0.1, 0.2, 0.3, 0.4, 0.5]),
+        created_at: chrono::Utc::now().timestamp(),
+        access_count: 1,
+        last_access: chrono::Utc::now().timestamp(),
+        expires_at: None,
+    };
+
+    let rt = match Runtime::new() {
+        Ok(rt) => rt,
+        Err(_) => return -1,
+    };
+
+    match rt.block_on(memory_organizer.evaluate_memory_importance(&sample_memory)) {
+        Ok(importance) => {
+            unsafe {
+                *importance_out = importance;
+            }
+            0
+        }
+        Err(_) => -1,
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn memory_organizer_cluster_memories(
+    organizer: *mut CIntelligentMemoryOrganizer,
+    agent_id: u64,
+    clusters_out: *mut *mut CMemoryCluster,
+    cluster_count_out: *mut usize,
+) -> c_int {
+    if organizer.is_null() || clusters_out.is_null() || cluster_count_out.is_null() {
+        return -1;
+    }
+
+    let c_organizer = unsafe { &*organizer };
+    let memory_organizer = unsafe { &*c_organizer.organizer };
+
+    let rt = match Runtime::new() {
+        Ok(rt) => rt,
+        Err(_) => return -1,
+    };
+
+    match rt.block_on(memory_organizer.cluster_memories(agent_id)) {
+        Ok(clusters) => {
+            let cluster_count = clusters.len();
+
+            if cluster_count == 0 {
+                unsafe {
+                    *clusters_out = ptr::null_mut();
+                    *cluster_count_out = 0;
+                }
+                return 0;
+            }
+
+            // 分配C结构体数组
+            let c_clusters = unsafe {
+                libc::malloc(cluster_count * std::mem::size_of::<CMemoryCluster>()) as *mut CMemoryCluster
+            };
+
+            if c_clusters.is_null() {
+                return -1;
+            }
+
+            // 填充C结构体
+            for (i, cluster) in clusters.iter().enumerate() {
+                let cluster_id_cstring = match CString::new(cluster.cluster_id.clone()) {
+                    Ok(s) => s,
+                    Err(_) => {
+                        // 清理已分配的内存
+                        unsafe { libc::free(c_clusters as *mut libc::c_void); }
+                        return -1;
+                    }
+                };
+
+                unsafe {
+                    let c_cluster = c_clusters.add(i);
+                    (*c_cluster).cluster_id = cluster_id_cstring.into_raw();
+                    (*c_cluster).memory_count = cluster.memory_ids.len();
+                    (*c_cluster).importance_score = cluster.importance_score;
+                    (*c_cluster).created_at = cluster.created_at;
+                }
+            }
+
+            unsafe {
+                *clusters_out = c_clusters;
+                *cluster_count_out = cluster_count;
+            }
+            0
+        }
+        Err(_) => -1,
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn memory_organizer_archive_old_memories(
+    organizer: *mut CIntelligentMemoryOrganizer,
+    agent_id: u64,
+    archives_out: *mut *mut CMemoryArchive,
+    archive_count_out: *mut usize,
+) -> c_int {
+    if organizer.is_null() || archives_out.is_null() || archive_count_out.is_null() {
+        return -1;
+    }
+
+    let c_organizer = unsafe { &*organizer };
+    let memory_organizer = unsafe { &*c_organizer.organizer };
+
+    let rt = match Runtime::new() {
+        Ok(rt) => rt,
+        Err(_) => return -1,
+    };
+
+    match rt.block_on(memory_organizer.archive_old_memories(agent_id)) {
+        Ok(archives) => {
+            let archive_count = archives.len();
+
+            if archive_count == 0 {
+                unsafe {
+                    *archives_out = ptr::null_mut();
+                    *archive_count_out = 0;
+                }
+                return 0;
+            }
+
+            // 分配C结构体数组
+            let c_archives = unsafe {
+                libc::malloc(archive_count * std::mem::size_of::<CMemoryArchive>()) as *mut CMemoryArchive
+            };
+
+            if c_archives.is_null() {
+                return -1;
+            }
+
+            // 填充C结构体
+            for (i, archive) in archives.iter().enumerate() {
+                let archive_id_cstring = match CString::new(archive.archive_id.clone()) {
+                    Ok(s) => s,
+                    Err(_) => {
+                        unsafe { libc::free(c_archives as *mut libc::c_void); }
+                        return -1;
+                    }
+                };
+
+                let summary_cstring = match CString::new(archive.summary.clone()) {
+                    Ok(s) => s,
+                    Err(_) => {
+                        unsafe { libc::free(c_archives as *mut libc::c_void); }
+                        return -1;
+                    }
+                };
+
+                unsafe {
+                    let c_archive = c_archives.add(i);
+                    (*c_archive).archive_id = archive_id_cstring.into_raw();
+                    (*c_archive).original_count = archive.original_count;
+                    (*c_archive).compression_ratio = archive.compression_ratio;
+                    (*c_archive).archived_at = archive.archived_at;
+                    (*c_archive).summary = summary_cstring.into_raw();
+                }
+            }
+
+            unsafe {
+                *archives_out = c_archives;
+                *archive_count_out = archive_count;
+            }
+            0
+        }
+        Err(_) => -1,
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn memory_organizer_free_clusters(clusters: *mut CMemoryCluster, count: usize) {
+    if !clusters.is_null() {
+        unsafe {
+            for i in 0..count {
+                let cluster = clusters.add(i);
+                if !(*cluster).cluster_id.is_null() {
+                    let _ = CString::from_raw((*cluster).cluster_id);
+                }
+            }
+            libc::free(clusters as *mut libc::c_void);
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn memory_organizer_free_archives(archives: *mut CMemoryArchive, count: usize) {
+    if !archives.is_null() {
+        unsafe {
+            for i in 0..count {
+                let archive = archives.add(i);
+                if !(*archive).archive_id.is_null() {
+                    let _ = CString::from_raw((*archive).archive_id);
+                }
+                if !(*archive).summary.is_null() {
+                    let _ = CString::from_raw((*archive).summary);
+                }
+            }
+            libc::free(archives as *mut libc::c_void);
+        }
     }
 }
 

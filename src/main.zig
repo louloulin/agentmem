@@ -45,29 +45,29 @@ pub fn main() !void {
     }
 
     // 测试记忆功能
-    std.debug.print("\n3. Testing Memory operations...\n");
+    std.debug.print("\n3. Testing Memory operations...\n", .{});
     try db.addMemory(agent_id, "This is a test memory", MemoryType.episodic, 0.8);
-    std.debug.print("✅ Added memory\n");
+    std.debug.print("✅ Added memory\n", .{});
 
     const memory_count = try db.retrieveMemories(agent_id, 10);
     std.debug.print("✅ Retrieved {} memories\n", .{memory_count});
 
     // 测试文档索引
-    std.debug.print("\n4. Testing Document operations...\n");
+    std.debug.print("\n4. Testing Document operations...\n", .{});
     try db.addDocument("Test Document", "This is a test document for the Zig API demonstration.");
-    std.debug.print("✅ Indexed document\n");
+    std.debug.print("✅ Indexed document\n", .{});
 
     const search_count = try db.searchText("test document", 5);
     std.debug.print("✅ Search found {} results\n", .{search_count});
 
     // 测试RAG功能
-    std.debug.print("\n5. Testing RAG operations...\n");
+    std.debug.print("\n5. Testing RAG operations...\n", .{});
     const context = try db.queryKnowledge("What is this test about?");
     defer allocator.free(context);
     std.debug.print("✅ Built context ({} chars): {s}...\n", .{ context.len, context[0..@min(50, context.len)] });
 
-    std.debug.print("\n🎉 All tests completed successfully!\n");
-    std.debug.print("📊 The Zig API is working correctly.\n");
+    std.debug.print("\n🎉 All tests completed successfully!\n", .{});
+    std.debug.print("📊 The Zig API is working correctly.\n", .{});
 }
 
 // 单元测试

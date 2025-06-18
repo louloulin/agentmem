@@ -21,6 +21,8 @@ thiserror = "1.0"
 anyhow = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 cbindgen = "0.26"
+libc = "0.2"
+rand = "0.8"
 
 [build-dependencies]
 cbindgen = "0.26"
