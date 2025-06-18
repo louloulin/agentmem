@@ -5,7 +5,7 @@ use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
 use futures::TryStreamExt;
 use lancedb::{Connection, Table};
-use lancedb::query::{QueryBase, ExecutableQuery, VectorQuery};
+use lancedb::query::{QueryBase, ExecutableQuery};
 
 use crate::types::{AgentDbError, VectorIndexType, VectorSearchResult, IndexStats};
 
@@ -71,10 +71,12 @@ impl VectorSearchEngine {
 
         // 创建固定大小列表数组
         let vector_values = Float32Array::from(vector);
-        let vector_list = FixedSizeListArray::from_iter_primitive::<arrow::datatypes::Float32Type, _, _>(
-            std::iter::once(Some(vector_values.values().iter().cloned())),
+        let vector_list = FixedSizeListArray::try_new(
+            Arc::new(Field::new("item", DataType::Float32, false)),
             self.dimension as i32,
-        );
+            Arc::new(vector_values),
+            None,
+        )?;
 
         let batch = RecordBatch::try_new(
             schema.clone(),
@@ -226,11 +228,14 @@ impl VectorSearchEngine {
             vector_data.extend_from_slice(vector);
         }
 
-        let vector_values = Float32Array::from(vector_data);
-        let vector_list = FixedSizeListArray::from_iter_primitive::<arrow::datatypes::Float32Type, _, _>(
-            vectors.iter().map(|(_, vector, _)| Some(vector.iter().cloned())),
+        // 创建批量向量数组
+        let all_vector_values = Float32Array::from(vector_data);
+        let vector_list = FixedSizeListArray::try_new(
+            Arc::new(Field::new("item", DataType::Float32, false)),
             self.dimension as i32,
-        );
+            Arc::new(all_vector_values),
+            None,
+        )?;
 
         let batch = RecordBatch::try_new(
             schema.clone(),

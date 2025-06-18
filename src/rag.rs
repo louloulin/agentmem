@@ -1,7 +1,7 @@
 // RAG (检索增强生成) 模块
 use std::collections::HashMap;
 use std::sync::Arc;
-use arrow::array::{Array, Float32Array, StringArray, UInt32Array, Int64Array, RecordBatchIterator};
+use arrow::array::{Array, StringArray, UInt32Array, Int64Array, RecordBatchIterator};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
 use futures::TryStreamExt;

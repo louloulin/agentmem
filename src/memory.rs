@@ -196,7 +196,7 @@ impl MemoryManager {
         let mut memories = Vec::new();
         while let Some(batch) = results.try_next().await? {
             for row in 0..batch.num_rows() {
-                let mut memory = self.batch_to_memory(&batch, row)?;
+                let memory = self.batch_to_memory(&batch, row)?;
                 
                 // 计算当前重要性
                 let current_importance = memory.calculate_importance(current_time);
