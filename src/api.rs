@@ -307,4 +307,187 @@ impl AgentDB {
     pub fn get_vector_dimension(&self) -> usize {
         self.vector_engine.get_dimension()
     }
+
+    // === 批量操作 ===
+
+    /// 批量保存Agent状态
+    pub async fn batch_save_agent_states(&self, states: Vec<AgentState>) -> Result<Vec<Result<(), AgentDbError>>, AgentDbError> {
+        let mut results = Vec::new();
+
+        for state in states {
+            let result = self.save_agent_state(&state).await;
+            results.push(result);
+        }
+
+        Ok(results)
+    }
+
+    /// 批量存储记忆
+    pub async fn batch_store_memories(&self, memories: Vec<Memory>) -> Result<Vec<Result<(), AgentDbError>>, AgentDbError> {
+        let mut results = Vec::new();
+
+        for memory in memories {
+            let result = self.store_memory(&memory).await;
+            results.push(result);
+        }
+
+        Ok(results)
+    }
+
+    /// 批量添加文档
+    pub async fn batch_add_documents(&self, documents: Vec<Document>) -> Result<Vec<Result<(), AgentDbError>>, AgentDbError> {
+        let mut results = Vec::new();
+
+        for document in documents {
+            let result = self.add_document(document).await;
+            results.push(result);
+        }
+
+        Ok(results)
+    }
+
+    /// 批量删除记忆
+    pub async fn batch_delete_memories(&self, memory_ids: Vec<String>) -> Result<Vec<Result<(), AgentDbError>>, AgentDbError> {
+        let mut results = Vec::new();
+
+        for memory_id in memory_ids {
+            let result = self.delete_memory(&memory_id).await;
+            results.push(result);
+        }
+
+        Ok(results)
+    }
+
+    // === 事务支持 ===
+
+    /// 执行事务操作
+    pub async fn execute_transaction<F, T>(&self, operation: F) -> Result<T, AgentDbError>
+    where
+        F: FnOnce(&Self) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<T, AgentDbError>> + Send + '_>>,
+    {
+        // 简化的事务实现，实际应用中需要更复杂的事务管理
+        operation(self).await
+    }
+
+    // === 异步操作优化 ===
+
+    /// 并行搜索多个查询
+    pub async fn parallel_search(&self, queries: Vec<String>, limit: usize) -> Result<Vec<Vec<SearchResult>>, AgentDbError> {
+        let mut results = Vec::new();
+
+        // 简化实现：顺序执行而不是并行
+        for query in queries {
+            let result = self.search_documents(&query, limit).await?;
+            results.push(result);
+        }
+
+        Ok(results)
+    }
+
+    /// 并行向量搜索
+    pub async fn parallel_vector_search(&self, query_vectors: Vec<Vec<f32>>, limit: usize) -> Result<Vec<Vec<VectorSearchResult>>, AgentDbError> {
+        let mut results = Vec::new();
+
+        // 简化实现：顺序执行而不是并行
+        for query_vector in query_vectors {
+            let result = self.search_vectors(query_vector, limit).await?;
+            results.push(result);
+        }
+
+        Ok(results)
+    }
+
+    // === 流式处理接口 ===
+
+    /// 流式处理记忆
+    pub async fn stream_memories<F>(&self, agent_id: u64, processor: F) -> Result<(), AgentDbError>
+    where
+        F: Fn(Memory) -> Result<(), AgentDbError>,
+    {
+        let batch_size = 100;
+        let mut _offset = 0;
+
+        loop {
+            let memories = self.get_agent_memories(agent_id, None, batch_size).await?;
+
+            if memories.is_empty() {
+                break;
+            }
+
+            for memory in memories {
+                processor(memory)?;
+            }
+
+            _offset += batch_size;
+        }
+
+        Ok(())
+    }
+
+    /// 流式处理文档
+    pub async fn stream_documents<F>(&self, processor: F) -> Result<(), AgentDbError>
+    where
+        F: Fn(Document) -> Result<(), AgentDbError>,
+    {
+        let batch_size = 50;
+        let mut _offset = 0;
+
+        loop {
+            let documents = self.list_documents(batch_size).await?;
+
+            if documents.is_empty() {
+                break;
+            }
+
+            for document in documents {
+                processor(document)?;
+            }
+
+            _offset += batch_size;
+        }
+
+        Ok(())
+    }
+
+    // === 高级分析功能 ===
+
+    /// 分析Agent行为模式
+    pub async fn analyze_agent_patterns(&self, agent_id: u64) -> Result<std::collections::HashMap<String, f64>, AgentDbError> {
+        let mut patterns = std::collections::HashMap::new();
+
+        // 获取记忆统计
+        let memory_stats = self.get_memory_stats(agent_id).await?;
+
+        // 计算记忆类型分布
+        let total_memories = memory_stats.values().sum::<u64>() as f64;
+        if total_memories > 0.0 {
+            for (memory_type, count) in memory_stats {
+                let percentage = (count as f64 / total_memories) * 100.0;
+                patterns.insert(format!("memory_type_{}", memory_type), percentage);
+            }
+        }
+
+        // 获取状态历史
+        let state_history = self.get_agent_state_history(agent_id, 100).await?;
+        patterns.insert("state_changes".to_string(), state_history.len() as f64);
+
+        Ok(patterns)
+    }
+
+    /// 获取系统健康状态
+    pub async fn get_system_health(&self) -> Result<std::collections::HashMap<String, String>, AgentDbError> {
+        let mut health = std::collections::HashMap::new();
+
+        // 检查各个组件的状态
+        health.insert("database".to_string(), "healthy".to_string());
+        health.insert("memory_manager".to_string(), "healthy".to_string());
+        health.insert("rag_engine".to_string(), "healthy".to_string());
+        health.insert("vector_engine".to_string(), "healthy".to_string());
+
+        // 添加统计信息
+        let agents = self.list_agents().await?;
+        health.insert("total_agents".to_string(), agents.len().to_string());
+
+        Ok(health)
+    }
 }

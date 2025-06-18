@@ -54,6 +54,8 @@ pub mod rag;
 pub mod vector;
 pub mod api;
 pub mod ffi;
+pub mod performance;
+pub mod monitoring;
 
 // 重新导出主要类型和API
 pub use types::*;
@@ -63,6 +65,8 @@ pub use database::AgentStateDB;
 pub use memory::MemoryManager;
 pub use rag::RAGEngine;
 pub use vector::{VectorSearchEngine, AdvancedVectorEngine};
+pub use performance::{CacheManager, ConnectionPool, BatchOperationManager, MemoryManager as PerfMemoryManager};
+pub use monitoring::{MonitoringManager, LogLevel, HealthStatus};
 
 // 版本信息
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
