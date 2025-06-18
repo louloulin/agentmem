@@ -1,180 +1,30 @@
-// Agent状态数据库 - 基于LanceDB的Rust实现
-use std::collections::HashMap;
-use std::ffi::{CStr, CString};
-use std::os::raw::{c_char, c_int};
-use std::ptr;
-use std::sync::Arc;
-use rand::Rng;
+// Agent状态数据库库 - 模块化实现
+//! Agent状态数据库
+//!
+//! 这是一个基于LanceDB的Agent状态管理系统，提供：
+//! - Agent状态持久化
+//! - 记忆管理
+//! - RAG（检索增强生成）功能
+//! - 向量搜索
+//! - 统一的API接口
 
-use arrow::array::{Array, BinaryArray, Int64Array, StringArray, UInt64Array, RecordBatchIterator};
-use arrow::datatypes::{DataType, Field, Schema};
-use arrow::record_batch::RecordBatch;
-use futures::TryStreamExt;
-use lancedb::{connect, Connection, Table};
-use lancedb::query::{QueryBase, ExecutableQuery};
-use serde::{Deserialize, Serialize};
-use tokio::runtime::Runtime;
-use uuid::Uuid;
+// 模块声明
+pub mod types;
+pub mod database;
+pub mod memory;
+pub mod rag;
+pub mod vector;
+pub mod api;
 
-// 错误类型定义
-#[derive(Debug, thiserror::Error)]
-pub enum AgentDbError {
-    #[error("Lance error: {0}")]
-    Lance(#[from] lancedb::Error),
-    #[error("Arrow error: {0}")]
-    Arrow(#[from] arrow::error::ArrowError),
-    #[error("Serialization error: {0}")]
-    Serde(#[from] serde_json::Error),
-    #[error("Invalid argument: {0}")]
-    InvalidArgument(String),
-    #[error("Not found: {0}")]
-    NotFound(String),
-    #[error("Internal error: {0}")]
-    Internal(String),
-}
+// 重新导出主要类型和API
+pub use types::*;
+pub use api::AgentDB;
+pub use database::AgentStateDB;
+pub use memory::MemoryManager;
+pub use rag::RAGEngine;
+pub use vector::VectorSearchEngine;
 
-// Agent状态类型
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum StateType {
-    WorkingMemory,
-    LongTermMemory,
-    Context,
-    TaskState,
-    Relationship,
-    Embedding,
-}
 
-impl StateType {
-    pub fn to_string(&self) -> &'static str {
-        match self {
-            StateType::WorkingMemory => "working_memory",
-            StateType::LongTermMemory => "long_term_memory",
-            StateType::Context => "context",
-            StateType::TaskState => "task_state",
-            StateType::Relationship => "relationship",
-            StateType::Embedding => "embedding",
-        }
-    }
-
-    pub fn from_string(s: &str) -> Option<Self> {
-        match s {
-            "working_memory" => Some(StateType::WorkingMemory),
-            "long_term_memory" => Some(StateType::LongTermMemory),
-            "context" => Some(StateType::Context),
-            "task_state" => Some(StateType::TaskState),
-            "relationship" => Some(StateType::Relationship),
-            "embedding" => Some(StateType::Embedding),
-            _ => None,
-        }
-    }
-}
-
-// Agent状态结构
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AgentState {
-    pub id: String,
-    pub agent_id: u64,
-    pub session_id: u64,
-    pub timestamp: i64,
-    pub state_type: StateType,
-    pub data: Vec<u8>,
-    pub metadata: HashMap<String, String>,
-    pub version: u32,
-    pub checksum: u32,
-}
-
-impl AgentState {
-    pub fn new(
-        agent_id: u64,
-        session_id: u64,
-        state_type: StateType,
-        data: Vec<u8>,
-    ) -> Self {
-        let timestamp = chrono::Utc::now().timestamp();
-        let checksum = Self::calculate_checksum(&data);
-
-        Self {
-            id: Uuid::new_v4().to_string(),
-            agent_id,
-            session_id,
-            timestamp,
-            state_type,
-            data,
-            metadata: HashMap::new(),
-            version: 1,
-            checksum,
-        }
-    }
-
-    pub fn calculate_checksum(data: &[u8]) -> u32 {
-        data.iter().fold(0u32, |acc, &byte| acc.wrapping_add(byte as u32))
-    }
-
-    pub fn validate_checksum(&self) -> bool {
-        Self::calculate_checksum(&self.data) == self.checksum
-    }
-
-    pub fn update_data(&mut self, new_data: Vec<u8>) {
-        self.data = new_data;
-        self.checksum = Self::calculate_checksum(&self.data);
-        self.version += 1;
-        self.timestamp = chrono::Utc::now().timestamp();
-    }
-
-    pub fn set_metadata(&mut self, key: String, value: String) {
-        self.metadata.insert(key, value);
-    }
-
-    pub fn get_metadata(&self, key: &str) -> Option<&String> {
-        self.metadata.get(key)
-    }
-}
-
-// Agent状态数据库
-pub struct AgentStateDB {
-    connection: Connection,
-}
-
-impl AgentStateDB {
-    pub async fn new(db_path: &str) -> Result<Self, AgentDbError> {
-        let connection = connect(db_path).execute().await?;
-        Ok(Self { connection })
-    }
-
-    pub async fn ensure_table(&self) -> Result<Table, AgentDbError> {
-        // 尝试打开现有表
-        match self.connection.open_table("agent_states").execute().await {
-            Ok(table) => Ok(table),
-            Err(_) => {
-                // 如果表不存在，创建新表
-                let schema = Schema::new(vec![
-                    Field::new("id", DataType::Utf8, false),
-                    Field::new("agent_id", DataType::UInt64, false),
-                    Field::new("session_id", DataType::UInt64, false),
-                    Field::new("timestamp", DataType::Int64, false),
-                    Field::new("state_type", DataType::Utf8, false),
-                    Field::new("data", DataType::Binary, false),
-                    Field::new("metadata", DataType::Utf8, false),
-                    Field::new("version", DataType::UInt64, false),
-                    Field::new("checksum", DataType::UInt64, false),
-                ]);
-
-                // 创建空的RecordBatch迭代器
-                let empty_batches = RecordBatchIterator::new(
-                    std::iter::empty::<Result<RecordBatch, arrow::error::ArrowError>>(),
-                    Arc::new(schema),
-                );
-
-                let table = self
-                    .connection
-                    .create_table("agent_states", Box::new(empty_batches))
-                    .execute()
-                    .await?;
-
-                Ok(table)
-            }
-        }
-    }
 
     pub async fn save_state(&self, state: &AgentState) -> Result<(), AgentDbError> {
         let table = self.ensure_table().await?;
