@@ -13,8 +13,8 @@ pub fn build(b: *std.Build) void {
 
     // 创建Agent状态数据库库
     const agent_db_lib = b.addStaticLibrary(.{
-        .name = "agent_db",
-        .root_source_file = b.path("src/agent_db.zig"),
+        .name = "agent_db_zig",
+        .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -45,7 +45,7 @@ pub fn build(b: *std.Build) void {
 
     // 创建完整测试（依赖Rust库）
     const tests = b.addTest(.{
-        .root_source_file = b.path("src/test.zig"),
+        .root_source_file = b.path("src/test_zig_api.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -59,7 +59,7 @@ pub fn build(b: *std.Build) void {
     // 创建示例程序
     const example = b.addExecutable(.{
         .name = "agent_db_example",
-        .root_source_file = b.path("examples/basic_usage.zig"),
+        .root_source_file = b.path("examples/zig_api_demo.zig"),
         .target = target,
         .optimize = optimize,
     });
