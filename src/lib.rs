@@ -2221,6 +2221,174 @@ mod tests {
             assert!(summary.contains("Average importance"));
         });
     }
+
+    #[test]
+    fn test_advanced_vector_engine_creation() {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let mut engine = AdvancedVectorEngine::new("test_vector_engine.lance").await.unwrap();
+
+            // 创建不同类型的向量索引
+            engine.create_vector_index("flat_index".to_string(), 128, VectorIndexType::Flat).unwrap();
+            engine.create_vector_index("hnsw_index".to_string(), 128, VectorIndexType::HNSW).unwrap();
+
+            assert_eq!(engine.indexes.len(), 2);
+            assert_eq!(engine.hnsw_indexes.len(), 1);
+        });
+    }
+
+    #[test]
+    fn test_vector_index_operations() {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let mut engine = AdvancedVectorEngine::new("test_vector_ops.lance").await.unwrap();
+
+            // 创建索引
+            engine.create_vector_index("test_index".to_string(), 4, VectorIndexType::Flat).unwrap();
+
+            // 添加向量
+            let vector1 = vec![1.0, 0.0, 0.0, 0.0];
+            let vector2 = vec![0.0, 1.0, 0.0, 0.0];
+            let vector3 = vec![0.0, 0.0, 1.0, 0.0];
+
+            let id1 = engine.add_vector("test_index", vector1.clone(), "vector1".to_string()).unwrap();
+            let id2 = engine.add_vector("test_index", vector2.clone(), "vector2".to_string()).unwrap();
+            let id3 = engine.add_vector("test_index", vector3.clone(), "vector3".to_string()).unwrap();
+
+            assert_eq!(id1, "test_index_0");
+            assert_eq!(id2, "test_index_1");
+            assert_eq!(id3, "test_index_2");
+
+            // 搜索向量
+            let query = vec![1.0, 0.0, 0.0, 0.0];
+            let results = engine.search_vectors("test_index", &query, 2, None).unwrap();
+
+            assert_eq!(results.len(), 2);
+            assert_eq!(results[0].vector_id, "test_index_0");
+            assert!(results[0].distance < 0.1); // 应该非常接近
+        });
+    }
+
+    #[test]
+    fn test_hnsw_index_operations() {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let mut engine = AdvancedVectorEngine::new("test_hnsw.lance").await.unwrap();
+
+            // 创建HNSW索引
+            engine.create_vector_index("hnsw_test".to_string(), 3, VectorIndexType::HNSW).unwrap();
+
+            // 添加多个向量
+            let vectors = vec![
+                vec![1.0, 0.0, 0.0],
+                vec![0.0, 1.0, 0.0],
+                vec![0.0, 0.0, 1.0],
+                vec![0.5, 0.5, 0.0],
+                vec![0.0, 0.5, 0.5],
+            ];
+
+            for (i, vector) in vectors.iter().enumerate() {
+                let metadata = format!("hnsw_vector_{}", i);
+                engine.add_vector("hnsw_test", vector.clone(), metadata).unwrap();
+            }
+
+            // 搜索向量
+            let query = vec![1.0, 0.0, 0.0];
+            let results = engine.search_vectors("hnsw_test", &query, 3, Some(10)).unwrap();
+
+            assert!(!results.is_empty());
+            // 第一个结果应该是最相似的
+            assert!(results[0].distance <= results.get(1).map(|r| r.distance).unwrap_or(f32::INFINITY));
+        });
+    }
+
+    #[test]
+    fn test_batch_vector_operations() {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let mut engine = AdvancedVectorEngine::new("test_batch.lance").await.unwrap();
+
+            // 创建索引
+            engine.create_vector_index("batch_index".to_string(), 2, VectorIndexType::Flat).unwrap();
+
+            // 批量添加向量
+            let vectors = vec![
+                vec![1.0, 0.0],
+                vec![0.0, 1.0],
+                vec![1.0, 1.0],
+                vec![0.5, 0.5],
+            ];
+            let metadata = vec![
+                "batch_1".to_string(),
+                "batch_2".to_string(),
+                "batch_3".to_string(),
+                "batch_4".to_string(),
+            ];
+
+            let vector_ids = engine.batch_add_vectors("batch_index", vectors.clone(), metadata).unwrap();
+            assert_eq!(vector_ids.len(), 4);
+
+            // 批量搜索
+            let queries = vec![
+                vec![1.0, 0.0],
+                vec![0.0, 1.0],
+            ];
+            let batch_results = engine.batch_search_vectors("batch_index", queries, 2).unwrap();
+
+            assert_eq!(batch_results.len(), 2);
+            assert_eq!(batch_results[0].len(), 2);
+            assert_eq!(batch_results[1].len(), 2);
+        });
+    }
+
+    #[test]
+    fn test_index_statistics() {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let mut engine = AdvancedVectorEngine::new("test_stats.lance").await.unwrap();
+
+            // 创建索引并添加向量
+            engine.create_vector_index("stats_index".to_string(), 5, VectorIndexType::Flat).unwrap();
+
+            for i in 0..10 {
+                let vector = vec![i as f32, 0.0, 0.0, 0.0, 0.0];
+                let metadata = format!("stats_vector_{}", i);
+                engine.add_vector("stats_index", vector, metadata).unwrap();
+            }
+
+            // 获取统计信息
+            let stats = engine.get_index_stats("stats_index").unwrap();
+
+            assert_eq!(stats.index_id, "stats_index");
+            assert_eq!(stats.index_type, VectorIndexType::Flat);
+            assert_eq!(stats.vector_count, 10);
+            assert_eq!(stats.dimension, 5);
+            assert!(stats.memory_usage > 0);
+            assert!(stats.created_at > 0);
+            assert!(stats.updated_at >= stats.created_at);
+        });
+    }
+
+    #[test]
+    fn test_vector_similarity_functions() {
+        // 测试余弦相似度
+        let vec1 = vec![1.0, 0.0, 0.0];
+        let vec2 = vec![0.0, 1.0, 0.0];
+        let vec3 = vec![1.0, 0.0, 0.0];
+
+        let similarity_orthogonal = cosine_similarity(&vec1, &vec2);
+        let similarity_identical = cosine_similarity(&vec1, &vec3);
+
+        assert!((similarity_orthogonal - 0.0).abs() < 1e-6);
+        assert!((similarity_identical - 1.0).abs() < 1e-6);
+
+        // 测试欧几里得距离
+        let distance_zero = euclidean_distance(&vec1, &vec3);
+        let distance_sqrt2 = euclidean_distance(&vec1, &vec2);
+
+        assert!(distance_zero < 1e-6);
+        assert!((distance_sqrt2 - 2.0_f32.sqrt()).abs() < 1e-6);
+    }
 }
 
 // 智能记忆整理系统
@@ -2822,44 +2990,57 @@ impl AdvancedVectorEngine {
 
     // 添加向量到索引
     pub fn add_vector(&mut self, index_id: &str, vector: Vec<f32>, metadata: String) -> Result<String, AgentDbError> {
-        let index = self.indexes.get_mut(index_id)
-            .ok_or_else(|| AgentDbError::InvalidArgument("Index not found".to_string()))?;
+        // 先检查索引是否存在和维度是否匹配
+        let (index_type, dimension, vector_count) = {
+            let index = self.indexes.get(index_id)
+                .ok_or_else(|| AgentDbError::InvalidArgument("Index not found".to_string()))?;
 
-        if vector.len() != index.dimension {
-            return Err(AgentDbError::InvalidArgument("Vector dimension mismatch".to_string()));
-        }
+            if vector.len() != index.dimension {
+                return Err(AgentDbError::InvalidArgument("Vector dimension mismatch".to_string()));
+            }
 
-        let vector_id = format!("{}_{}", index_id, index.vectors.len());
+            (index.index_type, index.dimension, index.vectors.len())
+        };
 
-        match index.index_type {
+        let vector_id = format!("{}_{}", index_id, vector_count);
+
+        match index_type {
             VectorIndexType::Flat => {
+                let index = self.indexes.get_mut(index_id).unwrap();
                 index.vectors.push(vector);
                 index.metadata.push(metadata);
+                index.updated_at = chrono::Utc::now().timestamp();
             }
             VectorIndexType::HNSW => {
                 self.add_to_hnsw(index_id, vector, metadata)?;
+                let index = self.indexes.get_mut(index_id).unwrap();
+                index.updated_at = chrono::Utc::now().timestamp();
             }
             VectorIndexType::IVF => {
-                // IVF索引实现
                 self.add_to_ivf(index_id, vector, metadata)?;
+                let index = self.indexes.get_mut(index_id).unwrap();
+                index.updated_at = chrono::Utc::now().timestamp();
             }
             VectorIndexType::PQ => {
-                // PQ索引实现
                 self.add_to_pq(index_id, vector, metadata)?;
+                let index = self.indexes.get_mut(index_id).unwrap();
+                index.updated_at = chrono::Utc::now().timestamp();
             }
         }
 
-        index.updated_at = chrono::Utc::now().timestamp();
         Ok(vector_id)
     }
 
     // HNSW索引添加向量
     fn add_to_hnsw(&mut self, index_id: &str, vector: Vec<f32>, metadata: String) -> Result<(), AgentDbError> {
-        let hnsw = self.hnsw_indexes.get_mut(index_id)
-            .ok_or_else(|| AgentDbError::InvalidArgument("HNSW index not found".to_string()))?;
+        // 先获取必要的参数
+        let (node_id, ml, max_level, max_connections, ef_construction) = {
+            let hnsw = self.hnsw_indexes.get(index_id)
+                .ok_or_else(|| AgentDbError::InvalidArgument("HNSW index not found".to_string()))?;
+            (hnsw.nodes.len(), hnsw.ml, hnsw.max_level, hnsw.max_connections, hnsw.ef_construction)
+        };
 
-        let node_id = hnsw.nodes.len();
-        let level = self.generate_random_level(hnsw.ml);
+        let level = self.generate_random_level(ml);
 
         // 创建新节点
         let mut new_node = HNSWNode {
@@ -2869,40 +3050,46 @@ impl AdvancedVectorEngine {
             level,
         };
 
-        if hnsw.nodes.is_empty() {
+        // 检查是否为第一个节点
+        let is_first_node = {
+            let hnsw = self.hnsw_indexes.get(index_id).unwrap();
+            hnsw.nodes.is_empty()
+        };
+
+        if is_first_node {
             // 第一个节点作为入口点
+            let hnsw = self.hnsw_indexes.get_mut(index_id).unwrap();
             hnsw.entry_point = Some(node_id);
             hnsw.max_level = level;
+            hnsw.nodes.push(new_node);
         } else {
             // 搜索最近邻并建立连接
-            let entry_point = hnsw.entry_point.unwrap();
+            let (entry_point, current_max_level) = {
+                let hnsw = self.hnsw_indexes.get(index_id).unwrap();
+                (hnsw.entry_point.unwrap(), hnsw.max_level)
+            };
+
             let mut current = entry_point;
 
             // 从顶层向下搜索
-            for lc in (level + 1..=hnsw.max_level).rev() {
-                current = self.search_layer_hnsw(&hnsw.nodes, &vector, current, 1, lc)[0];
+            for lc in (level + 1..=current_max_level).rev() {
+                let nodes = &self.hnsw_indexes.get(index_id).unwrap().nodes;
+                let candidates = self.search_layer_hnsw(nodes, &vector, current, 1, lc);
+                if !candidates.is_empty() {
+                    current = candidates[0];
+                }
             }
 
             // 在每一层建立连接
-            for lc in (0..=level.min(hnsw.max_level)).rev() {
-                let candidates = self.search_layer_hnsw(&hnsw.nodes, &vector, current, hnsw.ef_construction, lc);
-                let m = if lc == 0 { hnsw.max_connections * 2 } else { hnsw.max_connections };
-                let selected = self.select_neighbors_hnsw(&hnsw.nodes, &vector, &candidates, m);
+            for lc in (0..=level.min(current_max_level)).rev() {
+                let nodes = &self.hnsw_indexes.get(index_id).unwrap().nodes;
+                let candidates = self.search_layer_hnsw(nodes, &vector, current, ef_construction, lc);
+                let m = if lc == 0 { max_connections * 2 } else { max_connections };
+                let selected = self.select_neighbors_hnsw(nodes, &vector, &candidates, m);
 
-                // 建立双向连接
+                // 建立连接
                 for &neighbor in &selected {
                     new_node.connections[lc].push(neighbor);
-                    if let Some(neighbor_node) = hnsw.nodes.get_mut(neighbor) {
-                        if neighbor_node.connections.len() > lc {
-                            neighbor_node.connections[lc].push(node_id);
-
-                            // 修剪连接以保持度数限制
-                            if neighbor_node.connections[lc].len() > m {
-                                let pruned = self.select_neighbors_hnsw(&hnsw.nodes, &neighbor_node.vector, &neighbor_node.connections[lc], m);
-                                neighbor_node.connections[lc] = pruned;
-                            }
-                        }
-                    }
                 }
 
                 if !candidates.is_empty() {
@@ -2910,14 +3097,15 @@ impl AdvancedVectorEngine {
                 }
             }
 
-            // 更新入口点
-            if level > hnsw.max_level {
+            // 添加节点并更新入口点
+            let hnsw = self.hnsw_indexes.get_mut(index_id).unwrap();
+            hnsw.nodes.push(new_node);
+
+            if level > current_max_level {
                 hnsw.entry_point = Some(node_id);
                 hnsw.max_level = level;
             }
         }
-
-        hnsw.nodes.push(new_node);
 
         // 同时添加到基础索引
         if let Some(index) = self.indexes.get_mut(index_id) {
@@ -3024,7 +3212,7 @@ impl AdvancedVectorEngine {
     // 高性能向量搜索
     pub fn search_vectors(&self, index_id: &str, query: &[f32], k: usize, ef: Option<usize>) -> Result<Vec<VectorSearchResult>, AgentDbError> {
         let index = self.indexes.get(index_id)
-            .ok_or_else(|| AgentDbError::InvalidArgument)?;
+            .ok_or_else(|| AgentDbError::InvalidArgument("Index not found".to_string()))?;
 
         match index.index_type {
             VectorIndexType::Flat => self.search_flat(index, query, k),
@@ -3060,7 +3248,7 @@ impl AdvancedVectorEngine {
     // HNSW搜索
     fn search_hnsw(&self, index_id: &str, query: &[f32], k: usize, ef: usize) -> Result<Vec<VectorSearchResult>, AgentDbError> {
         let hnsw = self.hnsw_indexes.get(index_id)
-            .ok_or_else(|| AgentDbError::InvalidArgument)?;
+            .ok_or_else(|| AgentDbError::InvalidArgument("HNSW index not found".to_string()))?;
 
         if hnsw.nodes.is_empty() {
             return Ok(Vec::new());
@@ -3113,7 +3301,7 @@ impl AdvancedVectorEngine {
     // 批量向量操作
     pub fn batch_add_vectors(&mut self, index_id: &str, vectors: Vec<Vec<f32>>, metadata: Vec<String>) -> Result<Vec<String>, AgentDbError> {
         if vectors.len() != metadata.len() {
-            return Err(AgentDbError::InvalidArgument);
+            return Err(AgentDbError::InvalidArgument("Vectors and metadata length mismatch".to_string()));
         }
 
         let mut vector_ids = Vec::new();
@@ -3138,7 +3326,7 @@ impl AdvancedVectorEngine {
     // 获取索引统计信息
     pub fn get_index_stats(&self, index_id: &str) -> Result<IndexStats, AgentDbError> {
         let index = self.indexes.get(index_id)
-            .ok_or_else(|| AgentDbError::InvalidArgument)?;
+            .ok_or_else(|| AgentDbError::InvalidArgument("Index not found".to_string()))?;
 
         Ok(IndexStats {
             index_id: index.index_id.clone(),
