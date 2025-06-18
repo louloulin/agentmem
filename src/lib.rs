@@ -171,4 +171,96 @@ mod tests {
         let uuid = utils::hash::generate_uuid();
         assert!(!uuid.is_empty());
     }
+
+    #[test]
+    fn test_performance_functionality() {
+        // 测试缓存管理器
+        let config = config::PerformanceConfig::default();
+        let cache_manager = performance::CacheManager::new(config.clone());
+
+        // 测试缓存设置和获取
+        let query_hash = 12345u64;
+        let test_data = vec![1, 2, 3, 4, 5];
+        cache_manager.set(query_hash, test_data.clone(), 5);
+
+        let cached_data = cache_manager.get(query_hash);
+        assert!(cached_data.is_some());
+        assert_eq!(cached_data.unwrap(), test_data);
+
+        // 测试缓存统计
+        let stats = cache_manager.get_statistics();
+        assert!(stats.total_entries > 0);
+
+        // 测试批量操作管理器
+        let batch_manager = performance::BatchOperationManager::new(config.clone());
+        batch_manager.add_operation("test_op".to_string(), vec![1, 2, 3]);
+        assert_eq!(batch_manager.pending_count(), 1);
+
+        // 测试内存管理器
+        let memory_manager = performance::MemoryManager::new(config);
+        assert!(memory_manager.allocate(1024).is_ok());
+        assert_eq!(memory_manager.get_memory_usage(), 1024);
+        memory_manager.deallocate(512);
+        assert_eq!(memory_manager.get_memory_usage(), 512);
+    }
+
+    #[test]
+    fn test_monitoring_functionality() {
+        // 测试监控管理器
+        let config = config::LoggingConfig::default();
+        let monitor = monitoring::MonitoringManager::new(config);
+
+        // 测试日志记录
+        monitor.log(
+            monitoring::LogLevel::Info,
+            "test_module",
+            "Test message",
+            None,
+        );
+
+        let logs = monitor.get_logs(Some(monitoring::LogLevel::Info), Some(10));
+        assert!(!logs.is_empty());
+        assert_eq!(logs[0].message, "Test message");
+
+        // 测试性能指标记录
+        monitor.record_metric("test_metric", 42.0, "count", None);
+        let metrics = monitor.get_metrics(Some("test_metric"), Some(10));
+        assert!(!metrics.is_empty());
+        assert_eq!(metrics[0].value, 42.0);
+
+        // 测试错误记录
+        monitor.record_error("test_error", "Test error message", None);
+        let errors = monitor.get_error_summary();
+        assert!(!errors.is_empty());
+        assert_eq!(errors[0].message, "Test error message");
+
+        // 测试运行时间
+        let uptime = monitor.get_uptime();
+        assert!(uptime.as_millis() > 0);
+    }
+
+    #[tokio::test]
+    async fn test_advanced_api_functionality() {
+        let db = AgentDB::new("./test_advanced_db", 384).await.unwrap();
+
+        // 测试批量操作
+        let states = vec![
+            AgentState::new(10, 1, StateType::WorkingMemory, vec![1, 2, 3]),
+            AgentState::new(11, 1, StateType::LongTermMemory, vec![4, 5, 6]),
+        ];
+
+        let results = db.batch_save_agent_states(states).await.unwrap();
+        assert_eq!(results.len(), 2);
+        assert!(results[0].is_ok());
+        assert!(results[1].is_ok());
+
+        // 测试系统健康状态
+        let health = db.get_system_health().await.unwrap();
+        assert!(health.contains_key("database"));
+        assert!(health.contains_key("total_agents"));
+
+        // 测试Agent行为模式分析
+        let patterns = db.analyze_agent_patterns(10).await.unwrap();
+        assert!(patterns.contains_key("state_changes"));
+    }
 }
