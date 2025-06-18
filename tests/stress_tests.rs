@@ -1,5 +1,5 @@
 // 压力测试
-use agent_state_db_rust::{
+use agent_state_db::{
     AgentDB, AgentState, Memory, Document, MemoryType, StateType,
     CacheManager, MonitoringManager, LogLevel, AgentDbConfig,
 };

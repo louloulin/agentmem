@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "agent_state_db_rust"
-crate-type = ["cdylib", "staticlib"]
+name = "agent_state_db"
+crate-type = ["cdylib", "staticlib", "rlib"]
 
 [dependencies]
 lancedb = "0.20.0"

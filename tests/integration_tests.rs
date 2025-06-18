@@ -1,5 +1,5 @@
 // 集成测试
-use agent_state_db_rust::{
+use agent_state_db::{
     AgentDB, AgentState, Memory, MemoryType, StateType,
     CacheManager, MonitoringManager, LogLevel, AgentDbConfig,
 };
