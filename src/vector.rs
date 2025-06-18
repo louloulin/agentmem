@@ -1,5 +1,7 @@
 // 向量搜索模块
 use std::sync::Arc;
+use std::collections::{HashMap, BinaryHeap};
+use std::cmp::Ordering;
 use arrow::array::{Array, FixedSizeListArray, Float32Array, StringArray, RecordBatchIterator};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
@@ -8,6 +10,50 @@ use lancedb::{Connection, Table};
 use lancedb::query::{QueryBase, ExecutableQuery};
 
 use crate::types::{AgentDbError, VectorIndexType, VectorSearchResult, IndexStats};
+
+// 高级向量索引结构
+#[derive(Debug, Clone)]
+pub struct VectorIndex {
+    pub index_id: String,
+    pub dimension: usize,
+    pub index_type: VectorIndexType,
+    pub vectors: Vec<Vec<f32>>,
+    pub metadata: Vec<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+// HNSW节点
+#[derive(Debug, Clone)]
+pub struct HNSWNode {
+    pub id: usize,
+    pub vector: Vec<f32>,
+    pub connections: Vec<Vec<usize>>, // 每层的连接
+    pub level: usize,
+}
+
+// HNSW索引
+#[derive(Debug, Clone)]
+pub struct HNSWIndex {
+    pub nodes: Vec<HNSWNode>,
+    pub entry_point: Option<usize>,
+    pub max_level: usize,
+    pub max_connections: usize,
+    pub ef_construction: usize,
+    pub ml: f32,
+}
+
+// 用于排序的包装器
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+struct OrderedFloat(f32);
+
+impl Eq for OrderedFloat {}
+
+impl Ord for OrderedFloat {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.partial_cmp(&other.0).unwrap_or(Ordering::Equal)
+    }
+}
 
 pub struct VectorSearchEngine {
     connection: Arc<Connection>,
@@ -343,4 +389,329 @@ impl VectorSearchEngine {
 
         Ok(distance)
     }
+}
+
+// 高级向量引擎
+pub struct AdvancedVectorEngine {
+    connection: Arc<Connection>,
+    indexes: HashMap<String, VectorIndex>,
+    hnsw_indexes: HashMap<String, HNSWIndex>,
+}
+
+impl AdvancedVectorEngine {
+    pub async fn new(db_path: &str) -> Result<Self, AgentDbError> {
+        let connection = lancedb::connect(db_path).execute().await?;
+        Ok(Self {
+            connection: Arc::new(connection),
+            indexes: HashMap::new(),
+            hnsw_indexes: HashMap::new(),
+        })
+    }
+
+    // 创建向量索引
+    pub fn create_vector_index(&mut self, index_id: String, dimension: usize, index_type: VectorIndexType) -> Result<(), AgentDbError> {
+        let index = VectorIndex {
+            index_id: index_id.clone(),
+            dimension,
+            index_type,
+            vectors: Vec::new(),
+            metadata: Vec::new(),
+            created_at: chrono::Utc::now().timestamp(),
+            updated_at: chrono::Utc::now().timestamp(),
+        };
+
+        self.indexes.insert(index_id.clone(), index);
+
+        // 如果是HNSW索引，创建对应的HNSW结构
+        if index_type == VectorIndexType::HNSW {
+            let hnsw_index = HNSWIndex {
+                nodes: Vec::new(),
+                entry_point: None,
+                max_level: 16,
+                max_connections: 16,
+                ef_construction: 200,
+                ml: 1.0 / (2.0_f32).ln(),
+            };
+            self.hnsw_indexes.insert(index_id, hnsw_index);
+        }
+
+        Ok(())
+    }
+
+    // 添加向量到索引
+    pub fn add_vector(&mut self, index_id: &str, vector: Vec<f32>, metadata: String) -> Result<String, AgentDbError> {
+        let vector_id = uuid::Uuid::new_v4().to_string();
+
+        let index = self.indexes.get(index_id)
+            .ok_or_else(|| AgentDbError::InvalidArgument("Index not found".to_string()))?;
+
+        let index_type = index.index_type;
+
+        match index_type {
+            VectorIndexType::Flat => {
+                let index = self.indexes.get_mut(index_id).unwrap();
+                index.vectors.push(vector);
+                index.metadata.push(metadata);
+                index.updated_at = chrono::Utc::now().timestamp();
+            }
+            VectorIndexType::HNSW => {
+                self.add_to_hnsw(index_id, vector, metadata)?;
+                let index = self.indexes.get_mut(index_id).unwrap();
+                index.updated_at = chrono::Utc::now().timestamp();
+            }
+            VectorIndexType::IVF => {
+                self.add_to_ivf(index_id, vector, metadata)?;
+                let index = self.indexes.get_mut(index_id).unwrap();
+                index.updated_at = chrono::Utc::now().timestamp();
+            }
+        }
+
+        Ok(vector_id)
+    }
+
+    // 高性能向量搜索
+    pub fn search_vectors(&self, index_id: &str, query: &[f32], k: usize, ef: Option<usize>) -> Result<Vec<VectorSearchResult>, AgentDbError> {
+        let index = self.indexes.get(index_id)
+            .ok_or_else(|| AgentDbError::InvalidArgument("Index not found".to_string()))?;
+
+        match index.index_type {
+            VectorIndexType::Flat => self.search_flat(index, query, k),
+            VectorIndexType::HNSW => self.search_hnsw(index_id, query, k, ef.unwrap_or(50)),
+            VectorIndexType::IVF => self.search_ivf(index, query, k),
+        }
+    }
+
+    // 暴力搜索
+    fn search_flat(&self, index: &VectorIndex, query: &[f32], k: usize) -> Result<Vec<VectorSearchResult>, AgentDbError> {
+        let mut results: Vec<(f32, usize)> = index.vectors.iter()
+            .enumerate()
+            .map(|(i, vector)| {
+                let distance = euclidean_distance(query, vector);
+                (distance, i)
+            })
+            .collect();
+
+        results.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(Ordering::Equal));
+
+        Ok(results.into_iter()
+            .take(k)
+            .map(|(distance, i)| VectorSearchResult {
+                vector_id: format!("{}_{}", index.index_id, i),
+                distance,
+                metadata: index.metadata.get(i).cloned().unwrap_or_default(),
+            })
+            .collect())
+    }
+
+    // HNSW搜索
+    fn search_hnsw(&self, index_id: &str, query: &[f32], k: usize, ef: usize) -> Result<Vec<VectorSearchResult>, AgentDbError> {
+        let hnsw = self.hnsw_indexes.get(index_id)
+            .ok_or_else(|| AgentDbError::InvalidArgument("HNSW index not found".to_string()))?;
+
+        if hnsw.nodes.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let entry_point = hnsw.entry_point.unwrap();
+        let mut current = entry_point;
+
+        // 从顶层向下搜索到第1层
+        for lc in (1..=hnsw.max_level).rev() {
+            let candidates = self.search_layer_hnsw(&hnsw.nodes, query, current, 1, lc);
+            if !candidates.is_empty() {
+                current = candidates[0];
+            }
+        }
+
+        // 在第0层进行详细搜索
+        let candidates = self.search_layer_hnsw(&hnsw.nodes, query, current, ef.max(k), 0);
+
+        let results: Vec<VectorSearchResult> = candidates.into_iter()
+            .take(k)
+            .filter_map(|node_id| {
+                hnsw.nodes.get(node_id).map(|node| {
+                    let distance = euclidean_distance(query, &node.vector);
+                    VectorSearchResult {
+                        vector_id: format!("{}_{}", index_id, node_id),
+                        distance,
+                        metadata: format!("hnsw_node_{}", node_id),
+                    }
+                })
+            })
+            .collect();
+
+        Ok(results)
+    }
+
+    // IVF搜索（简化实现）
+    fn search_ivf(&self, index: &VectorIndex, query: &[f32], k: usize) -> Result<Vec<VectorSearchResult>, AgentDbError> {
+        // 简化为暴力搜索
+        self.search_flat(index, query, k)
+    }
+
+    // HNSW层搜索
+    fn search_layer_hnsw(&self, nodes: &[HNSWNode], query: &[f32], entry_point: usize, ef: usize, level: usize) -> Vec<usize> {
+        let mut visited = std::collections::HashSet::new();
+        let mut candidates = BinaryHeap::new();
+        let mut w = BinaryHeap::new();
+
+        let entry_distance = euclidean_distance(query, &nodes[entry_point].vector);
+        candidates.push(OrderedFloat(-entry_distance));
+        w.push(OrderedFloat(entry_distance));
+        visited.insert(entry_point);
+
+        while let Some(OrderedFloat(neg_distance)) = candidates.pop() {
+            let distance = -neg_distance;
+
+            if let Some(&OrderedFloat(furthest_distance)) = w.peek() {
+                if distance > furthest_distance {
+                    break;
+                }
+            }
+
+            // 找到当前节点
+            let current_node = visited.iter()
+                .find(|&&node_id| {
+                    let node_distance = euclidean_distance(query, &nodes[node_id].vector);
+                    (node_distance - distance).abs() < 1e-6
+                })
+                .copied()
+                .unwrap_or(entry_point);
+
+            if current_node < nodes.len() && level < nodes[current_node].connections.len() {
+                for &neighbor in &nodes[current_node].connections[level] {
+                    if !visited.contains(&neighbor) && neighbor < nodes.len() {
+                        visited.insert(neighbor);
+                        let neighbor_distance = euclidean_distance(query, &nodes[neighbor].vector);
+
+                        if let Some(&OrderedFloat(furthest_distance)) = w.peek() {
+                            if neighbor_distance < furthest_distance || w.len() < ef {
+                                candidates.push(OrderedFloat(-neighbor_distance));
+                                w.push(OrderedFloat(neighbor_distance));
+
+                                if w.len() > ef {
+                                    w.pop();
+                                }
+                            }
+                        } else {
+                            candidates.push(OrderedFloat(-neighbor_distance));
+                            w.push(OrderedFloat(neighbor_distance));
+                        }
+                    }
+                }
+            }
+        }
+
+        visited.into_iter().collect()
+    }
+
+    // 添加向量到HNSW索引
+    fn add_to_hnsw(&mut self, index_id: &str, vector: Vec<f32>, _metadata: String) -> Result<(), AgentDbError> {
+        let ml = {
+            let hnsw = self.hnsw_indexes.get(index_id)
+                .ok_or_else(|| AgentDbError::InvalidArgument("HNSW index not found".to_string()))?;
+            hnsw.ml
+        };
+
+        let node_id = {
+            let hnsw = self.hnsw_indexes.get(index_id).unwrap();
+            hnsw.nodes.len()
+        };
+
+        let level = self.get_random_level(ml);
+        let connections = vec![Vec::new(); level + 1];
+
+        let node = HNSWNode {
+            id: node_id,
+            vector,
+            connections,
+            level,
+        };
+
+        let hnsw = self.hnsw_indexes.get_mut(index_id).unwrap();
+        hnsw.nodes.push(node);
+
+        if hnsw.entry_point.is_none() {
+            hnsw.entry_point = Some(node_id);
+        }
+
+        Ok(())
+    }
+
+    // 添加向量到IVF索引（简化实现）
+    fn add_to_ivf(&mut self, index_id: &str, vector: Vec<f32>, metadata: String) -> Result<(), AgentDbError> {
+        let index = self.indexes.get_mut(index_id).unwrap();
+        index.vectors.push(vector);
+        index.metadata.push(metadata);
+        Ok(())
+    }
+
+    // 获取随机层级
+    fn get_random_level(&self, _ml: f32) -> usize {
+        let mut level = 0;
+        let mut rng = rand::thread_rng();
+        while rand::Rng::gen::<f32>(&mut rng) < 0.5 && level < 16 {
+            level += 1;
+        }
+        level
+    }
+
+    // 批量向量操作
+    pub fn batch_add_vectors(&mut self, index_id: &str, vectors: Vec<Vec<f32>>, metadata: Vec<String>) -> Result<Vec<String>, AgentDbError> {
+        if vectors.len() != metadata.len() {
+            return Err(AgentDbError::InvalidArgument("Vectors and metadata length mismatch".to_string()));
+        }
+
+        let mut vector_ids = Vec::new();
+        for (vector, meta) in vectors.into_iter().zip(metadata.into_iter()) {
+            let vector_id = self.add_vector(index_id, vector, meta)?;
+            vector_ids.push(vector_id);
+        }
+
+        Ok(vector_ids)
+    }
+
+    // 获取索引统计信息
+    pub fn get_index_stats(&self, index_id: &str) -> Result<IndexStats, AgentDbError> {
+        let index = self.indexes.get(index_id)
+            .ok_or_else(|| AgentDbError::InvalidArgument("Index not found".to_string()))?;
+
+        Ok(IndexStats {
+            index_id: index.index_id.clone(),
+            index_type: index.index_type,
+            dimension: index.dimension,
+            vector_count: index.vectors.len(),
+            memory_usage: index.vectors.len() * index.dimension * 4,
+            avg_query_time: 0.0,
+            last_updated: index.updated_at,
+        })
+    }
+}
+
+// 辅助函数
+pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
+    if a.len() != b.len() {
+        return 0.0;
+    }
+
+    let dot_product: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
+    let norm_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
+    let norm_b: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
+
+    if norm_a == 0.0 || norm_b == 0.0 {
+        0.0
+    } else {
+        dot_product / (norm_a * norm_b)
+    }
+}
+
+pub fn euclidean_distance(a: &[f32], b: &[f32]) -> f32 {
+    if a.len() != b.len() {
+        return f32::INFINITY;
+    }
+
+    a.iter().zip(b.iter())
+        .map(|(x, y)| (x - y).powi(2))
+        .sum::<f32>()
+        .sqrt()
 }

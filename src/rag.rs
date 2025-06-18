@@ -345,4 +345,169 @@ impl RAGEngine {
         // 归一化分数
         score / content.len() as f32 * 1000.0
     }
+
+    // 语义搜索（需要向量引擎支持）
+    pub async fn semantic_search(&self, _query_embedding: Vec<f32>, _limit: usize) -> Result<Vec<SearchResult>, AgentDbError> {
+        // 这里需要与向量引擎集成
+        // 暂时返回空结果，实际实现需要向量搜索
+        Ok(Vec::new())
+    }
+
+    // 混合搜索：结合文本搜索和语义搜索
+    pub async fn hybrid_search(
+        &self,
+        text_query: &str,
+        query_embedding: Option<Vec<f32>>,
+        alpha: f32, // 文本搜索权重
+        limit: usize,
+    ) -> Result<Vec<SearchResult>, AgentDbError> {
+        // 1. 获取文本搜索结果
+        let text_results = self.search_documents(text_query, limit * 2).await?;
+
+        // 2. 如果有向量查询，获取语义搜索结果
+        let vector_results = if let Some(embedding) = query_embedding {
+            self.semantic_search(embedding, limit * 2).await?
+        } else {
+            Vec::new()
+        };
+
+        // 3. 合并和重新评分
+        let mut combined_results = HashMap::new();
+
+        // 添加文本搜索结果
+        for result in text_results {
+            let key = result.chunk_id.clone();
+            combined_results.insert(key, (result, alpha, 0.0));
+        }
+
+        // 添加向量搜索结果
+        for result in vector_results {
+            let key = result.chunk_id.clone();
+            if let Some((existing, text_score, _)) = combined_results.get_mut(&key) {
+                // 如果已存在，更新向量分数
+                existing.score = *text_score * alpha + result.score * (1.0 - alpha);
+            } else {
+                // 如果不存在，添加新结果
+                let mut new_result = result;
+                new_result.score = new_result.score * (1.0 - alpha);
+                combined_results.insert(key, (new_result, 0.0, 1.0 - alpha));
+            }
+        }
+
+        // 4. 收集并排序结果
+        let mut final_results: Vec<SearchResult> = combined_results
+            .into_iter()
+            .map(|(_, (result, _, _))| result)
+            .collect();
+
+        final_results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        final_results.truncate(limit);
+
+        Ok(final_results)
+    }
+
+    // 上下文窗口管理
+    pub async fn build_context_window(
+        &self,
+        search_results: &[SearchResult],
+        max_tokens: usize,
+    ) -> Result<String, AgentDbError> {
+        let mut context = String::new();
+        let mut token_count = 0;
+
+        for result in search_results {
+            // 简单的token计数（实际应用中需要更精确的tokenizer）
+            let chunk_tokens = result.content.split_whitespace().count();
+
+            if token_count + chunk_tokens > max_tokens {
+                break;
+            }
+
+            if !context.is_empty() {
+                context.push_str("\n\n");
+            }
+            context.push_str(&result.content);
+            token_count += chunk_tokens;
+        }
+
+        Ok(context)
+    }
+
+    // 相关性重排序
+    pub fn rerank_results(&self, results: &mut [SearchResult], query: &str) {
+        // 基于查询的相关性重新计算分数
+        for result in results.iter_mut() {
+            let relevance = self.calculate_advanced_relevance(&result.content, query);
+            result.score = result.score * 0.7 + relevance * 0.3; // 混合原始分数和相关性分数
+        }
+
+        // 重新排序
+        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    }
+
+    // 高级相关性计算
+    fn calculate_advanced_relevance(&self, content: &str, query: &str) -> f32 {
+        let content_lower = content.to_lowercase();
+        let query_lower = query.to_lowercase();
+        let query_words: Vec<&str> = query_lower.split_whitespace().collect();
+
+        let mut score = 0.0;
+        let content_words: Vec<&str> = content_lower.split_whitespace().collect();
+
+        // 1. 精确匹配分数
+        for word in &query_words {
+            let exact_matches = content_words.iter().filter(|&&w| w == *word).count() as f32;
+            score += exact_matches * 2.0;
+        }
+
+        // 2. 部分匹配分数
+        for word in &query_words {
+            let partial_matches = content_words.iter()
+                .filter(|&&w| w.contains(word) && w != *word)
+                .count() as f32;
+            score += partial_matches * 1.0;
+        }
+
+        // 3. 位置权重（查询词在开头的权重更高）
+        let content_start = content_lower.chars().take(100).collect::<String>();
+        for word in &query_words {
+            if content_start.contains(word) {
+                score += 1.5;
+            }
+        }
+
+        // 4. 查询词密度
+        let query_word_count = query_words.len() as f32;
+        let content_word_count = content_words.len() as f32;
+        let density = query_word_count / content_word_count.max(1.0);
+        score += density * 10.0;
+
+        score
+    }
+
+    // 获取文档统计信息
+    pub async fn get_document_stats(&self) -> Result<HashMap<String, usize>, AgentDbError> {
+        let docs_table = self.ensure_documents_table().await?;
+        let chunks_table = self.ensure_chunks_table().await?;
+
+        // 计算文档数量
+        let mut doc_results = docs_table.query().execute().await?;
+        let mut doc_count = 0;
+        while let Some(batch) = doc_results.try_next().await? {
+            doc_count += batch.num_rows();
+        }
+
+        // 计算块数量
+        let mut chunk_results = chunks_table.query().execute().await?;
+        let mut chunk_count = 0;
+        while let Some(batch) = chunk_results.try_next().await? {
+            chunk_count += batch.num_rows();
+        }
+
+        let mut stats = HashMap::new();
+        stats.insert("documents".to_string(), doc_count);
+        stats.insert("chunks".to_string(), chunk_count);
+
+        Ok(stats)
+    }
 }

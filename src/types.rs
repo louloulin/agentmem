@@ -122,7 +122,7 @@ impl AgentState {
 }
 
 // 记忆类型
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub enum MemoryType {
     Episodic,
     Semantic,
@@ -292,7 +292,7 @@ pub struct SearchResult {
 }
 
 // 向量索引类型
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum VectorIndexType {
     Flat,
     HNSW,

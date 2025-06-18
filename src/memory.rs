@@ -314,4 +314,189 @@ impl MemoryManager {
             expires_at,
         })
     }
+
+    // 记忆衰减处理
+    pub async fn decay_memories(&self, agent_id: u64, decay_factor: f32) -> Result<usize, AgentDbError> {
+        let memories = self.get_agent_memories(agent_id, None, 1000).await?;
+        let current_time = chrono::Utc::now().timestamp();
+        let mut updated_count = 0;
+
+        for mut memory in memories {
+            let time_diff = (current_time - memory.created_at) as f32 / (24.0 * 3600.0); // 天数
+            let new_importance = memory.importance * (1.0 - decay_factor * time_diff / 365.0).max(0.1);
+
+            if (new_importance - memory.importance).abs() > 0.01 {
+                memory.importance = new_importance;
+                self.update_memory(&memory).await?;
+                updated_count += 1;
+            }
+        }
+
+        Ok(updated_count)
+    }
+
+    // 记忆合并算法
+    pub async fn merge_similar_memories(
+        &self,
+        agent_id: u64,
+        similarity_threshold: f32,
+    ) -> Result<usize, AgentDbError> {
+        let memories = self.get_agent_memories(agent_id, None, 1000).await?;
+        let mut merged_count = 0;
+
+        for i in 0..memories.len() {
+            for j in (i + 1)..memories.len() {
+                let similarity = self.calculate_memory_similarity(&memories[i], &memories[j]);
+
+                if similarity > similarity_threshold {
+                    // 合并记忆
+                    let merged_memory = self.merge_memories(&memories[i], &memories[j])?;
+
+                    // 删除原始记忆
+                    self.delete_memory(&memories[i].memory_id).await?;
+                    self.delete_memory(&memories[j].memory_id).await?;
+
+                    // 存储合并后的记忆
+                    self.store_memory(&merged_memory).await?;
+                    merged_count += 1;
+                }
+            }
+        }
+
+        Ok(merged_count)
+    }
+
+    // 计算记忆相似性
+    fn calculate_memory_similarity(&self, memory1: &Memory, memory2: &Memory) -> f32 {
+        // 1. 类型相似性
+        let type_similarity = if memory1.memory_type == memory2.memory_type { 1.0 } else { 0.0 };
+
+        // 2. 内容相似性（简单的词汇重叠）
+        let content_similarity = self.calculate_text_similarity(&memory1.content, &memory2.content);
+
+        // 3. 时间相似性
+        let time_diff = (memory1.created_at - memory2.created_at).abs() as f32 / (24.0 * 3600.0);
+        let time_similarity = (1.0 / (1.0 + time_diff / 7.0)).max(0.0); // 一周内的记忆相似性更高
+
+        // 4. 向量相似性（如果有嵌入向量）
+        let vector_similarity = if let (Some(ref emb1), Some(ref emb2)) = (&memory1.embedding, &memory2.embedding) {
+            crate::vector::cosine_similarity(emb1, emb2)
+        } else {
+            0.0
+        };
+
+        // 加权平均
+        type_similarity * 0.2 + content_similarity * 0.4 + time_similarity * 0.2 + vector_similarity * 0.2
+    }
+
+    // 文本相似性计算
+    fn calculate_text_similarity(&self, text1: &str, text2: &str) -> f32 {
+        let words1: std::collections::HashSet<&str> = text1.split_whitespace().collect();
+        let words2: std::collections::HashSet<&str> = text2.split_whitespace().collect();
+
+        let intersection = words1.intersection(&words2).count() as f32;
+        let union = words1.union(&words2).count() as f32;
+
+        if union == 0.0 {
+            0.0
+        } else {
+            intersection / union
+        }
+    }
+
+    // 合并两个记忆
+    fn merge_memories(&self, memory1: &Memory, memory2: &Memory) -> Result<Memory, AgentDbError> {
+        let now = chrono::Utc::now().timestamp();
+
+        // 选择更重要的记忆作为基础
+        let (primary, secondary) = if memory1.importance >= memory2.importance {
+            (memory1, memory2)
+        } else {
+            (memory2, memory1)
+        };
+
+        // 合并内容
+        let merged_content = format!("{}\n[合并记忆]: {}", primary.content, secondary.content);
+
+        // 计算新的重要性（取平均值并增加一点权重）
+        let merged_importance = ((primary.importance + secondary.importance) / 2.0 * 1.1).min(1.0);
+
+        // 合并访问次数
+        let merged_access_count = primary.access_count + secondary.access_count;
+
+        Ok(Memory {
+            memory_id: uuid::Uuid::new_v4().to_string(),
+            agent_id: primary.agent_id,
+            memory_type: primary.memory_type,
+            content: merged_content,
+            importance: merged_importance,
+            embedding: primary.embedding.clone(), // 使用主要记忆的嵌入
+            created_at: primary.created_at.min(secondary.created_at), // 使用较早的创建时间
+            access_count: merged_access_count,
+            last_access: now,
+            expires_at: None, // 合并后的记忆不设置过期时间
+        })
+    }
+
+    // 更新记忆
+    pub async fn update_memory(&self, memory: &Memory) -> Result<(), AgentDbError> {
+        // 先删除旧记忆
+        self.delete_memory(&memory.memory_id).await?;
+        // 存储更新后的记忆
+        self.store_memory(memory).await?;
+        Ok(())
+    }
+
+
+
+    // 记忆网络构建（基于相似性）
+    pub async fn build_memory_network(&self, agent_id: u64) -> Result<HashMap<String, Vec<String>>, AgentDbError> {
+        let memories = self.get_agent_memories(agent_id, None, 1000).await?;
+        let mut network = HashMap::new();
+
+        for i in 0..memories.len() {
+            let mut connections = Vec::new();
+
+            for j in 0..memories.len() {
+                if i != j {
+                    let similarity = self.calculate_memory_similarity(&memories[i], &memories[j]);
+                    if similarity > 0.3 { // 相似性阈值
+                        connections.push(memories[j].memory_id.clone());
+                    }
+                }
+            }
+
+            network.insert(memories[i].memory_id.clone(), connections);
+        }
+
+        Ok(network)
+    }
+
+    // 记忆压缩策略
+    pub async fn compress_memories(&self, agent_id: u64, max_memories: usize) -> Result<usize, AgentDbError> {
+        let memories = self.get_agent_memories(agent_id, None, usize::MAX).await?;
+
+        if memories.len() <= max_memories {
+            return Ok(0);
+        }
+
+        // 按重要性和最近访问时间排序
+        let mut sorted_memories = memories;
+        sorted_memories.sort_by(|a, b| {
+            let score_a = a.importance + (a.access_count as f32 * 0.1);
+            let score_b = b.importance + (b.access_count as f32 * 0.1);
+            score_b.partial_cmp(&score_a).unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        // 删除重要性较低的记忆
+        let _to_delete = sorted_memories.len() - max_memories;
+        let mut deleted_count = 0;
+
+        for memory in sorted_memories.iter().skip(max_memories) {
+            self.delete_memory(&memory.memory_id).await?;
+            deleted_count += 1;
+        }
+
+        Ok(deleted_count)
+    }
 }
