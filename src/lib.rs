@@ -2389,6 +2389,379 @@ mod tests {
         assert!(distance_zero < 1e-6);
         assert!((distance_sqrt2 - 2.0_f32.sqrt()).abs() < 1e-6);
     }
+
+    #[test]
+    fn test_query_optimizer_creation() {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let optimizer = QueryOptimizer::new("test_query_optimizer.lance").await.unwrap();
+
+            assert_eq!(optimizer.query_cache.len(), 0);
+            assert_eq!(optimizer.query_stats.len(), 0);
+            assert_eq!(optimizer.cache_size_limit, 1000);
+            assert_eq!(optimizer.cache_ttl, 3600);
+        });
+    }
+
+    #[test]
+    fn test_query_plan_generation() {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let optimizer = QueryOptimizer::new("test_query_plans.lance").await.unwrap();
+
+            // 测试向量搜索查询计划
+            let mut params = HashMap::new();
+            params.insert("k".to_string(), "10".to_string());
+            params.insert("dimension".to_string(), "128".to_string());
+
+            let plan = optimizer.generate_query_plan(QueryType::VectorSearch, &params).unwrap();
+
+            assert_eq!(plan.query_type, QueryType::VectorSearch);
+            assert!(!plan.execution_steps.is_empty());
+            assert!(plan.estimated_cost > 0.0);
+            assert!(plan.estimated_time > 0.0);
+            assert!(!plan.index_usage.is_empty());
+
+            // 验证执行步骤
+            let vector_search_step = &plan.execution_steps[0];
+            match &vector_search_step.operation {
+                QueryOperation::VectorSearch { k, .. } => {
+                    assert_eq!(*k, 10);
+                }
+                _ => panic!("Expected VectorSearch operation"),
+            }
+        });
+    }
+
+    #[test]
+    fn test_memory_retrieval_plan() {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let optimizer = QueryOptimizer::new("test_memory_plan.lance").await.unwrap();
+
+            let mut params = HashMap::new();
+            params.insert("agent_id".to_string(), "12345".to_string());
+            params.insert("limit".to_string(), "50".to_string());
+
+            let plan = optimizer.generate_query_plan(QueryType::MemoryRetrieval, &params).unwrap();
+
+            assert_eq!(plan.query_type, QueryType::MemoryRetrieval);
+            assert_eq!(plan.execution_steps.len(), 3); // IndexScan + Filter + Sort
+
+            // 验证执行步骤顺序
+            match &plan.execution_steps[0].operation {
+                QueryOperation::IndexScan { .. } => {},
+                _ => panic!("Expected IndexScan as first operation"),
+            }
+
+            match &plan.execution_steps[1].operation {
+                QueryOperation::Filter { .. } => {},
+                _ => panic!("Expected Filter as second operation"),
+            }
+
+            match &plan.execution_steps[2].operation {
+                QueryOperation::Sort { field, order } => {
+                    assert_eq!(field, "created_at");
+                    assert_eq!(*order, SortOrder::Descending);
+                },
+                _ => panic!("Expected Sort as third operation"),
+            }
+        });
+    }
+
+    #[test]
+    fn test_query_cache_operations() {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let mut optimizer = QueryOptimizer::new("test_cache.lance").await.unwrap();
+
+            let query_hash = 12345u64;
+            let test_data = vec![1, 2, 3, 4, 5];
+
+            // 测试缓存未命中
+            assert!(optimizer.get_cached_result(query_hash).is_none());
+
+            // 缓存结果
+            optimizer.cache_result(query_hash, test_data.clone(), 5);
+
+            // 测试缓存命中
+            let cached_result = optimizer.get_cached_result(query_hash);
+            assert!(cached_result.is_some());
+            assert_eq!(cached_result.unwrap(), test_data);
+
+            // 验证缓存统计
+            let cache_stats = optimizer.get_cache_statistics();
+            assert_eq!(cache_stats.total_entries, 1);
+            assert_eq!(cache_stats.total_hits, 1);
+            assert!(cache_stats.hit_rate > 0.0);
+        });
+    }
+
+    #[test]
+    fn test_query_performance_analysis() {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let mut optimizer = QueryOptimizer::new("test_performance.lance").await.unwrap();
+
+            // 添加一些测试统计数据
+            for i in 0..10 {
+                let stats = QueryStats {
+                    query_id: format!("query_{}", i),
+                    query_type: QueryType::VectorSearch,
+                    execution_time: (i + 1) as f64 * 10.0,
+                    result_count: 10,
+                    cache_hit: i % 2 == 0,
+                    index_used: vec!["vector_index".to_string()],
+                    memory_usage: 1024,
+                    cpu_usage: 50.0,
+                    executed_at: chrono::Utc::now().timestamp(),
+                };
+                optimizer.record_query_stats(stats);
+            }
+
+            // 分析性能
+            let analysis = optimizer.analyze_query_performance(Some(QueryType::VectorSearch));
+
+            assert_eq!(analysis.total_queries, 10);
+            assert!(analysis.avg_execution_time > 0.0);
+            assert_eq!(analysis.cache_hit_rate, 0.5); // 50% cache hit rate
+            assert_eq!(analysis.avg_result_count, 10);
+            assert_eq!(analysis.avg_memory_usage, 1024);
+            assert!(!analysis.slowest_queries.is_empty());
+            assert!(analysis.most_frequent_queries.contains_key(&QueryType::VectorSearch));
+        });
+    }
+
+    #[test]
+    fn test_index_recommendations() {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let optimizer = QueryOptimizer::new("test_recommendations.lance").await.unwrap();
+
+            let recommendations = optimizer.generate_index_recommendations();
+
+            assert!(!recommendations.is_empty());
+
+            for recommendation in &recommendations {
+                assert!(!recommendation.index_name.is_empty());
+                assert!(!recommendation.columns.is_empty());
+                assert!(recommendation.estimated_benefit >= 0.0);
+                assert!(recommendation.creation_cost >= 0.0);
+                assert!(recommendation.maintenance_cost >= 0.0);
+                assert!(recommendation.usage_frequency > 0);
+            }
+
+            // 验证推荐按收益排序
+            for i in 1..recommendations.len() {
+                assert!(recommendations[i-1].estimated_benefit >= recommendations[i].estimated_benefit);
+            }
+        });
+    }
+
+    #[test]
+    fn test_optimal_index_selection() {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let optimizer = QueryOptimizer::new("test_index_selection.lance").await.unwrap();
+
+            // 测试不同场景下的索引选择
+            assert_eq!(optimizer.select_optimal_vector_index(30, 5), VectorIndexType::Flat);
+            assert_eq!(optimizer.select_optimal_vector_index(200, 5), VectorIndexType::HNSW);
+            assert_eq!(optimizer.select_optimal_vector_index(1500, 10), VectorIndexType::PQ);
+            assert_eq!(optimizer.select_optimal_vector_index(500, 50), VectorIndexType::IVF);
+        });
+    }
+
+    #[test]
+    fn test_execution_time_estimation() {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let optimizer = QueryOptimizer::new("test_time_estimation.lance").await.unwrap();
+
+            let steps = vec![
+                ExecutionStep {
+                    step_id: 0,
+                    operation: QueryOperation::VectorSearch {
+                        index_type: VectorIndexType::HNSW,
+                        k: 10
+                    },
+                    input_size: 1,
+                    output_size: 10,
+                    cost: 5.0,
+                    dependencies: Vec::new(),
+                },
+                ExecutionStep {
+                    step_id: 1,
+                    operation: QueryOperation::Filter {
+                        condition: "agent_id = 123".to_string(),
+                        selectivity: 0.1
+                    },
+                    input_size: 100,
+                    output_size: 10,
+                    cost: 2.0,
+                    dependencies: vec![0],
+                },
+            ];
+
+            let estimated_time = optimizer.estimate_execution_time(&steps);
+            assert!(estimated_time > 0.0);
+        });
+    }
+
+    #[test]
+    fn test_cache_eviction() {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let mut optimizer = QueryOptimizer::new("test_cache_eviction.lance").await.unwrap();
+            optimizer.cache_size_limit = 3; // 设置小的缓存限制
+
+            // 添加超过限制的缓存条目
+            for i in 0..5 {
+                let query_hash = i as u64;
+                let test_data = vec![i as u8; 10];
+                optimizer.cache_result(query_hash, test_data, 10);
+            }
+
+            // 验证缓存大小不超过限制
+            assert!(optimizer.query_cache.len() <= optimizer.cache_size_limit);
+
+            let cache_stats = optimizer.get_cache_statistics();
+            assert!(cache_stats.total_entries <= 3);
+        });
+    }
+
+    #[test]
+    fn test_multimodal_engine_creation() {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let engine = MultimodalEngine::new("test_multimodal.lance").await.unwrap();
+
+            assert_eq!(engine.data_storage.len(), 0);
+            assert_eq!(engine.cross_modal_mappings.len(), 0);
+            assert_eq!(engine.feature_extractors.len(), 3); // Text, Image, Audio
+        });
+    }
+
+    #[test]
+    fn test_text_feature_extraction() {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let mut engine = MultimodalEngine::new("test_text_features.lance").await.unwrap();
+
+            let text_data = "This is a sample text for feature extraction testing. It contains multiple sentences and various words.".as_bytes().to_vec();
+            let mut metadata = HashMap::new();
+            metadata.insert("language".to_string(), "en".to_string());
+
+            engine.add_multimodal_data(
+                "text_001".to_string(),
+                ModalityType::Text,
+                text_data,
+                metadata
+            ).unwrap();
+
+            let data = engine.data_storage.get("text_001").unwrap();
+            assert_eq!(data.modality_type, ModalityType::Text);
+            assert!(data.embedding.is_some());
+            assert!(data.features.is_some());
+
+            let embedding = data.embedding.as_ref().unwrap();
+            assert_eq!(embedding.len(), 160); // 10 + 100 + 50 features
+
+            let features = data.features.as_ref().unwrap();
+            assert!(features.contains_key("char_count"));
+            assert!(features.contains_key("word_count"));
+            assert!(features.contains_key("lexical_diversity"));
+        });
+    }
+
+    #[test]
+    fn test_image_feature_extraction() {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let mut engine = MultimodalEngine::new("test_image_features.lance").await.unwrap();
+
+            // 创建简单的测试图像数据 (3x3 RGB)
+            let image_data = vec![
+                255, 0, 0,   0, 255, 0,   0, 0, 255,
+                255, 255, 0, 255, 0, 255, 0, 255, 255,
+                128, 128, 128, 64, 64, 64, 192, 192, 192
+            ];
+
+            let mut metadata = HashMap::new();
+            metadata.insert("width".to_string(), "3".to_string());
+            metadata.insert("height".to_string(), "3".to_string());
+            metadata.insert("channels".to_string(), "3".to_string());
+            metadata.insert("format".to_string(), "RGB".to_string());
+
+            engine.add_multimodal_data(
+                "image_001".to_string(),
+                ModalityType::Image,
+                image_data,
+                metadata
+            ).unwrap();
+
+            let data = engine.data_storage.get("image_001").unwrap();
+            assert_eq!(data.modality_type, ModalityType::Image);
+            assert!(data.embedding.is_some());
+            assert!(data.features.is_some());
+
+            let embedding = data.embedding.as_ref().unwrap();
+            assert_eq!(embedding.len(), 144); // 64 + 32 + 32 + 16 features
+
+            let features = data.features.as_ref().unwrap();
+            assert!(features.contains_key("width"));
+            assert!(features.contains_key("height"));
+            assert!(features.contains_key("brightness"));
+            assert!(features.contains_key("contrast"));
+        });
+    }
+
+    #[test]
+    fn test_multimodal_statistics() {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let mut engine = MultimodalEngine::new("test_stats.lance").await.unwrap();
+
+            // 添加不同类型的数据
+            engine.add_multimodal_data(
+                "text_1".to_string(),
+                ModalityType::Text,
+                "Sample text".as_bytes().to_vec(),
+                HashMap::new()
+            ).unwrap();
+
+            engine.add_multimodal_data(
+                "text_2".to_string(),
+                ModalityType::Text,
+                "Another text".as_bytes().to_vec(),
+                HashMap::new()
+            ).unwrap();
+
+            let image_data = vec![128u8; 100 * 100 * 3];
+            let mut image_metadata = HashMap::new();
+            image_metadata.insert("width".to_string(), "100".to_string());
+            image_metadata.insert("height".to_string(), "100".to_string());
+            image_metadata.insert("channels".to_string(), "3".to_string());
+
+            engine.add_multimodal_data(
+                "image_1".to_string(),
+                ModalityType::Image,
+                image_data,
+                image_metadata
+            ).unwrap();
+
+            // 获取统计信息
+            let stats = engine.get_multimodal_statistics();
+
+            assert_eq!(stats.total_data_count, 3);
+            assert_eq!(stats.modality_counts.get(&ModalityType::Text), Some(&2));
+            assert_eq!(stats.modality_counts.get(&ModalityType::Image), Some(&1));
+            assert!(stats.total_data_size > 0);
+            assert_eq!(stats.supported_modalities.len(), 3);
+            assert!(stats.feature_dimensions.contains_key(&ModalityType::Text));
+            assert!(stats.feature_dimensions.contains_key(&ModalityType::Image));
+        });
+    }
 }
 
 // 智能记忆整理系统
@@ -3368,6 +3741,2089 @@ impl Ord for OrderedFloat {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.0.partial_cmp(&other.0).unwrap_or(std::cmp::Ordering::Equal)
     }
+}
+
+// 查询优化引擎系统
+#[derive(Debug, Clone)]
+pub struct QueryPlan {
+    pub plan_id: String,
+    pub query_type: QueryType,
+    pub execution_steps: Vec<ExecutionStep>,
+    pub estimated_cost: f64,
+    pub estimated_time: f64,
+    pub index_usage: Vec<String>,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum QueryType {
+    VectorSearch,
+    MemoryRetrieval,
+    AgentStateQuery,
+    RAGQuery,
+    HybridQuery,
+}
+
+#[derive(Debug, Clone)]
+pub struct ExecutionStep {
+    pub step_id: usize,
+    pub operation: QueryOperation,
+    pub input_size: usize,
+    pub output_size: usize,
+    pub cost: f64,
+    pub dependencies: Vec<usize>,
+}
+
+#[derive(Debug, Clone)]
+pub enum QueryOperation {
+    IndexScan { index_name: String, selectivity: f64 },
+    VectorSearch { index_type: VectorIndexType, k: usize },
+    Filter { condition: String, selectivity: f64 },
+    Sort { field: String, order: SortOrder },
+    Join { join_type: JoinType, condition: String },
+    Aggregate { function: AggregateFunction, field: String },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SortOrder {
+    Ascending,
+    Descending,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum JoinType {
+    Inner,
+    Left,
+    Right,
+    Full,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum AggregateFunction {
+    Count,
+    Sum,
+    Average,
+    Min,
+    Max,
+}
+
+#[derive(Debug, Clone)]
+pub struct QueryCache {
+    pub cache_id: String,
+    pub query_hash: u64,
+    pub result_data: Vec<u8>,
+    pub result_count: usize,
+    pub hit_count: u64,
+    pub created_at: i64,
+    pub last_accessed: i64,
+    pub expires_at: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct QueryStats {
+    pub query_id: String,
+    pub query_type: QueryType,
+    pub execution_time: f64,
+    pub result_count: usize,
+    pub cache_hit: bool,
+    pub index_used: Vec<String>,
+    pub memory_usage: usize,
+    pub cpu_usage: f64,
+    pub executed_at: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct IndexRecommendation {
+    pub index_name: String,
+    pub index_type: VectorIndexType,
+    pub columns: Vec<String>,
+    pub estimated_benefit: f64,
+    pub creation_cost: f64,
+    pub maintenance_cost: f64,
+    pub usage_frequency: u64,
+}
+
+pub struct QueryOptimizer {
+    connection: Connection,
+    query_cache: HashMap<u64, QueryCache>,
+    query_stats: Vec<QueryStats>,
+    index_stats: HashMap<String, IndexStats>,
+    cache_size_limit: usize,
+    cache_ttl: i64,
+}
+
+impl QueryOptimizer {
+    pub async fn new(db_path: &str) -> Result<Self, AgentDbError> {
+        let connection = connect(db_path).execute().await?;
+        Ok(Self {
+            connection,
+            query_cache: HashMap::new(),
+            query_stats: Vec::new(),
+            index_stats: HashMap::new(),
+            cache_size_limit: 1000,
+            cache_ttl: 3600, // 1 hour
+        })
+    }
+
+    // 智能查询计划生成
+    pub fn generate_query_plan(&self, query_type: QueryType, parameters: &HashMap<String, String>) -> Result<QueryPlan, AgentDbError> {
+        let plan_id = format!("plan_{}_{}",
+            chrono::Utc::now().timestamp_millis(),
+            rand::thread_rng().gen::<u32>()
+        );
+
+        let mut execution_steps = Vec::new();
+        let mut estimated_cost = 0.0;
+        let mut index_usage = Vec::new();
+
+        match query_type {
+            QueryType::VectorSearch => {
+                self.plan_vector_search(&mut execution_steps, &mut estimated_cost, &mut index_usage, parameters)?;
+            }
+            QueryType::MemoryRetrieval => {
+                self.plan_memory_retrieval(&mut execution_steps, &mut estimated_cost, &mut index_usage, parameters)?;
+            }
+            QueryType::AgentStateQuery => {
+                self.plan_agent_state_query(&mut execution_steps, &mut estimated_cost, &mut index_usage, parameters)?;
+            }
+            QueryType::RAGQuery => {
+                self.plan_rag_query(&mut execution_steps, &mut estimated_cost, &mut index_usage, parameters)?;
+            }
+            QueryType::HybridQuery => {
+                self.plan_hybrid_query(&mut execution_steps, &mut estimated_cost, &mut index_usage, parameters)?;
+            }
+        }
+
+        let estimated_time = self.estimate_execution_time(&execution_steps);
+
+        Ok(QueryPlan {
+            plan_id,
+            query_type,
+            execution_steps,
+            estimated_cost,
+            estimated_time,
+            index_usage,
+            created_at: chrono::Utc::now().timestamp(),
+        })
+    }
+
+    // 向量搜索查询计划
+    fn plan_vector_search(&self, steps: &mut Vec<ExecutionStep>, cost: &mut f64, indexes: &mut Vec<String>, params: &HashMap<String, String>) -> Result<(), AgentDbError> {
+        let k = params.get("k").and_then(|s| s.parse::<usize>().ok()).unwrap_or(10);
+        let dimension = params.get("dimension").and_then(|s| s.parse::<usize>().ok()).unwrap_or(128);
+
+        // 选择最优索引类型
+        let index_type = self.select_optimal_vector_index(dimension, k);
+        let index_name = format!("vector_index_{}", dimension);
+        indexes.push(index_name.clone());
+
+        // 向量搜索步骤
+        steps.push(ExecutionStep {
+            step_id: steps.len(),
+            operation: QueryOperation::VectorSearch { index_type, k },
+            input_size: 1,
+            output_size: k,
+            cost: self.estimate_vector_search_cost(index_type, k, dimension),
+            dependencies: Vec::new(),
+        });
+
+        *cost += steps.last().unwrap().cost;
+        Ok(())
+    }
+
+    // 记忆检索查询计划
+    fn plan_memory_retrieval(&self, steps: &mut Vec<ExecutionStep>, cost: &mut f64, indexes: &mut Vec<String>, params: &HashMap<String, String>) -> Result<(), AgentDbError> {
+        let agent_id = params.get("agent_id").unwrap_or(&"0".to_string()).clone();
+        let limit = params.get("limit").and_then(|s| s.parse::<usize>().ok()).unwrap_or(100);
+
+        // 索引扫描步骤
+        let index_name = "memory_agent_index".to_string();
+        indexes.push(index_name.clone());
+
+        steps.push(ExecutionStep {
+            step_id: steps.len(),
+            operation: QueryOperation::IndexScan {
+                index_name: index_name.clone(),
+                selectivity: 0.1
+            },
+            input_size: 10000,
+            output_size: 1000,
+            cost: 10.0,
+            dependencies: Vec::new(),
+        });
+
+        // 过滤步骤
+        steps.push(ExecutionStep {
+            step_id: steps.len(),
+            operation: QueryOperation::Filter {
+                condition: format!("agent_id = {}", agent_id),
+                selectivity: 0.1
+            },
+            input_size: 1000,
+            output_size: limit,
+            cost: 5.0,
+            dependencies: vec![steps.len() - 1],
+        });
+
+        // 排序步骤
+        steps.push(ExecutionStep {
+            step_id: steps.len(),
+            operation: QueryOperation::Sort {
+                field: "created_at".to_string(),
+                order: SortOrder::Descending
+            },
+            input_size: limit,
+            output_size: limit,
+            cost: (limit as f64 * (limit as f64).log2()) / 1000.0,
+            dependencies: vec![steps.len() - 1],
+        });
+
+        *cost += steps.iter().map(|s| s.cost).sum::<f64>();
+        Ok(())
+    }
+
+    // Agent状态查询计划
+    fn plan_agent_state_query(&self, steps: &mut Vec<ExecutionStep>, cost: &mut f64, indexes: &mut Vec<String>, params: &HashMap<String, String>) -> Result<(), AgentDbError> {
+        let agent_id = params.get("agent_id").unwrap_or(&"0".to_string()).clone();
+
+        // 主键查找
+        let index_name = "agent_state_pk_index".to_string();
+        indexes.push(index_name.clone());
+
+        steps.push(ExecutionStep {
+            step_id: steps.len(),
+            operation: QueryOperation::IndexScan {
+                index_name,
+                selectivity: 0.001
+            },
+            input_size: 1,
+            output_size: 1,
+            cost: 1.0,
+            dependencies: Vec::new(),
+        });
+
+        *cost += 1.0;
+        Ok(())
+    }
+
+    // RAG查询计划
+    fn plan_rag_query(&self, steps: &mut Vec<ExecutionStep>, cost: &mut f64, indexes: &mut Vec<String>, params: &HashMap<String, String>) -> Result<(), AgentDbError> {
+        let k = params.get("k").and_then(|s| s.parse::<usize>().ok()).unwrap_or(5);
+        let dimension = params.get("dimension").and_then(|s| s.parse::<usize>().ok()).unwrap_or(384);
+
+        // 向量搜索步骤
+        self.plan_vector_search(steps, cost, indexes, params)?;
+
+        // 文档检索步骤
+        let doc_index = "document_index".to_string();
+        indexes.push(doc_index.clone());
+
+        steps.push(ExecutionStep {
+            step_id: steps.len(),
+            operation: QueryOperation::Join {
+                join_type: JoinType::Inner,
+                condition: "document_id".to_string()
+            },
+            input_size: k,
+            output_size: k,
+            cost: k as f64 * 2.0,
+            dependencies: vec![0],
+        });
+
+        *cost += k as f64 * 2.0;
+        Ok(())
+    }
+
+    // 混合查询计划
+    fn plan_hybrid_query(&self, steps: &mut Vec<ExecutionStep>, cost: &mut f64, indexes: &mut Vec<String>, params: &HashMap<String, String>) -> Result<(), AgentDbError> {
+        // 组合多种查询类型
+        self.plan_vector_search(steps, cost, indexes, params)?;
+        self.plan_memory_retrieval(steps, cost, indexes, params)?;
+
+        // 结果合并步骤
+        steps.push(ExecutionStep {
+            step_id: steps.len(),
+            operation: QueryOperation::Aggregate {
+                function: AggregateFunction::Count,
+                field: "result_id".to_string()
+            },
+            input_size: 100,
+            output_size: 50,
+            cost: 5.0,
+            dependencies: vec![0, 1],
+        });
+
+        *cost += 5.0;
+        Ok(())
+    }
+
+    // 选择最优向量索引
+    fn select_optimal_vector_index(&self, dimension: usize, k: usize) -> VectorIndexType {
+        // 基于启发式规则选择索引类型
+        if dimension < 50 {
+            VectorIndexType::Flat
+        } else if k < 10 && dimension < 500 {
+            VectorIndexType::HNSW
+        } else if dimension > 1000 {
+            VectorIndexType::PQ
+        } else {
+            VectorIndexType::IVF
+        }
+    }
+
+    // 估算向量搜索成本
+    fn estimate_vector_search_cost(&self, index_type: VectorIndexType, k: usize, dimension: usize) -> f64 {
+        match index_type {
+            VectorIndexType::Flat => (k * dimension) as f64 * 0.001,
+            VectorIndexType::HNSW => (k as f64 * (dimension as f64).log2()) * 0.01,
+            VectorIndexType::IVF => (k as f64 * (dimension as f64).sqrt()) * 0.005,
+            VectorIndexType::PQ => k as f64 * 0.1,
+        }
+    }
+
+    // 估算执行时间
+    fn estimate_execution_time(&self, steps: &[ExecutionStep]) -> f64 {
+        steps.iter().map(|step| {
+            match &step.operation {
+                QueryOperation::VectorSearch { index_type, k } => {
+                    match index_type {
+                        VectorIndexType::Flat => *k as f64 * 0.1,
+                        VectorIndexType::HNSW => (*k as f64).log2() * 0.01,
+                        VectorIndexType::IVF => (*k as f64).sqrt() * 0.05,
+                        VectorIndexType::PQ => *k as f64 * 0.001,
+                    }
+                }
+                QueryOperation::IndexScan { selectivity, .. } => {
+                    step.input_size as f64 * selectivity * 0.001
+                }
+                QueryOperation::Filter { selectivity, .. } => {
+                    step.input_size as f64 * selectivity * 0.0001
+                }
+                QueryOperation::Sort { .. } => {
+                    let n = step.input_size as f64;
+                    n * n.log2() * 0.00001
+                }
+                QueryOperation::Join { .. } => {
+                    step.input_size as f64 * 0.01
+                }
+                QueryOperation::Aggregate { .. } => {
+                    step.input_size as f64 * 0.0001
+                }
+            }
+        }).sum()
+    }
+
+    // 查询缓存管理
+    pub fn get_cached_result(&mut self, query_hash: u64) -> Option<Vec<u8>> {
+        let current_time = chrono::Utc::now().timestamp();
+
+        if let Some(cache_entry) = self.query_cache.get_mut(&query_hash) {
+            if cache_entry.expires_at > current_time {
+                cache_entry.hit_count += 1;
+                cache_entry.last_accessed = current_time;
+                return Some(cache_entry.result_data.clone());
+            } else {
+                // 缓存过期，删除
+                self.query_cache.remove(&query_hash);
+            }
+        }
+
+        None
+    }
+
+    pub fn cache_result(&mut self, query_hash: u64, result_data: Vec<u8>, result_count: usize) {
+        let current_time = chrono::Utc::now().timestamp();
+
+        // 检查缓存大小限制
+        if self.query_cache.len() >= self.cache_size_limit {
+            self.evict_oldest_cache_entry();
+        }
+
+        let cache_entry = QueryCache {
+            cache_id: format!("cache_{}", query_hash),
+            query_hash,
+            result_data,
+            result_count,
+            hit_count: 0,
+            created_at: current_time,
+            last_accessed: current_time,
+            expires_at: current_time + self.cache_ttl,
+        };
+
+        self.query_cache.insert(query_hash, cache_entry);
+    }
+
+    // 缓存淘汰策略（LRU）
+    fn evict_oldest_cache_entry(&mut self) {
+        if let Some((&oldest_hash, _)) = self.query_cache.iter()
+            .min_by_key(|(_, cache)| cache.last_accessed) {
+            self.query_cache.remove(&oldest_hash);
+        }
+    }
+
+    // 记录查询统计
+    pub fn record_query_stats(&mut self, stats: QueryStats) {
+        self.query_stats.push(stats);
+
+        // 保持统计数据在合理范围内
+        if self.query_stats.len() > 10000 {
+            self.query_stats.drain(0..1000);
+        }
+    }
+
+    // 分析查询性能
+    pub fn analyze_query_performance(&self, query_type: Option<QueryType>) -> QueryPerformanceAnalysis {
+        let relevant_stats: Vec<&QueryStats> = match query_type {
+            Some(qt) => self.query_stats.iter().filter(|s| s.query_type == qt).collect(),
+            None => self.query_stats.iter().collect(),
+        };
+
+        if relevant_stats.is_empty() {
+            return QueryPerformanceAnalysis::default();
+        }
+
+        let total_queries = relevant_stats.len();
+        let avg_execution_time = relevant_stats.iter().map(|s| s.execution_time).sum::<f64>() / total_queries as f64;
+        let cache_hit_rate = relevant_stats.iter().filter(|s| s.cache_hit).count() as f64 / total_queries as f64;
+        let avg_result_count = relevant_stats.iter().map(|s| s.result_count).sum::<usize>() / total_queries;
+        let avg_memory_usage = relevant_stats.iter().map(|s| s.memory_usage).sum::<usize>() / total_queries;
+
+        // 计算性能分布
+        let mut execution_times: Vec<f64> = relevant_stats.iter().map(|s| s.execution_time).collect();
+        execution_times.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+        let p50 = execution_times[execution_times.len() / 2];
+        let p95 = execution_times[(execution_times.len() as f64 * 0.95) as usize];
+        let p99 = execution_times[(execution_times.len() as f64 * 0.99) as usize];
+
+        QueryPerformanceAnalysis {
+            total_queries,
+            avg_execution_time,
+            p50_execution_time: p50,
+            p95_execution_time: p95,
+            p99_execution_time: p99,
+            cache_hit_rate,
+            avg_result_count,
+            avg_memory_usage,
+            slowest_queries: self.get_slowest_queries(&relevant_stats, 5),
+            most_frequent_queries: self.get_most_frequent_query_types(&relevant_stats),
+        }
+    }
+
+    // 获取最慢的查询
+    fn get_slowest_queries(&self, stats: &[&QueryStats], limit: usize) -> Vec<QueryStats> {
+        let mut sorted_stats = stats.to_vec();
+        sorted_stats.sort_by(|a, b| b.execution_time.partial_cmp(&a.execution_time).unwrap());
+        sorted_stats.into_iter().take(limit).cloned().collect()
+    }
+
+    // 获取最频繁的查询类型
+    fn get_most_frequent_query_types(&self, stats: &[&QueryStats]) -> HashMap<QueryType, usize> {
+        let mut type_counts = HashMap::new();
+        for stat in stats {
+            *type_counts.entry(stat.query_type.clone()).or_insert(0) += 1;
+        }
+        type_counts
+    }
+
+    // 生成索引推荐
+    pub fn generate_index_recommendations(&self) -> Vec<IndexRecommendation> {
+        let mut recommendations = Vec::new();
+
+        // 分析查询模式
+        let query_patterns = self.analyze_query_patterns();
+
+        for pattern in query_patterns {
+            if pattern.frequency > 10 && pattern.avg_execution_time > 100.0 {
+                let recommendation = IndexRecommendation {
+                    index_name: format!("recommended_index_{}", pattern.pattern_id),
+                    index_type: self.recommend_index_type(&pattern),
+                    columns: pattern.accessed_columns.clone(),
+                    estimated_benefit: self.estimate_index_benefit(&pattern),
+                    creation_cost: self.estimate_index_creation_cost(&pattern),
+                    maintenance_cost: self.estimate_index_maintenance_cost(&pattern),
+                    usage_frequency: pattern.frequency,
+                };
+                recommendations.push(recommendation);
+            }
+        }
+
+        // 按预期收益排序
+        recommendations.sort_by(|a, b| b.estimated_benefit.partial_cmp(&a.estimated_benefit).unwrap());
+        recommendations
+    }
+
+    // 分析查询模式
+    fn analyze_query_patterns(&self) -> Vec<QueryPattern> {
+        // 简化的查询模式分析
+        vec![
+            QueryPattern {
+                pattern_id: "vector_search_pattern".to_string(),
+                query_type: QueryType::VectorSearch,
+                frequency: 100,
+                avg_execution_time: 150.0,
+                accessed_columns: vec!["embedding".to_string()],
+            },
+            QueryPattern {
+                pattern_id: "memory_retrieval_pattern".to_string(),
+                query_type: QueryType::MemoryRetrieval,
+                frequency: 50,
+                avg_execution_time: 80.0,
+                accessed_columns: vec!["agent_id".to_string(), "created_at".to_string()],
+            },
+        ]
+    }
+
+    // 推荐索引类型
+    fn recommend_index_type(&self, pattern: &QueryPattern) -> VectorIndexType {
+        match pattern.query_type {
+            QueryType::VectorSearch => VectorIndexType::HNSW,
+            _ => VectorIndexType::Flat,
+        }
+    }
+
+    // 估算索引收益
+    fn estimate_index_benefit(&self, pattern: &QueryPattern) -> f64 {
+        pattern.frequency as f64 * (pattern.avg_execution_time * 0.5)
+    }
+
+    // 估算索引创建成本
+    fn estimate_index_creation_cost(&self, _pattern: &QueryPattern) -> f64 {
+        1000.0 // 简化的固定成本
+    }
+
+    // 估算索引维护成本
+    fn estimate_index_maintenance_cost(&self, _pattern: &QueryPattern) -> f64 {
+        100.0 // 简化的固定成本
+    }
+
+    // 获取缓存统计
+    pub fn get_cache_statistics(&self) -> CacheStatistics {
+        let total_entries = self.query_cache.len();
+        let total_hits = self.query_cache.values().map(|c| c.hit_count).sum();
+        let total_size = self.query_cache.values().map(|c| c.result_data.len()).sum();
+        let current_time = chrono::Utc::now().timestamp();
+        let expired_entries = self.query_cache.values().filter(|c| c.expires_at < current_time).count();
+
+        CacheStatistics {
+            total_entries,
+            total_hits,
+            total_size,
+            expired_entries,
+            hit_rate: if total_entries > 0 { total_hits as f64 / total_entries as f64 } else { 0.0 },
+            memory_usage: total_size,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct QueryPattern {
+    pub pattern_id: String,
+    pub query_type: QueryType,
+    pub frequency: u64,
+    pub avg_execution_time: f64,
+    pub accessed_columns: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct QueryPerformanceAnalysis {
+    pub total_queries: usize,
+    pub avg_execution_time: f64,
+    pub p50_execution_time: f64,
+    pub p95_execution_time: f64,
+    pub p99_execution_time: f64,
+    pub cache_hit_rate: f64,
+    pub avg_result_count: usize,
+    pub avg_memory_usage: usize,
+    pub slowest_queries: Vec<QueryStats>,
+    pub most_frequent_queries: HashMap<QueryType, usize>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CacheStatistics {
+    pub total_entries: usize,
+    pub total_hits: u64,
+    pub total_size: usize,
+    pub expired_entries: usize,
+    pub hit_rate: f64,
+    pub memory_usage: usize,
+}
+
+// 多模态数据支持系统
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ModalityType {
+    Text,
+    Image,
+    Audio,
+    Video,
+    Multimodal,
+}
+
+#[derive(Debug, Clone)]
+pub struct MultimodalData {
+    pub data_id: String,
+    pub modality_type: ModalityType,
+    pub raw_data: Vec<u8>,
+    pub metadata: HashMap<String, String>,
+    pub embedding: Option<Vec<f32>>,
+    pub features: Option<HashMap<String, f32>>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct ImageFeatures {
+    pub width: u32,
+    pub height: u32,
+    pub channels: u32,
+    pub format: String,
+    pub color_histogram: Vec<f32>,
+    pub edge_features: Vec<f32>,
+    pub texture_features: Vec<f32>,
+    pub shape_features: Vec<f32>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AudioFeatures {
+    pub sample_rate: u32,
+    pub duration: f32,
+    pub channels: u32,
+    pub format: String,
+    pub mfcc: Vec<f32>,           // Mel-frequency cepstral coefficients
+    pub spectral_centroid: f32,
+    pub spectral_rolloff: f32,
+    pub zero_crossing_rate: f32,
+    pub tempo: f32,
+    pub energy: f32,
+}
+
+#[derive(Debug, Clone)]
+pub struct CrossModalMapping {
+    pub mapping_id: String,
+    pub source_modality: ModalityType,
+    pub target_modality: ModalityType,
+    pub transformation_matrix: Vec<Vec<f32>>,
+    pub bias_vector: Vec<f32>,
+    pub confidence_score: f32,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct MultimodalSearchResult {
+    pub data_id: String,
+    pub modality_type: ModalityType,
+    pub similarity_score: f32,
+    pub cross_modal_score: Option<f32>,
+    pub metadata: HashMap<String, String>,
+    pub features_summary: String,
+}
+
+pub struct MultimodalEngine {
+    connection: Connection,
+    data_storage: HashMap<String, MultimodalData>,
+    cross_modal_mappings: HashMap<String, CrossModalMapping>,
+    feature_extractors: HashMap<ModalityType, Box<dyn FeatureExtractor>>,
+}
+
+pub trait FeatureExtractor: Send + Sync {
+    fn extract_features(&self, data: &[u8], metadata: &HashMap<String, String>) -> Result<Vec<f32>, AgentDbError>;
+    fn extract_detailed_features(&self, data: &[u8], metadata: &HashMap<String, String>) -> Result<HashMap<String, f32>, AgentDbError>;
+}
+
+// 图像特征提取器
+pub struct ImageFeatureExtractor;
+
+impl FeatureExtractor for ImageFeatureExtractor {
+    fn extract_features(&self, data: &[u8], metadata: &HashMap<String, String>) -> Result<Vec<f32>, AgentDbError> {
+        // 简化的图像特征提取实现
+        let width = metadata.get("width").and_then(|s| s.parse::<u32>().ok()).unwrap_or(224);
+        let height = metadata.get("height").and_then(|s| s.parse::<u32>().ok()).unwrap_or(224);
+        let channels = metadata.get("channels").and_then(|s| s.parse::<u32>().ok()).unwrap_or(3);
+
+        // 模拟CNN特征提取（实际应用中应使用预训练模型）
+        let mut features = Vec::new();
+
+        // 颜色直方图特征 (64维)
+        let color_hist = self.extract_color_histogram(data, width, height, channels)?;
+        features.extend(color_hist);
+
+        // 边缘特征 (32维)
+        let edge_features = self.extract_edge_features(data, width, height)?;
+        features.extend(edge_features);
+
+        // 纹理特征 (32维)
+        let texture_features = self.extract_texture_features(data, width, height)?;
+        features.extend(texture_features);
+
+        // 形状特征 (16维)
+        let shape_features = self.extract_shape_features(data, width, height)?;
+        features.extend(shape_features);
+
+        Ok(features)
+    }
+
+    fn extract_detailed_features(&self, data: &[u8], metadata: &HashMap<String, String>) -> Result<HashMap<String, f32>, AgentDbError> {
+        let width = metadata.get("width").and_then(|s| s.parse::<u32>().ok()).unwrap_or(224);
+        let height = metadata.get("height").and_then(|s| s.parse::<u32>().ok()).unwrap_or(224);
+
+        let mut detailed_features = HashMap::new();
+
+        // 基础图像属性
+        detailed_features.insert("width".to_string(), width as f32);
+        detailed_features.insert("height".to_string(), height as f32);
+        detailed_features.insert("aspect_ratio".to_string(), width as f32 / height as f32);
+        detailed_features.insert("pixel_count".to_string(), (width * height) as f32);
+
+        // 颜色统计
+        let (brightness, contrast, saturation) = self.calculate_color_stats(data, width, height)?;
+        detailed_features.insert("brightness".to_string(), brightness);
+        detailed_features.insert("contrast".to_string(), contrast);
+        detailed_features.insert("saturation".to_string(), saturation);
+
+        // 复杂度指标
+        let complexity = self.calculate_image_complexity(data, width, height)?;
+        detailed_features.insert("complexity".to_string(), complexity);
+
+        Ok(detailed_features)
+    }
+}
+
+impl ImageFeatureExtractor {
+    fn extract_color_histogram(&self, data: &[u8], width: u32, height: u32, channels: u32) -> Result<Vec<f32>, AgentDbError> {
+        let mut histogram = vec![0.0; 64]; // 简化的64维颜色直方图
+
+        let pixel_count = (width * height * channels) as usize;
+        if data.len() < pixel_count {
+            return Err(AgentDbError::InvalidArgument("Insufficient image data".to_string()));
+        }
+
+        // 简化的颜色直方图计算
+        for i in (0..pixel_count).step_by(channels as usize) {
+            if i + 2 < data.len() {
+                let r = data[i] as f32 / 255.0;
+                let g = data[i + 1] as f32 / 255.0;
+                let b = data[i + 2] as f32 / 255.0;
+
+                // 将RGB映射到直方图bin
+                let bin = ((r * 4.0) as usize * 16 + (g * 4.0) as usize * 4 + (b * 4.0) as usize).min(63);
+                histogram[bin] += 1.0;
+            }
+        }
+
+        // 归一化
+        let total: f32 = histogram.iter().sum();
+        if total > 0.0 {
+            for h in &mut histogram {
+                *h /= total;
+            }
+        }
+
+        Ok(histogram)
+    }
+
+    fn extract_edge_features(&self, data: &[u8], width: u32, height: u32) -> Result<Vec<f32>, AgentDbError> {
+        // 简化的边缘检测特征
+        let mut edge_features = vec![0.0; 32];
+
+        // 模拟Sobel边缘检测
+        for y in 1..(height - 1) {
+            for x in 1..(width - 1) {
+                let idx = (y * width + x) as usize * 3;
+                if idx + 2 < data.len() {
+                    let intensity = (data[idx] as f32 + data[idx + 1] as f32 + data[idx + 2] as f32) / 3.0;
+
+                    // 简化的梯度计算
+                    let gradient_x = intensity - (*data.get(idx - 3).unwrap_or(&0) as f32);
+                    let gradient_y = intensity - (*data.get(idx - width as usize * 3).unwrap_or(&0) as f32);
+                    let magnitude = (gradient_x * gradient_x + gradient_y * gradient_y).sqrt();
+
+                    // 将梯度幅值分配到特征bin
+                    let bin = (magnitude / 32.0).min(31.0) as usize;
+                    edge_features[bin] += 1.0;
+                }
+            }
+        }
+
+        // 归一化
+        let total: f32 = edge_features.iter().sum();
+        if total > 0.0 {
+            for f in &mut edge_features {
+                *f /= total;
+            }
+        }
+
+        Ok(edge_features)
+    }
+
+    fn extract_texture_features(&self, data: &[u8], width: u32, height: u32) -> Result<Vec<f32>, AgentDbError> {
+        // 简化的纹理特征（基于局部二值模式LBP的简化版本）
+        let mut texture_features = vec![0.0; 32];
+
+        for y in 1..(height - 1) {
+            for x in 1..(width - 1) {
+                let center_idx = (y * width + x) as usize * 3;
+                if center_idx + 2 < data.len() {
+                    let center_intensity = (data[center_idx] as f32 + data[center_idx + 1] as f32 + data[center_idx + 2] as f32) / 3.0;
+
+                    // 简化的局部模式计算
+                    let mut pattern = 0;
+                    let neighbors = [
+                        (-1, -1), (-1, 0), (-1, 1),
+                        (0, -1),           (0, 1),
+                        (1, -1),  (1, 0),  (1, 1),
+                    ];
+
+                    for (i, (dx, dy)) in neighbors.iter().enumerate() {
+                        let nx = (x as i32 + dx) as u32;
+                        let ny = (y as i32 + dy) as u32;
+                        let neighbor_idx = (ny * width + nx) as usize * 3;
+
+                        if neighbor_idx + 2 < data.len() {
+                            let neighbor_intensity = (data[neighbor_idx] as f32 + data[neighbor_idx + 1] as f32 + data[neighbor_idx + 2] as f32) / 3.0;
+                            if neighbor_intensity > center_intensity {
+                                pattern |= 1 << i;
+                            }
+                        }
+                    }
+
+                    // 将模式映射到特征bin
+                    let bin = (pattern % 32) as usize;
+                    texture_features[bin] += 1.0;
+                }
+            }
+        }
+
+        // 归一化
+        let total: f32 = texture_features.iter().sum();
+        if total > 0.0 {
+            for f in &mut texture_features {
+                *f /= total;
+            }
+        }
+
+        Ok(texture_features)
+    }
+
+    fn extract_shape_features(&self, data: &[u8], width: u32, height: u32) -> Result<Vec<f32>, AgentDbError> {
+        // 简化的形状特征
+        let mut shape_features = vec![0.0; 16];
+
+        // 计算图像的矩特征
+        let mut m00 = 0.0; // 零阶矩
+        let mut m10 = 0.0; // 一阶矩
+        let mut m01 = 0.0;
+        let mut m20 = 0.0; // 二阶矩
+        let mut m11 = 0.0;
+        let mut m02 = 0.0;
+
+        for y in 0..height {
+            for x in 0..width {
+                let idx = (y * width + x) as usize * 3;
+                if idx + 2 < data.len() {
+                    let intensity = (data[idx] as f32 + data[idx + 1] as f32 + data[idx + 2] as f32) / 3.0 / 255.0;
+
+                    let fx = x as f32;
+                    let fy = y as f32;
+
+                    m00 += intensity;
+                    m10 += fx * intensity;
+                    m01 += fy * intensity;
+                    m20 += fx * fx * intensity;
+                    m11 += fx * fy * intensity;
+                    m02 += fy * fy * intensity;
+                }
+            }
+        }
+
+        // 计算中心矩
+        if m00 > 0.0 {
+            let cx = m10 / m00;
+            let cy = m01 / m00;
+
+            let mu20 = m20 / m00 - cx * cx;
+            let mu11 = m11 / m00 - cx * cy;
+            let mu02 = m02 / m00 - cy * cy;
+
+            // 形状特征
+            shape_features[0] = m00; // 面积
+            shape_features[1] = cx; // 质心x
+            shape_features[2] = cy; // 质心y
+            shape_features[3] = mu20; // 中心矩
+            shape_features[4] = mu11;
+            shape_features[5] = mu02;
+
+            // 不变矩
+            shape_features[6] = mu20 + mu02; // 第一不变矩
+            shape_features[7] = (mu20 - mu02) * (mu20 - mu02) + 4.0 * mu11 * mu11; // 第二不变矩
+
+            // 其他形状描述符
+            shape_features[8] = width as f32 / height as f32; // 长宽比
+            shape_features[9] = (mu20 * mu02 - mu11 * mu11) / (m00 * m00 * m00 * m00); // 紧凑度
+        }
+
+        Ok(shape_features)
+    }
+
+    fn calculate_color_stats(&self, data: &[u8], width: u32, height: u32) -> Result<(f32, f32, f32), AgentDbError> {
+        let mut r_sum = 0.0;
+        let mut g_sum = 0.0;
+        let mut b_sum = 0.0;
+        let mut r_sq_sum = 0.0;
+        let mut g_sq_sum = 0.0;
+        let mut b_sq_sum = 0.0;
+
+        let pixel_count = width * height;
+
+        for i in (0..data.len()).step_by(3) {
+            if i + 2 < data.len() {
+                let r = data[i] as f32 / 255.0;
+                let g = data[i + 1] as f32 / 255.0;
+                let b = data[i + 2] as f32 / 255.0;
+
+                r_sum += r;
+                g_sum += g;
+                b_sum += b;
+                r_sq_sum += r * r;
+                g_sq_sum += g * g;
+                b_sq_sum += b * b;
+            }
+        }
+
+        let brightness = (r_sum + g_sum + b_sum) / (3.0 * pixel_count as f32);
+
+        let r_var = r_sq_sum / pixel_count as f32 - (r_sum / pixel_count as f32).powi(2);
+        let g_var = g_sq_sum / pixel_count as f32 - (g_sum / pixel_count as f32).powi(2);
+        let b_var = b_sq_sum / pixel_count as f32 - (b_sum / pixel_count as f32).powi(2);
+        let contrast = (r_var + g_var + b_var) / 3.0;
+
+        // 简化的饱和度计算
+        let saturation = contrast.sqrt();
+
+        Ok((brightness, contrast, saturation))
+    }
+
+    fn calculate_image_complexity(&self, data: &[u8], width: u32, height: u32) -> Result<f32, AgentDbError> {
+        // 基于熵的复杂度计算
+        let mut histogram = vec![0; 256];
+
+        for i in (0..data.len()).step_by(3) {
+            if i + 2 < data.len() {
+                let intensity = ((data[i] as u32 + data[i + 1] as u32 + data[i + 2] as u32) / 3) as usize;
+                histogram[intensity] += 1;
+            }
+        }
+
+        let total_pixels = width * height;
+        let mut entropy = 0.0;
+
+        for &count in &histogram {
+            if count > 0 {
+                let p = count as f32 / total_pixels as f32;
+                entropy -= p * p.log2();
+            }
+        }
+
+        Ok(entropy / 8.0) // 归一化到[0,1]
+    }
+}
+
+// 音频特征提取器
+pub struct AudioFeatureExtractor;
+
+impl FeatureExtractor for AudioFeatureExtractor {
+    fn extract_features(&self, data: &[u8], metadata: &HashMap<String, String>) -> Result<Vec<f32>, AgentDbError> {
+        let sample_rate = metadata.get("sample_rate").and_then(|s| s.parse::<u32>().ok()).unwrap_or(44100);
+        let channels = metadata.get("channels").and_then(|s| s.parse::<u32>().ok()).unwrap_or(1);
+
+        // 将字节数据转换为音频样本
+        let samples = self.bytes_to_samples(data)?;
+
+        let mut features = Vec::new();
+
+        // MFCC特征 (13维)
+        let mfcc = self.extract_mfcc(&samples, sample_rate)?;
+        features.extend(mfcc);
+
+        // 频谱特征 (10维)
+        let spectral_features = self.extract_spectral_features(&samples, sample_rate)?;
+        features.extend(spectral_features);
+
+        // 时域特征 (5维)
+        let temporal_features = self.extract_temporal_features(&samples, sample_rate)?;
+        features.extend(temporal_features);
+
+        // 节奏特征 (4维)
+        let rhythm_features = self.extract_rhythm_features(&samples, sample_rate)?;
+        features.extend(rhythm_features);
+
+        Ok(features)
+    }
+
+    fn extract_detailed_features(&self, data: &[u8], metadata: &HashMap<String, String>) -> Result<HashMap<String, f32>, AgentDbError> {
+        let sample_rate = metadata.get("sample_rate").and_then(|s| s.parse::<u32>().ok()).unwrap_or(44100);
+        let channels = metadata.get("channels").and_then(|s| s.parse::<u32>().ok()).unwrap_or(1);
+
+        let samples = self.bytes_to_samples(data)?;
+        let duration = samples.len() as f32 / sample_rate as f32;
+
+        let mut detailed_features = HashMap::new();
+
+        // 基础音频属性
+        detailed_features.insert("sample_rate".to_string(), sample_rate as f32);
+        detailed_features.insert("duration".to_string(), duration);
+        detailed_features.insert("channels".to_string(), channels as f32);
+        detailed_features.insert("sample_count".to_string(), samples.len() as f32);
+
+        // 音量统计
+        let (rms_energy, peak_amplitude, dynamic_range) = self.calculate_amplitude_stats(&samples)?;
+        detailed_features.insert("rms_energy".to_string(), rms_energy);
+        detailed_features.insert("peak_amplitude".to_string(), peak_amplitude);
+        detailed_features.insert("dynamic_range".to_string(), dynamic_range);
+
+        // 频域特征
+        let (spectral_centroid, spectral_rolloff, spectral_bandwidth) = self.calculate_spectral_stats(&samples, sample_rate)?;
+        detailed_features.insert("spectral_centroid".to_string(), spectral_centroid);
+        detailed_features.insert("spectral_rolloff".to_string(), spectral_rolloff);
+        detailed_features.insert("spectral_bandwidth".to_string(), spectral_bandwidth);
+
+        // 时域特征
+        let zero_crossing_rate = self.calculate_zero_crossing_rate(&samples)?;
+        detailed_features.insert("zero_crossing_rate".to_string(), zero_crossing_rate);
+
+        Ok(detailed_features)
+    }
+}
+
+impl AudioFeatureExtractor {
+    fn bytes_to_samples(&self, data: &[u8]) -> Result<Vec<f32>, AgentDbError> {
+        // 假设16位PCM格式
+        if data.len() % 2 != 0 {
+            return Err(AgentDbError::InvalidArgument("Invalid audio data length".to_string()));
+        }
+
+        let mut samples = Vec::new();
+        for i in (0..data.len()).step_by(2) {
+            if i + 1 < data.len() {
+                let sample = i16::from_le_bytes([data[i], data[i + 1]]) as f32 / 32768.0;
+                samples.push(sample);
+            }
+        }
+
+        Ok(samples)
+    }
+
+    fn extract_mfcc(&self, samples: &[f32], sample_rate: u32) -> Result<Vec<f32>, AgentDbError> {
+        // 简化的MFCC实现
+        let mut mfcc = vec![0.0; 13];
+
+        // 预加重
+        let mut pre_emphasized = Vec::new();
+        pre_emphasized.push(samples[0]);
+        for i in 1..samples.len() {
+            pre_emphasized.push(samples[i] - 0.97 * samples[i - 1]);
+        }
+
+        // 简化的频谱分析
+        let window_size = 1024;
+        let hop_size = 512;
+
+        for start in (0..pre_emphasized.len()).step_by(hop_size) {
+            let end = (start + window_size).min(pre_emphasized.len());
+            let window = &pre_emphasized[start..end];
+
+            // 简化的DFT
+            let mut spectrum = vec![0.0; window_size / 2];
+            for k in 0..spectrum.len() {
+                let mut real = 0.0;
+                let mut imag = 0.0;
+                for n in 0..window.len() {
+                    let angle = -2.0 * std::f32::consts::PI * k as f32 * n as f32 / window_size as f32;
+                    real += window[n] * angle.cos();
+                    imag += window[n] * angle.sin();
+                }
+                spectrum[k] = (real * real + imag * imag).sqrt();
+            }
+
+            // Mel滤波器组
+            let mel_filters = self.create_mel_filters(spectrum.len(), sample_rate);
+            for (i, filter) in mel_filters.iter().enumerate().take(13) {
+                let mut energy = 0.0;
+                for (j, &coeff) in filter.iter().enumerate() {
+                    if j < spectrum.len() {
+                        energy += spectrum[j] * coeff;
+                    }
+                }
+                mfcc[i] += energy.ln().max(-50.0); // 避免log(0)
+            }
+        }
+
+        // 归一化
+        let frames = (pre_emphasized.len() / hop_size).max(1) as f32;
+        for coeff in &mut mfcc {
+            *coeff /= frames;
+        }
+
+        Ok(mfcc)
+    }
+
+    fn create_mel_filters(&self, fft_size: usize, sample_rate: u32) -> Vec<Vec<f32>> {
+        let num_filters = 13;
+        let mut filters = Vec::new();
+
+        // Mel频率转换
+        let mel_low = 0.0;
+        let mel_high = 2595.0 * (1.0 + sample_rate as f32 / 2.0 / 700.0).ln();
+
+        let mel_points: Vec<f32> = (0..=num_filters + 1)
+            .map(|i| mel_low + (mel_high - mel_low) * i as f32 / (num_filters + 1) as f32)
+            .collect();
+
+        let hz_points: Vec<f32> = mel_points.iter()
+            .map(|&mel| 700.0 * ((mel / 2595.0).exp() - 1.0))
+            .collect();
+
+        let bin_points: Vec<usize> = hz_points.iter()
+            .map(|&hz| ((fft_size + 1) as f32 * hz / sample_rate as f32) as usize)
+            .collect();
+
+        for i in 1..=num_filters {
+            let mut filter = vec![0.0; fft_size];
+
+            for j in bin_points[i - 1]..bin_points[i] {
+                if j < fft_size {
+                    filter[j] = (j - bin_points[i - 1]) as f32 / (bin_points[i] - bin_points[i - 1]) as f32;
+                }
+            }
+
+            for j in bin_points[i]..bin_points[i + 1] {
+                if j < fft_size {
+                    filter[j] = (bin_points[i + 1] - j) as f32 / (bin_points[i + 1] - bin_points[i]) as f32;
+                }
+            }
+
+            filters.push(filter);
+        }
+
+        filters
+    }
+
+    fn extract_spectral_features(&self, samples: &[f32], sample_rate: u32) -> Result<Vec<f32>, AgentDbError> {
+        let mut features = vec![0.0; 10];
+
+        // 简化的频谱分析
+        let window_size = 1024;
+        let mut spectrum = vec![0.0; window_size / 2];
+
+        // 计算功率谱
+        for k in 0..spectrum.len() {
+            let mut real = 0.0;
+            let mut imag = 0.0;
+            for n in 0..window_size.min(samples.len()) {
+                let angle = -2.0 * std::f32::consts::PI * k as f32 * n as f32 / window_size as f32;
+                real += samples[n] * angle.cos();
+                imag += samples[n] * angle.sin();
+            }
+            spectrum[k] = real * real + imag * imag;
+        }
+
+        // 频谱质心
+        let mut weighted_sum = 0.0;
+        let mut total_power = 0.0;
+        for (i, &power) in spectrum.iter().enumerate() {
+            let freq = i as f32 * sample_rate as f32 / window_size as f32;
+            weighted_sum += freq * power;
+            total_power += power;
+        }
+        features[0] = if total_power > 0.0 { weighted_sum / total_power } else { 0.0 };
+
+        // 频谱滚降点
+        let mut cumulative_power = 0.0;
+        let threshold = total_power * 0.85;
+        for (i, &power) in spectrum.iter().enumerate() {
+            cumulative_power += power;
+            if cumulative_power >= threshold {
+                features[1] = i as f32 * sample_rate as f32 / window_size as f32;
+                break;
+            }
+        }
+
+        // 频谱带宽
+        let centroid = features[0];
+        let mut bandwidth = 0.0;
+        for (i, &power) in spectrum.iter().enumerate() {
+            let freq = i as f32 * sample_rate as f32 / window_size as f32;
+            bandwidth += (freq - centroid).powi(2) * power;
+        }
+        features[2] = if total_power > 0.0 { (bandwidth / total_power).sqrt() } else { 0.0 };
+
+        // 频谱平坦度
+        let mut geometric_mean = 1.0;
+        let mut arithmetic_mean = 0.0;
+        let valid_bins = spectrum.iter().filter(|&&p| p > 0.0).count();
+
+        if valid_bins > 0 {
+            for &power in spectrum.iter().filter(|&&p| p > 0.0) {
+                geometric_mean *= power.powf(1.0 / valid_bins as f32);
+                arithmetic_mean += power;
+            }
+            arithmetic_mean /= valid_bins as f32;
+            features[3] = if arithmetic_mean > 0.0 { geometric_mean / arithmetic_mean } else { 0.0 };
+        }
+
+        // 其他频谱特征（简化）
+        features[4] = spectrum.iter().sum::<f32>(); // 总能量
+        features[5] = spectrum.iter().max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap_or(&0.0).clone(); // 峰值
+
+        Ok(features)
+    }
+
+    fn extract_temporal_features(&self, samples: &[f32], _sample_rate: u32) -> Result<Vec<f32>, AgentDbError> {
+        let mut features = vec![0.0; 5];
+
+        // RMS能量
+        let rms = (samples.iter().map(|&x| x * x).sum::<f32>() / samples.len() as f32).sqrt();
+        features[0] = rms;
+
+        // 峰值幅度
+        features[1] = samples.iter().map(|&x| x.abs()).fold(0.0, f32::max);
+
+        // 过零率
+        let mut zero_crossings = 0;
+        for i in 1..samples.len() {
+            if (samples[i] >= 0.0) != (samples[i - 1] >= 0.0) {
+                zero_crossings += 1;
+            }
+        }
+        features[2] = zero_crossings as f32 / samples.len() as f32;
+
+        // 短时能量
+        let frame_size = 1024;
+        let mut frame_energies = Vec::new();
+        for start in (0..samples.len()).step_by(frame_size) {
+            let end = (start + frame_size).min(samples.len());
+            let energy: f32 = samples[start..end].iter().map(|&x| x * x).sum();
+            frame_energies.push(energy);
+        }
+
+        if !frame_energies.is_empty() {
+            features[3] = frame_energies.iter().sum::<f32>() / frame_energies.len() as f32; // 平均能量
+            features[4] = frame_energies.iter().fold(0.0, |acc, &x| acc.max(x)); // 最大能量
+        }
+
+        Ok(features)
+    }
+
+    fn extract_rhythm_features(&self, samples: &[f32], sample_rate: u32) -> Result<Vec<f32>, AgentDbError> {
+        let mut features = vec![0.0; 4];
+
+        // 简化的节拍检测
+        let hop_size = 512;
+        let mut onset_strength = Vec::new();
+
+        for start in (0..samples.len()).step_by(hop_size) {
+            let end = (start + hop_size).min(samples.len());
+            let frame = &samples[start..end];
+
+            // 计算频谱通量
+            let mut flux = 0.0;
+            for i in 1..frame.len() {
+                let diff = frame[i] - frame[i - 1];
+                if diff > 0.0 {
+                    flux += diff;
+                }
+            }
+            onset_strength.push(flux);
+        }
+
+        // 自相关分析寻找周期性
+        if onset_strength.len() > 1 {
+            let mut max_correlation = 0.0;
+            let mut best_lag = 0;
+
+            for lag in 1..(onset_strength.len() / 2) {
+                let mut correlation = 0.0;
+                let mut count = 0;
+
+                for i in lag..onset_strength.len() {
+                    correlation += onset_strength[i] * onset_strength[i - lag];
+                    count += 1;
+                }
+
+                if count > 0 {
+                    correlation /= count as f32;
+                    if correlation > max_correlation {
+                        max_correlation = correlation;
+                        best_lag = lag;
+                    }
+                }
+            }
+
+            // 估算BPM
+            if best_lag > 0 {
+                let period_seconds = best_lag as f32 * hop_size as f32 / sample_rate as f32;
+                features[0] = 60.0 / period_seconds; // BPM
+            }
+
+            features[1] = max_correlation; // 节拍强度
+        }
+
+        // 节奏规律性
+        let mut regularity = 0.0;
+        if onset_strength.len() > 2 {
+            let mut intervals = Vec::new();
+            for i in 1..onset_strength.len() {
+                if onset_strength[i] > onset_strength[i - 1] * 1.5 {
+                    intervals.push(i);
+                }
+            }
+
+            if intervals.len() > 1 {
+                let mut interval_diffs = Vec::new();
+                for i in 1..intervals.len() {
+                    interval_diffs.push(intervals[i] - intervals[i - 1]);
+                }
+
+                if !interval_diffs.is_empty() {
+                    let mean_interval = interval_diffs.iter().sum::<usize>() as f32 / interval_diffs.len() as f32;
+                    let variance = interval_diffs.iter()
+                        .map(|&x| (x as f32 - mean_interval).powi(2))
+                        .sum::<f32>() / interval_diffs.len() as f32;
+
+                    regularity = 1.0 / (1.0 + variance.sqrt());
+                }
+            }
+        }
+        features[2] = regularity;
+
+        // 动态范围
+        if !onset_strength.is_empty() {
+            let max_onset = onset_strength.iter().fold(0.0f32, |acc, &x| acc.max(x));
+            let min_onset = onset_strength.iter().fold(f32::INFINITY, |acc, &x| acc.min(x));
+            features[3] = max_onset - min_onset;
+        }
+
+        Ok(features)
+    }
+
+    fn calculate_amplitude_stats(&self, samples: &[f32]) -> Result<(f32, f32, f32), AgentDbError> {
+        if samples.is_empty() {
+            return Ok((0.0, 0.0, 0.0));
+        }
+
+        // RMS能量
+        let rms = (samples.iter().map(|&x| x * x).sum::<f32>() / samples.len() as f32).sqrt();
+
+        // 峰值幅度
+        let peak = samples.iter().map(|&x| x.abs()).fold(0.0, f32::max);
+
+        // 动态范围
+        let min_amplitude = samples.iter().map(|&x| x.abs()).fold(f32::INFINITY, f32::min);
+        let dynamic_range = if min_amplitude > 0.0 { 20.0 * (peak / min_amplitude).log10() } else { 0.0 };
+
+        Ok((rms, peak, dynamic_range))
+    }
+
+    fn calculate_spectral_stats(&self, samples: &[f32], sample_rate: u32) -> Result<(f32, f32, f32), AgentDbError> {
+        let window_size = 1024;
+        let mut spectrum = vec![0.0; window_size / 2];
+
+        // 计算功率谱
+        for k in 0..spectrum.len() {
+            let mut real = 0.0;
+            let mut imag = 0.0;
+            for n in 0..window_size.min(samples.len()) {
+                let angle = -2.0 * std::f32::consts::PI * k as f32 * n as f32 / window_size as f32;
+                real += samples[n] * angle.cos();
+                imag += samples[n] * angle.sin();
+            }
+            spectrum[k] = real * real + imag * imag;
+        }
+
+        let total_power: f32 = spectrum.iter().sum();
+
+        // 频谱质心
+        let mut centroid = 0.0;
+        if total_power > 0.0 {
+            for (i, &power) in spectrum.iter().enumerate() {
+                let freq = i as f32 * sample_rate as f32 / window_size as f32;
+                centroid += freq * power;
+            }
+            centroid /= total_power;
+        }
+
+        // 频谱滚降点
+        let mut rolloff = 0.0;
+        let mut cumulative_power = 0.0;
+        let threshold = total_power * 0.85;
+        for (i, &power) in spectrum.iter().enumerate() {
+            cumulative_power += power;
+            if cumulative_power >= threshold {
+                rolloff = i as f32 * sample_rate as f32 / window_size as f32;
+                break;
+            }
+        }
+
+        // 频谱带宽
+        let mut bandwidth = 0.0;
+        if total_power > 0.0 {
+            for (i, &power) in spectrum.iter().enumerate() {
+                let freq = i as f32 * sample_rate as f32 / window_size as f32;
+                bandwidth += (freq - centroid).powi(2) * power;
+            }
+            bandwidth = (bandwidth / total_power).sqrt();
+        }
+
+        Ok((centroid, rolloff, bandwidth))
+    }
+
+    fn calculate_zero_crossing_rate(&self, samples: &[f32]) -> Result<f32, AgentDbError> {
+        if samples.len() < 2 {
+            return Ok(0.0);
+        }
+
+        let mut zero_crossings = 0;
+        for i in 1..samples.len() {
+            if (samples[i] >= 0.0) != (samples[i - 1] >= 0.0) {
+                zero_crossings += 1;
+            }
+        }
+
+        Ok(zero_crossings as f32 / (samples.len() - 1) as f32)
+    }
+}
+
+// 文本特征提取器
+pub struct TextFeatureExtractor;
+
+impl FeatureExtractor for TextFeatureExtractor {
+    fn extract_features(&self, data: &[u8], _metadata: &HashMap<String, String>) -> Result<Vec<f32>, AgentDbError> {
+        let text = String::from_utf8_lossy(data);
+
+        let mut features = Vec::new();
+
+        // 基础文本统计特征 (10维)
+        let basic_features = self.extract_basic_text_features(&text)?;
+        features.extend(basic_features);
+
+        // TF-IDF特征 (100维)
+        let tfidf_features = self.extract_tfidf_features(&text)?;
+        features.extend(tfidf_features);
+
+        // N-gram特征 (50维)
+        let ngram_features = self.extract_ngram_features(&text)?;
+        features.extend(ngram_features);
+
+        Ok(features)
+    }
+
+    fn extract_detailed_features(&self, data: &[u8], _metadata: &HashMap<String, String>) -> Result<HashMap<String, f32>, AgentDbError> {
+        let text = String::from_utf8_lossy(data);
+
+        let mut detailed_features = HashMap::new();
+
+        // 基础统计
+        detailed_features.insert("char_count".to_string(), text.len() as f32);
+        detailed_features.insert("word_count".to_string(), text.split_whitespace().count() as f32);
+        detailed_features.insert("sentence_count".to_string(), text.matches('.').count() as f32);
+        detailed_features.insert("paragraph_count".to_string(), text.matches("\n\n").count() as f32);
+
+        // 词汇复杂度
+        let words: Vec<&str> = text.split_whitespace().collect();
+        let unique_words: std::collections::HashSet<&str> = words.iter().cloned().collect();
+        let lexical_diversity = if words.len() > 0 { unique_words.len() as f32 / words.len() as f32 } else { 0.0 };
+        detailed_features.insert("lexical_diversity".to_string(), lexical_diversity);
+
+        // 平均词长
+        let avg_word_length = if words.len() > 0 {
+            words.iter().map(|w| w.len()).sum::<usize>() as f32 / words.len() as f32
+        } else { 0.0 };
+        detailed_features.insert("avg_word_length".to_string(), avg_word_length);
+
+        Ok(detailed_features)
+    }
+}
+
+impl TextFeatureExtractor {
+    fn extract_basic_text_features(&self, text: &str) -> Result<Vec<f32>, AgentDbError> {
+        let mut features = vec![0.0; 10];
+
+        let char_count = text.len() as f32;
+        let word_count = text.split_whitespace().count() as f32;
+        let sentence_count = text.matches('.').count() as f32;
+
+        features[0] = char_count.ln().max(0.0);
+        features[1] = word_count.ln().max(0.0);
+        features[2] = sentence_count.ln().max(0.0);
+        features[3] = if word_count > 0.0 { char_count / word_count } else { 0.0 }; // 平均词长
+        features[4] = if sentence_count > 0.0 { word_count / sentence_count } else { 0.0 }; // 平均句长
+
+        // 字符类型统计
+        let mut alpha_count = 0.0;
+        let mut digit_count = 0.0;
+        let mut punct_count = 0.0;
+        let mut space_count = 0.0;
+
+        for c in text.chars() {
+            if c.is_alphabetic() { alpha_count += 1.0; }
+            else if c.is_numeric() { digit_count += 1.0; }
+            else if c.is_ascii_punctuation() { punct_count += 1.0; }
+            else if c.is_whitespace() { space_count += 1.0; }
+        }
+
+        if char_count > 0.0 {
+            features[5] = alpha_count / char_count;
+            features[6] = digit_count / char_count;
+            features[7] = punct_count / char_count;
+            features[8] = space_count / char_count;
+        }
+
+        // 词汇多样性
+        let words: Vec<&str> = text.split_whitespace().collect();
+        let unique_words: std::collections::HashSet<&str> = words.iter().cloned().collect();
+        features[9] = if word_count > 0.0 { unique_words.len() as f32 / word_count } else { 0.0 };
+
+        Ok(features)
+    }
+
+    fn extract_tfidf_features(&self, text: &str) -> Result<Vec<f32>, AgentDbError> {
+        // 简化的TF-IDF实现
+        let words: Vec<&str> = text.split_whitespace()
+            .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric()))
+            .filter(|w| !w.is_empty())
+            .collect();
+
+        // 词频统计
+        let mut word_counts = HashMap::new();
+        for word in &words {
+            *word_counts.entry(word.to_lowercase()).or_insert(0) += 1;
+        }
+
+        // 选择最频繁的100个词作为特征
+        let mut word_freq_pairs: Vec<_> = word_counts.iter().collect();
+        word_freq_pairs.sort_by(|a, b| b.1.cmp(a.1));
+
+        let mut features = vec![0.0; 100];
+        for (i, (word, &count)) in word_freq_pairs.iter().take(100).enumerate() {
+            // 简化的TF-IDF计算（这里只计算TF，IDF需要文档集合）
+            let tf = count as f32 / words.len() as f32;
+            features[i] = tf;
+        }
+
+        Ok(features)
+    }
+
+    fn extract_ngram_features(&self, text: &str) -> Result<Vec<f32>, AgentDbError> {
+        let words: Vec<&str> = text.split_whitespace()
+            .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric()))
+            .filter(|w| !w.is_empty())
+            .collect();
+
+        let mut features = vec![0.0; 50];
+
+        // 2-gram特征
+        let mut bigram_counts = HashMap::new();
+        for i in 0..words.len().saturating_sub(1) {
+            let bigram = format!("{} {}", words[i].to_lowercase(), words[i + 1].to_lowercase());
+            *bigram_counts.entry(bigram).or_insert(0) += 1;
+        }
+
+        // 3-gram特征
+        let mut trigram_counts = HashMap::new();
+        for i in 0..words.len().saturating_sub(2) {
+            let trigram = format!("{} {} {}",
+                words[i].to_lowercase(),
+                words[i + 1].to_lowercase(),
+                words[i + 2].to_lowercase()
+            );
+            *trigram_counts.entry(trigram).or_insert(0) += 1;
+        }
+
+        // 选择最频繁的n-gram作为特征
+        let mut bigram_pairs: Vec<_> = bigram_counts.iter().collect();
+        bigram_pairs.sort_by(|a, b| b.1.cmp(a.1));
+
+        let mut trigram_pairs: Vec<_> = trigram_counts.iter().collect();
+        trigram_pairs.sort_by(|a, b| b.1.cmp(a.1));
+
+        // 填充特征向量
+        for (i, (_, &count)) in bigram_pairs.iter().take(25).enumerate() {
+            features[i] = count as f32 / words.len().saturating_sub(1).max(1) as f32;
+        }
+
+        for (i, (_, &count)) in trigram_pairs.iter().take(25).enumerate() {
+            features[25 + i] = count as f32 / words.len().saturating_sub(2).max(1) as f32;
+        }
+
+        Ok(features)
+    }
+}
+
+impl MultimodalEngine {
+    pub async fn new(db_path: &str) -> Result<Self, AgentDbError> {
+        let connection = connect(db_path).execute().await?;
+
+        let mut feature_extractors: HashMap<ModalityType, Box<dyn FeatureExtractor>> = HashMap::new();
+        feature_extractors.insert(ModalityType::Text, Box::new(TextFeatureExtractor));
+        feature_extractors.insert(ModalityType::Image, Box::new(ImageFeatureExtractor));
+        feature_extractors.insert(ModalityType::Audio, Box::new(AudioFeatureExtractor));
+
+        Ok(Self {
+            connection,
+            data_storage: HashMap::new(),
+            cross_modal_mappings: HashMap::new(),
+            feature_extractors,
+        })
+    }
+
+    // 添加多模态数据
+    pub fn add_multimodal_data(&mut self, data_id: String, modality_type: ModalityType, raw_data: Vec<u8>, metadata: HashMap<String, String>) -> Result<(), AgentDbError> {
+        // 提取特征
+        let embedding = if let Some(extractor) = self.feature_extractors.get(&modality_type) {
+            Some(extractor.extract_features(&raw_data, &metadata)?)
+        } else {
+            None
+        };
+
+        let features = if let Some(extractor) = self.feature_extractors.get(&modality_type) {
+            Some(extractor.extract_detailed_features(&raw_data, &metadata)?)
+        } else {
+            None
+        };
+
+        let multimodal_data = MultimodalData {
+            data_id: data_id.clone(),
+            modality_type,
+            raw_data,
+            metadata,
+            embedding,
+            features,
+            created_at: chrono::Utc::now().timestamp(),
+            updated_at: chrono::Utc::now().timestamp(),
+        };
+
+        self.data_storage.insert(data_id, multimodal_data);
+        Ok(())
+    }
+
+    // 跨模态搜索
+    pub fn cross_modal_search(&self, query_data_id: &str, target_modality: ModalityType, k: usize) -> Result<Vec<MultimodalSearchResult>, AgentDbError> {
+        let query_data = self.data_storage.get(query_data_id)
+            .ok_or_else(|| AgentDbError::InvalidArgument("Query data not found".to_string()))?;
+
+        let query_embedding = query_data.embedding.as_ref()
+            .ok_or_else(|| AgentDbError::InvalidArgument("Query data has no embedding".to_string()))?;
+
+        // 如果查询和目标是同一模态，直接进行相似性搜索
+        if query_data.modality_type == target_modality {
+            return self.same_modal_search(query_embedding, target_modality, k);
+        }
+
+        // 跨模态搜索需要模态转换
+        let transformed_embedding = self.transform_embedding(query_embedding, &query_data.modality_type, &target_modality)?;
+        self.same_modal_search(&transformed_embedding, target_modality, k)
+    }
+
+    // 同模态搜索
+    fn same_modal_search(&self, query_embedding: &[f32], target_modality: ModalityType, k: usize) -> Result<Vec<MultimodalSearchResult>, AgentDbError> {
+        let mut candidates = Vec::new();
+
+        for (data_id, data) in &self.data_storage {
+            if data.modality_type == target_modality {
+                if let Some(ref embedding) = data.embedding {
+                    let similarity = cosine_similarity(query_embedding, embedding);
+                    candidates.push((data_id.clone(), similarity, data));
+                }
+            }
+        }
+
+        // 按相似度排序
+        candidates.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+        let results = candidates.into_iter()
+            .take(k)
+            .map(|(data_id, similarity, data)| MultimodalSearchResult {
+                data_id,
+                modality_type: data.modality_type.clone(),
+                similarity_score: similarity,
+                cross_modal_score: None,
+                metadata: data.metadata.clone(),
+                features_summary: self.summarize_features(&data.features),
+            })
+            .collect();
+
+        Ok(results)
+    }
+
+    // 模态转换
+    fn transform_embedding(&self, source_embedding: &[f32], source_modality: &ModalityType, target_modality: &ModalityType) -> Result<Vec<f32>, AgentDbError> {
+        let mapping_key = format!("{:?}_to_{:?}", source_modality, target_modality);
+
+        if let Some(mapping) = self.cross_modal_mappings.get(&mapping_key) {
+            // 使用学习到的映射矩阵进行转换
+            self.apply_linear_transformation(source_embedding, &mapping.transformation_matrix, &mapping.bias_vector)
+        } else {
+            // 如果没有学习到的映射，使用简单的线性投影
+            self.simple_cross_modal_projection(source_embedding, source_modality, target_modality)
+        }
+    }
+
+    // 应用线性变换
+    fn apply_linear_transformation(&self, input: &[f32], matrix: &[Vec<f32>], bias: &[f32]) -> Result<Vec<f32>, AgentDbError> {
+        if matrix.is_empty() || matrix[0].len() != input.len() {
+            return Err(AgentDbError::InvalidArgument("Matrix dimensions mismatch".to_string()));
+        }
+
+        let mut output = vec![0.0; matrix.len()];
+
+        for (i, row) in matrix.iter().enumerate() {
+            let mut sum = 0.0;
+            for (j, &weight) in row.iter().enumerate() {
+                if j < input.len() {
+                    sum += weight * input[j];
+                }
+            }
+            output[i] = sum + bias.get(i).unwrap_or(&0.0);
+        }
+
+        Ok(output)
+    }
+
+    // 简单的跨模态投影
+    fn simple_cross_modal_projection(&self, source_embedding: &[f32], source_modality: &ModalityType, target_modality: &ModalityType) -> Result<Vec<f32>, AgentDbError> {
+        // 简化的跨模态投影实现
+        match (source_modality, target_modality) {
+            (ModalityType::Text, ModalityType::Image) => {
+                // 文本到图像：使用语义映射
+                let mut projected = vec![0.0; 144]; // 图像特征维度
+                for (i, &val) in source_embedding.iter().enumerate() {
+                    if i < projected.len() {
+                        projected[i] = val * 0.8; // 简单的缩放
+                    }
+                }
+                Ok(projected)
+            }
+            (ModalityType::Image, ModalityType::Text) => {
+                // 图像到文本：提取视觉语义
+                let mut projected = vec![0.0; 160]; // 文本特征维度
+                for (i, &val) in source_embedding.iter().enumerate() {
+                    if i < projected.len() {
+                        projected[i] = val * 1.2;
+                    }
+                }
+                Ok(projected)
+            }
+            (ModalityType::Audio, ModalityType::Text) => {
+                // 音频到文本：音频语义映射
+                let mut projected = vec![0.0; 160];
+                for (i, &val) in source_embedding.iter().enumerate() {
+                    if i < projected.len() {
+                        projected[i] = val * 0.9;
+                    }
+                }
+                Ok(projected)
+            }
+            (ModalityType::Text, ModalityType::Audio) => {
+                // 文本到音频：语义到声学映射
+                let mut projected = vec![0.0; 32];
+                for (i, &val) in source_embedding.iter().enumerate() {
+                    if i < projected.len() {
+                        projected[i] = val * 0.7;
+                    }
+                }
+                Ok(projected)
+            }
+            _ => {
+                // 其他情况使用身份映射
+                Ok(source_embedding.to_vec())
+            }
+        }
+    }
+
+    // 学习跨模态映射
+    pub fn learn_cross_modal_mapping(&mut self, source_modality: ModalityType, target_modality: ModalityType, paired_data: Vec<(String, String)>) -> Result<String, AgentDbError> {
+        let mapping_id = format!("mapping_{}_{}",
+            chrono::Utc::now().timestamp_millis(),
+            rand::thread_rng().gen::<u32>()
+        );
+
+        // 收集配对数据的特征
+        let mut source_features = Vec::new();
+        let mut target_features = Vec::new();
+
+        for (source_id, target_id) in paired_data {
+            if let (Some(source_data), Some(target_data)) = (
+                self.data_storage.get(&source_id),
+                self.data_storage.get(&target_id)
+            ) {
+                if source_data.modality_type == source_modality && target_data.modality_type == target_modality {
+                    if let (Some(ref source_emb), Some(ref target_emb)) = (&source_data.embedding, &target_data.embedding) {
+                        source_features.push(source_emb.clone());
+                        target_features.push(target_emb.clone());
+                    }
+                }
+            }
+        }
+
+        if source_features.is_empty() {
+            return Err(AgentDbError::InvalidArgument("No valid paired data found".to_string()));
+        }
+
+        // 简化的线性回归学习映射矩阵
+        let (transformation_matrix, bias_vector) = self.learn_linear_mapping(&source_features, &target_features)?;
+
+        let mapping = CrossModalMapping {
+            mapping_id: mapping_id.clone(),
+            source_modality: source_modality.clone(),
+            target_modality: target_modality.clone(),
+            transformation_matrix,
+            bias_vector,
+            confidence_score: 0.8, // 简化的置信度
+            created_at: chrono::Utc::now().timestamp(),
+        };
+
+        let mapping_key = format!("{:?}_to_{:?}", source_modality, target_modality);
+        self.cross_modal_mappings.insert(mapping_key, mapping);
+
+        Ok(mapping_id)
+    }
+
+    // 学习线性映射
+    fn learn_linear_mapping(&self, source_features: &[Vec<f32>], target_features: &[Vec<f32>]) -> Result<(Vec<Vec<f32>>, Vec<f32>), AgentDbError> {
+        if source_features.is_empty() || target_features.is_empty() || source_features.len() != target_features.len() {
+            return Err(AgentDbError::InvalidArgument("Invalid training data".to_string()));
+        }
+
+        let input_dim = source_features[0].len();
+        let output_dim = target_features[0].len();
+
+        // 简化的最小二乘法实现
+        let mut transformation_matrix = vec![vec![0.0; input_dim]; output_dim];
+        let mut bias_vector = vec![0.0; output_dim];
+
+        // 计算均值
+        let mut source_mean = vec![0.0; input_dim];
+        let mut target_mean = vec![0.0; output_dim];
+
+        for features in source_features {
+            for (i, &val) in features.iter().enumerate() {
+                source_mean[i] += val;
+            }
+        }
+
+        for features in target_features {
+            for (i, &val) in features.iter().enumerate() {
+                target_mean[i] += val;
+            }
+        }
+
+        let n = source_features.len() as f32;
+        for mean in &mut source_mean { *mean /= n; }
+        for mean in &mut target_mean { *mean /= n; }
+
+        // 简化的线性回归（每个输出维度独立计算）
+        for out_dim in 0..output_dim {
+            for in_dim in 0..input_dim {
+                let mut numerator = 0.0;
+                let mut denominator = 0.0;
+
+                for i in 0..source_features.len() {
+                    let x_centered = source_features[i][in_dim] - source_mean[in_dim];
+                    let y_centered = target_features[i][out_dim] - target_mean[out_dim];
+
+                    numerator += x_centered * y_centered;
+                    denominator += x_centered * x_centered;
+                }
+
+                if denominator.abs() > 1e-8 {
+                    transformation_matrix[out_dim][in_dim] = numerator / denominator;
+                }
+            }
+
+            // 计算偏置
+            let mut predicted_mean = 0.0;
+            for in_dim in 0..input_dim {
+                predicted_mean += transformation_matrix[out_dim][in_dim] * source_mean[in_dim];
+            }
+            bias_vector[out_dim] = target_mean[out_dim] - predicted_mean;
+        }
+
+        Ok((transformation_matrix, bias_vector))
+    }
+
+    // 多模态融合搜索
+    pub fn multimodal_fusion_search(&self, query_data_ids: Vec<String>, k: usize) -> Result<Vec<MultimodalSearchResult>, AgentDbError> {
+        if query_data_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // 收集查询数据的嵌入
+        let mut query_embeddings = Vec::new();
+        let mut query_modalities = Vec::new();
+
+        for data_id in &query_data_ids {
+            if let Some(data) = self.data_storage.get(data_id) {
+                if let Some(ref embedding) = data.embedding {
+                    query_embeddings.push(embedding.clone());
+                    query_modalities.push(data.modality_type.clone());
+                }
+            }
+        }
+
+        if query_embeddings.is_empty() {
+            return Err(AgentDbError::InvalidArgument("No valid query embeddings found".to_string()));
+        }
+
+        // 融合查询嵌入
+        let fused_embedding = self.fuse_embeddings(&query_embeddings, &query_modalities)?;
+
+        // 对所有数据进行搜索
+        let mut candidates = Vec::new();
+
+        for (data_id, data) in &self.data_storage {
+            if let Some(ref embedding) = data.embedding {
+                // 将目标嵌入转换到融合空间
+                let transformed_embedding = self.transform_to_fusion_space(embedding, &data.modality_type)?;
+                let similarity = cosine_similarity(&fused_embedding, &transformed_embedding);
+
+                candidates.push((data_id.clone(), similarity, data));
+            }
+        }
+
+        // 按相似度排序
+        candidates.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+        let results = candidates.into_iter()
+            .take(k)
+            .map(|(data_id, similarity, data)| MultimodalSearchResult {
+                data_id,
+                modality_type: data.modality_type.clone(),
+                similarity_score: similarity,
+                cross_modal_score: Some(similarity),
+                metadata: data.metadata.clone(),
+                features_summary: self.summarize_features(&data.features),
+            })
+            .collect();
+
+        Ok(results)
+    }
+
+    // 融合多个嵌入
+    fn fuse_embeddings(&self, embeddings: &[Vec<f32>], modalities: &[ModalityType]) -> Result<Vec<f32>, AgentDbError> {
+        if embeddings.is_empty() {
+            return Err(AgentDbError::InvalidArgument("No embeddings to fuse".to_string()));
+        }
+
+        // 找到最大维度
+        let max_dim = embeddings.iter().map(|e| e.len()).max().unwrap_or(0);
+        let mut fused = vec![0.0; max_dim];
+
+        // 加权平均融合
+        let weights = self.calculate_modality_weights(modalities);
+
+        for (i, embedding) in embeddings.iter().enumerate() {
+            let weight = weights.get(i).unwrap_or(&1.0);
+            for (j, &val) in embedding.iter().enumerate() {
+                if j < fused.len() {
+                    fused[j] += val * weight;
+                }
+            }
+        }
+
+        // 归一化
+        let total_weight: f32 = weights.iter().sum();
+        if total_weight > 0.0 {
+            for val in &mut fused {
+                *val /= total_weight;
+            }
+        }
+
+        Ok(fused)
+    }
+
+    // 计算模态权重
+    fn calculate_modality_weights(&self, modalities: &[ModalityType]) -> Vec<f32> {
+        modalities.iter().map(|modality| {
+            match modality {
+                ModalityType::Text => 1.0,
+                ModalityType::Image => 1.2,
+                ModalityType::Audio => 0.8,
+                ModalityType::Video => 1.5,
+                ModalityType::Multimodal => 1.0,
+            }
+        }).collect()
+    }
+
+    // 转换到融合空间
+    fn transform_to_fusion_space(&self, embedding: &[f32], modality: &ModalityType) -> Result<Vec<f32>, AgentDbError> {
+        // 简化的融合空间转换
+        let scale_factor = match modality {
+            ModalityType::Text => 1.0,
+            ModalityType::Image => 0.9,
+            ModalityType::Audio => 1.1,
+            ModalityType::Video => 0.95,
+            ModalityType::Multimodal => 1.0,
+        };
+
+        Ok(embedding.iter().map(|&x| x * scale_factor).collect())
+    }
+
+    // 总结特征
+    fn summarize_features(&self, features: &Option<HashMap<String, f32>>) -> String {
+        if let Some(ref feature_map) = features {
+            let mut summary_parts = Vec::new();
+
+            // 选择最重要的几个特征进行总结
+            let mut sorted_features: Vec<_> = feature_map.iter().collect();
+            sorted_features.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+            for (key, value) in sorted_features.iter().take(5) {
+                summary_parts.push(format!("{}:{:.3}", key, value));
+            }
+
+            summary_parts.join(", ")
+        } else {
+            "No features available".to_string()
+        }
+    }
+
+    // 获取多模态统计
+    pub fn get_multimodal_statistics(&self) -> MultimodalStatistics {
+        let mut modality_counts = HashMap::new();
+        let mut total_data_size = 0;
+        let mut feature_dimensions = HashMap::new();
+
+        for data in self.data_storage.values() {
+            *modality_counts.entry(data.modality_type.clone()).or_insert(0) += 1;
+            total_data_size += data.raw_data.len();
+
+            if let Some(ref embedding) = data.embedding {
+                feature_dimensions.insert(data.modality_type.clone(), embedding.len());
+            }
+        }
+
+        MultimodalStatistics {
+            total_data_count: self.data_storage.len(),
+            modality_counts,
+            total_data_size,
+            cross_modal_mappings_count: self.cross_modal_mappings.len(),
+            feature_dimensions,
+            supported_modalities: vec![
+                ModalityType::Text,
+                ModalityType::Image,
+                ModalityType::Audio,
+            ],
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct MultimodalStatistics {
+    pub total_data_count: usize,
+    pub modality_counts: HashMap<ModalityType, usize>,
+    pub total_data_size: usize,
+    pub cross_modal_mappings_count: usize,
+    pub feature_dimensions: HashMap<ModalityType, usize>,
+    pub supported_modalities: Vec<ModalityType>,
 }
 
 // 智能记忆整理系统的C FFI接口
