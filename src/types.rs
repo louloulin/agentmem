@@ -292,7 +292,7 @@ pub struct SearchResult {
 }
 
 // 向量索引类型
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum VectorIndexType {
     Flat,
     HNSW,

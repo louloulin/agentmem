@@ -1,12 +1,11 @@
 // C FFI接口模块
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 use std::os::raw::{c_char, c_int};
 use std::ptr;
-use std::sync::Arc;
 use tokio::runtime::Runtime;
 
 use crate::api::AgentDB;
-use crate::types::{AgentDbError, StateType, MemoryType, Memory};
+use crate::types::{StateType, MemoryType, Memory};
 
 // C结构体定义
 #[repr(C)]
@@ -182,9 +181,9 @@ pub extern "C" fn agent_db_save_vector_state(
     };
 
     let data_vec = unsafe { std::slice::from_raw_parts(data, data_len).to_vec() };
-    let embedding_vec = unsafe { std::slice::from_raw_parts(embedding, embedding_len).to_vec() };
+    let _embedding_vec = unsafe { std::slice::from_raw_parts(embedding, embedding_len).to_vec() };
 
-    let mut state = crate::types::AgentState::new(agent_id, session_id, state_type, data_vec);
+    let state = crate::types::AgentState::new(agent_id, session_id, state_type, data_vec);
     
     // 这里需要扩展AgentState来支持embedding，暂时忽略embedding
     match rt.block_on(agent_db.save_agent_state(&state)) {
@@ -198,7 +197,7 @@ pub extern "C" fn agent_db_vector_search(
     db: *mut CAgentStateDB,
     query_embedding: *const f32,
     embedding_len: usize,
-    limit: usize,
+    _limit: usize,
     results_out: *mut *mut u64,
     results_count_out: *mut usize,
 ) -> c_int {
@@ -207,10 +206,10 @@ pub extern "C" fn agent_db_vector_search(
     }
 
     let c_db = unsafe { &*db };
-    let agent_db = unsafe { &*c_db.db };
-    let rt = unsafe { &*c_db.rt };
+    let _agent_db = unsafe { &*c_db.db };
+    let _rt = unsafe { &*c_db.rt };
 
-    let query_vec = unsafe { std::slice::from_raw_parts(query_embedding, embedding_len).to_vec() };
+    let _query_vec = unsafe { std::slice::from_raw_parts(query_embedding, embedding_len).to_vec() };
 
     // 这里需要实现向量搜索，暂时返回空结果
     let agent_ids: Vec<u64> = Vec::new();

@@ -46,19 +46,23 @@
 
 // 模块声明
 pub mod types;
+pub mod config;
+pub mod utils;
 pub mod database;
 pub mod memory;
 pub mod rag;
 pub mod vector;
 pub mod api;
+pub mod ffi;
 
 // 重新导出主要类型和API
 pub use types::*;
+pub use config::{AgentDbConfig, ConfigManager};
 pub use api::AgentDB;
 pub use database::AgentStateDB;
 pub use memory::MemoryManager;
 pub use rag::RAGEngine;
-pub use vector::VectorSearchEngine;
+pub use vector::{VectorSearchEngine, AdvancedVectorEngine};
 
 // 版本信息
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -111,5 +115,56 @@ mod tests {
 
         let docs = db.list_documents(10).await.unwrap();
         assert!(!docs.is_empty());
+    }
+
+    #[test]
+    fn test_config_functionality() {
+        // 测试配置管理
+        let config = AgentDbConfig::default();
+        assert_eq!(config.vector.dimension, 384);
+        assert_eq!(config.database.path, "./agent_db");
+
+        // 测试配置验证
+        assert!(config.validate().is_ok());
+
+        // 测试配置管理器
+        let mut manager = ConfigManager::new();
+        let new_config = AgentDbConfig::default();
+        assert!(manager.update_config(new_config).is_ok());
+    }
+
+    #[test]
+    fn test_utils_functionality() {
+        // 测试文本工具
+        let text = "Hello World! This is a test.";
+        let tokens = utils::text::tokenize(text);
+        assert!(!tokens.is_empty());
+
+        let similarity = utils::text::jaccard_similarity("hello world", "hello earth");
+        assert!(similarity > 0.0 && similarity < 1.0);
+
+        // 测试向量工具
+        let mut vector = vec![1.0, 2.0, 3.0];
+        utils::vector::normalize(&mut vector);
+        let norm = utils::vector::l2_norm(&vector);
+        assert!((norm - 1.0).abs() < 1e-6);
+
+        // 测试时间工具
+        let timestamp = utils::time::current_timestamp();
+        assert!(timestamp > 0);
+
+        // 测试序列化工具
+        let data = vec![1, 2, 3, 4, 5];
+        let json = utils::serialization::to_json(&data).unwrap();
+        let restored: Vec<i32> = utils::serialization::from_json(&json).unwrap();
+        assert_eq!(data, restored);
+
+        // 测试哈希工具
+        let hash1 = utils::hash::hash_string("test");
+        let hash2 = utils::hash::hash_string("test");
+        assert_eq!(hash1, hash2);
+
+        let uuid = utils::hash::generate_uuid();
+        assert!(!uuid.is_empty());
     }
 }

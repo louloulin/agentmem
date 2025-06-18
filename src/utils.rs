@@ -29,7 +29,7 @@ pub mod text {
                     .filter(|c| c.is_alphanumeric())
                     .collect()
             })
-            .filter(|word| !word.is_empty())
+            .filter(|word: &String| !word.is_empty())
             .collect()
     }
 
@@ -233,16 +233,17 @@ pub mod serialization {
         serde_json::from_str(json).map_err(AgentDbError::Serde)
     }
 
-    // 二进制序列化（使用bincode）
+    // 二进制序列化（使用JSON作为简单实现）
     pub fn to_binary<T: Serialize>(data: &T) -> Result<Vec<u8>, AgentDbError> {
-        bincode::serialize(data)
-            .map_err(|e| AgentDbError::Internal(format!("Binary serialization error: {}", e)))
+        let json_str = serde_json::to_string(data).map_err(AgentDbError::Serde)?;
+        Ok(json_str.into_bytes())
     }
 
     // 二进制反序列化
     pub fn from_binary<T: for<'de> Deserialize<'de>>(data: &[u8]) -> Result<T, AgentDbError> {
-        bincode::deserialize(data)
-            .map_err(|e| AgentDbError::Internal(format!("Binary deserialization error: {}", e)))
+        let json_str = String::from_utf8(data.to_vec())
+            .map_err(|e| AgentDbError::Internal(format!("UTF-8 conversion error: {}", e)))?;
+        serde_json::from_str(&json_str).map_err(AgentDbError::Serde)
     }
 
     // 压缩数据

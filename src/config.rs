@@ -1,6 +1,5 @@
 // 配置管理模块
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
