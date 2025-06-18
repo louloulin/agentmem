@@ -235,6 +235,7 @@ mod tests {
         assert_eq!(errors[0].message, "Test error message");
 
         // 测试运行时间
+        std::thread::sleep(std::time::Duration::from_millis(1));
         let uptime = monitor.get_uptime();
         assert!(uptime.as_millis() > 0);
     }
