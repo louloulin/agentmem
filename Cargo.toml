@@ -1,10 +1,17 @@
 [package]
-name = "agent-state-db"
+name = "agent-db"
 version = "0.1.0"
 edition = "2021"
+description = "High-performance AI agent database built on Rust+Zig+LanceDB hybrid architecture"
+license = "MIT"
+repository = "https://github.com/louloulin/agent-db"
+homepage = "https://github.com/louloulin/agent-db"
+documentation = "https://agent-db.readthedocs.io"
+keywords = ["ai", "agent", "database", "vector", "rag"]
+categories = ["database", "science"]
 
 [lib]
-name = "agent_state_db_rust"
+name = "agent_db_rust"
 crate-type = ["cdylib", "staticlib"]
 
 [dependencies]

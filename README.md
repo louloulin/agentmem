@@ -202,7 +202,7 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 ### **Development Setup**
 ```bash
 # Clone repository
-git clone https://github.com/your-org/agent-db.git
+git clone https://github.com/louloulin/agent-db.git
 cd agent-db
 
 # Install dependencies
@@ -218,7 +218,7 @@ zig build test-all
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## � Why Choose AgentDB?
+## 🌟 Why Choose AgentDB?
 
 1. **Cutting-edge Architecture**: First-of-its-kind Rust+Zig+LanceDB hybrid design
 2. **Exceptional Performance**: All operations complete in milliseconds
@@ -241,3 +241,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 **AgentDB** - Powering the next generation of AI agent infrastructure.
 
 **Recommendation**: 🔥🔥🔥🔥🔥 **Highly Recommended**
+
+## 🔗 Links
+
+- [中文文档](README_CN.md)
+- [Project Homepage](https://github.com/louloulin/agent-db)
+- [Online Documentation](https://agent-db.readthedocs.io)
+- [Issue Tracker](https://github.com/louloulin/agent-db/issues)
