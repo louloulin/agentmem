@@ -97,12 +97,10 @@ pub const AgentNode = struct {
         };
     }
 
-    pub fn deinit(self: *AgentNode, allocator: std.mem.Allocator) void {
+    pub fn deinit(self: *const AgentNode, allocator: std.mem.Allocator) void {
         allocator.free(self.node_id);
         allocator.free(self.address);
-        for (self.capabilities) |cap| {
-            allocator.free(cap);
-        }
+        // capabilities是从外部传入的，不需要释放单个元素
         allocator.free(self.capabilities);
     }
 
