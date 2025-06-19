@@ -34,33 +34,57 @@ const ERROR_NOT_FOUND: c_int = 1;
 // Agent状态数据库C接口
 #[no_mangle]
 pub extern "C" fn agent_db_new(db_path: *const c_char) -> *mut CAgentStateDB {
+    eprintln!("agent_db_new called");
+
     if db_path.is_null() {
+        eprintln!("agent_db_new: db_path is null");
         return ptr::null_mut();
     }
 
     let path_str = unsafe {
         match CStr::from_ptr(db_path).to_str() {
-            Ok(s) => s,
-            Err(_) => return ptr::null_mut(),
+            Ok(s) => {
+                eprintln!("agent_db_new: path = {}", s);
+                s
+            },
+            Err(e) => {
+                eprintln!("agent_db_new: invalid path string: {:?}", e);
+                return ptr::null_mut();
+            },
         }
     };
 
     // 创建运行时
+    eprintln!("agent_db_new: creating runtime");
     let rt = match Runtime::new() {
-        Ok(rt) => rt,
-        Err(_) => return ptr::null_mut(),
+        Ok(rt) => {
+            eprintln!("agent_db_new: runtime created successfully");
+            rt
+        },
+        Err(e) => {
+            eprintln!("agent_db_new: failed to create runtime: {:?}", e);
+            return ptr::null_mut();
+        },
     };
 
     // 创建数据库
+    eprintln!("agent_db_new: creating database");
     let db = match rt.block_on(async {
         AgentDB::new(path_str, 384).await
     }) {
-        Ok(db) => Box::into_raw(Box::new(db)),
-        Err(_) => return ptr::null_mut(),
+        Ok(db) => {
+            eprintln!("agent_db_new: database created successfully");
+            Box::into_raw(Box::new(db))
+        },
+        Err(e) => {
+            eprintln!("agent_db_new: failed to create database: {:?}", e);
+            return ptr::null_mut();
+        },
     };
 
     let rt_ptr = Box::into_raw(Box::new(rt)) as *mut u8;
 
+    eprintln!("agent_db_new: returning handle");
     Box::into_raw(Box::new(CAgentStateDB { db, rt: rt_ptr }))
 }
 
