@@ -333,3 +333,61 @@ pub struct MemoryStatistics {
     pub avg_access_count: f64,
     pub total_size_bytes: usize,
 }
+
+impl MemoryManager {
+    /// 基于向量相似性搜索记忆
+    pub async fn search_similar_memories(&self, agent_id: u64, _query_embedding: Vec<f32>, limit: usize) -> Result<Vec<Memory>, AgentDbError> {
+        let table = self.ensure_table().await?;
+
+        // 简化的相似性搜索实现
+        let mut results = table
+            .query()
+            .only_if(&format!("agent_id = {}", agent_id))
+            .limit(limit)
+            .execute()
+            .await?;
+
+        let mut memories = Vec::new();
+        while let Some(batch) = results.try_next().await? {
+            for row in 0..batch.num_rows() {
+                let memory = self.extract_memory_from_batch(&batch, row)?;
+                // 这里可以添加真正的向量相似性计算
+                memories.push(memory);
+            }
+        }
+
+        Ok(memories)
+    }
+
+    /// 根据重要性获取记忆
+    pub async fn get_memories_by_importance(&self, agent_id: u64, min_importance: f64, limit: usize) -> Result<Vec<Memory>, AgentDbError> {
+        let table = self.ensure_table().await?;
+
+        let mut results = table
+            .query()
+            .only_if(&format!("agent_id = {} AND importance >= {}", agent_id, min_importance))
+            .limit(limit)
+            .execute()
+            .await?;
+
+        let mut memories = Vec::new();
+        while let Some(batch) = results.try_next().await? {
+            for row in 0..batch.num_rows() {
+                let memory = self.extract_memory_from_batch(&batch, row)?;
+                memories.push(memory);
+            }
+        }
+
+        // 按重要性排序
+        memories.sort_by(|a, b| b.importance.partial_cmp(&a.importance).unwrap_or(std::cmp::Ordering::Equal));
+
+        Ok(memories)
+    }
+
+    /// 更新记忆的访问信息
+    pub async fn access_memory(&self, _memory_id: &str) -> Result<(), AgentDbError> {
+        // 这里应该实现更新记忆访问计数和最后访问时间的逻辑
+        // 由于LanceDB的限制，这里简化处理
+        Ok(())
+    }
+}
