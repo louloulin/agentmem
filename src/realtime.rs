@@ -5,9 +5,8 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex, RwLock, mpsc};
 use std::thread;
 use std::time::{Duration, Instant};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use serde::{Deserialize, Serialize};
-use crate::core::*;
 
 // 流数据类型
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -202,11 +201,11 @@ impl RealTimeStreamProcessor {
     fn worker_thread(
         worker_id: usize,
         receiver: Arc<Mutex<mpsc::Receiver<StreamDataItem>>>,
-        buffer: Arc<Mutex<VecDeque<StreamDataItem>>>,
+        _buffer: Arc<Mutex<VecDeque<StreamDataItem>>>,
         stats: Arc<RwLock<StreamProcessingStats>>,
         is_running: Arc<AtomicBool>,
         processors: HashMap<StreamDataType, Arc<dyn StreamProcessor>>,
-        config: StreamProcessingConfig,
+        _config: StreamProcessingConfig,
     ) {
         println!("Worker thread {} started", worker_id);
 
@@ -293,6 +292,7 @@ pub struct StreamQuery {
 // 流式查询处理器
 pub struct StreamQueryProcessor {
     query_cache: Arc<RwLock<HashMap<String, (Vec<u8>, Instant)>>>,
+    #[allow(dead_code)]
     cache_ttl: Duration,
     active_queries: Arc<RwLock<HashMap<String, StreamQuery>>>,
 }

@@ -1,10 +1,9 @@
 // 安全和权限管理模块
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
-use aes_gcm::{Aes256Gcm, Key, Nonce, aead::Aead, KeyInit};
+use aes_gcm::{Aes256Gcm, Nonce, aead::Aead, KeyInit};
 use rand::{Rng, thread_rng};
 
 use crate::core::AgentDbError;

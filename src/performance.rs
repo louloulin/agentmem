@@ -1,12 +1,10 @@
 // Performance 模块 - 性能监控和诊断
 // 从 lib.rs 自动拆分生成
 
-use std::collections::HashMap;
 use std::sync::{Arc, RwLock, Mutex};
-use std::time::{Duration, Instant};
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::time::Instant;
+use std::sync::atomic::{AtomicU64, Ordering};
 use serde::{Deserialize, Serialize};
-use crate::core::*;
 
 // 性能指标结构
 #[derive(Debug, Clone, Serialize, Deserialize)]

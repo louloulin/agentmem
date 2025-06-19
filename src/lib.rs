@@ -29,8 +29,7 @@ pub use distributed::{AgentNetworkManager, AgentNode, DistributedStateManager, M
 pub use realtime::{RealTimeStreamProcessor, StreamDataItem, StreamDataType, StreamQueryProcessor};
 
 // 导入必要的依赖
-use std::sync::Arc;
-use lancedb::{connect, Connection};
+use lancedb::connect;
 
 // 主要的集成数据库结构
 pub struct AgentDatabase {

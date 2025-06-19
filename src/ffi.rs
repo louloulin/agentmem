@@ -1,7 +1,7 @@
 // FFI 模块 - C语言接口
 // 从 lib.rs 自动拆分生成
 
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 use std::os::raw::{c_char, c_int};
 use std::ptr;
 use tokio::runtime::Runtime;

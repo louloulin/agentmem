@@ -1,7 +1,7 @@
 // 向量处理和搜索模块
 use std::collections::HashMap;
 use std::sync::Arc;
-use arrow::array::{Array, BinaryArray, Float32Array, StringArray, UInt64Array, RecordBatchIterator};
+use arrow::array::{Array, BinaryArray, StringArray, UInt64Array, RecordBatchIterator};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
 use futures::TryStreamExt;

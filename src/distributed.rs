@@ -54,6 +54,7 @@ pub struct AgentNetworkManager {
     nodes: Arc<RwLock<HashMap<u64, AgentNode>>>,
     local_node_id: u64,
     message_queue: Arc<Mutex<Vec<DistributedMessage>>>,
+    #[allow(dead_code)]
     heartbeat_interval: Duration,
 }
 
@@ -201,7 +202,7 @@ impl DistributedStateManager {
         // 简单的冲突解决策略：选择较新的状态
         // 实际应用中可能需要更复杂的合并逻辑
         
-        let local_clock = {
+        let _local_clock = {
             let clock = self.vector_clock.lock().unwrap();
             clock.get(&agent_id).copied().unwrap_or(0)
         };

@@ -7,7 +7,6 @@ use arrow::record_batch::RecordBatch;
 use futures::TryStreamExt;
 use lancedb::{connect, Connection, Table};
 use lancedb::query::{QueryBase, ExecutableQuery};
-use tokio::runtime::Runtime;
 
 use crate::core::{AgentDbError, AgentState, StateType, QueryResult, PaginationParams};
 
@@ -143,7 +142,7 @@ impl AgentStateDB {
         let mut query = table.query();
         
         // 添加排序
-        if let Some(sort_field) = &pagination.sort_by {
+        if let Some(_sort_field) = &pagination.sort_by {
             // LanceDB的排序语法可能需要调整
             query = query.limit(pagination.page_size);
         } else {

@@ -8,7 +8,7 @@ use futures::TryStreamExt;
 use lancedb::{Connection, Table};
 use lancedb::query::{QueryBase, ExecutableQuery};
 
-use crate::core::{AgentDbError, Memory, MemoryType, QueryResult, PaginationParams};
+use crate::core::{AgentDbError, Memory, MemoryType};
 
 // 记忆管理器
 pub struct MemoryManager {

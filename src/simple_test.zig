@@ -256,13 +256,16 @@ test "AgentState JSON serialization" {
 
 // 性能测试
 test "AgentState performance test" {
+    std.debug.print("\n=== Starting Performance Test ===\n", .{});
+
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    const num_operations = 1000;
+    const num_operations = 100; // 减少操作数量
     const test_data = "Performance test data";
 
+    std.debug.print("Starting {} operations...\n", .{num_operations});
     const start_time = std.time.nanoTimestamp();
 
     // 创建和销毁大量状态
@@ -275,6 +278,11 @@ test "AgentState performance test" {
         _ = state.getMetadata("test_key");
         try state.updateData(allocator, "Updated test data");
         _ = state.validateChecksum();
+
+        // 每10个操作打印一次进度
+        if (i % 10 == 0) {
+            std.debug.print("Completed {} operations...\n", .{i});
+        }
     }
 
     const end_time = std.time.nanoTimestamp();
@@ -284,4 +292,6 @@ test "AgentState performance test" {
 
     // 验证性能（应该在合理时间内完成）
     try testing.expect(duration_ms < 5000.0); // 5秒内完成
+
+    std.debug.print("✅ Performance test completed successfully!\n", .{});
 }

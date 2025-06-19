@@ -52,6 +52,28 @@ pub fn build(b: *std.Build) void {
     const simple_test_step = b.step("test-simple", "Run simple unit tests");
     simple_test_step.dependOn(&run_simple_tests.step);
 
+    // 创建最小测试（基础Zig功能）
+    const minimal_tests = b.addTest(.{
+        .root_source_file = b.path("src/minimal_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const run_minimal_tests = b.addRunArtifact(minimal_tests);
+    const minimal_test_step = b.step("test-minimal", "Run minimal unit tests");
+    minimal_test_step.dependOn(&run_minimal_tests.step);
+
+    // 创建单个测试（诊断用）
+    const single_tests = b.addTest(.{
+        .root_source_file = b.path("src/single_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const run_single_tests = b.addRunArtifact(single_tests);
+    const single_test_step = b.step("test-single", "Run single diagnostic test");
+    single_test_step.dependOn(&run_single_tests.step);
+
     // 创建完整测试（使用安全的Zig测试）
     const tests = b.addTest(.{
         .root_source_file = b.path("src/safe_test.zig"),
