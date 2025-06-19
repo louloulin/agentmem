@@ -96,8 +96,13 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/main.zig"),
     });
 
+    const agent_state_module = b.addModule("agent_state", .{
+        .root_source_file = b.path("src/agent_state.zig"),
+    });
+
     // 为模块添加include路径
     agent_db_module.addIncludePath(b.path("include"));
+    agent_state_module.addIncludePath(b.path("include"));
 
     example.root_module.addImport("agent_db", agent_db_module);
 
@@ -133,6 +138,10 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+
+    // 添加模块依赖
+    benchmark.root_module.addImport("agent_db.zig", agent_db_module);
+    benchmark.root_module.addImport("agent_state.zig", agent_state_module);
 
     // 添加头文件路径
     benchmark.addIncludePath(b.path("include"));

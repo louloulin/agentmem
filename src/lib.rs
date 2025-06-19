@@ -15,6 +15,8 @@ use lancedb::query::{QueryBase, ExecutableQuery};
 use serde::{Deserialize, Serialize};
 use tokio::runtime::Runtime;
 use uuid::Uuid;
+use std::time::{Duration, Instant};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
 // 错误类型定义
 #[derive(Debug, thiserror::Error)]
@@ -31,6 +33,8 @@ pub enum AgentDbError {
     NotFound(String),
     #[error("Internal error: {0}")]
     Internal(String),
+    #[error("Unauthorized: {0}")]
+    Unauthorized(String),
 }
 
 // Agent状态类型
@@ -4388,8 +4392,1020 @@ pub struct CacheStatistics {
     pub memory_usage: usize,
 }
 
+// 性能监控和诊断系统
+#[derive(Debug)]
+pub struct PerformanceMetrics {
+    pub query_count: AtomicU64,
+    pub total_query_time: AtomicU64, // 纳秒
+    pub memory_usage: AtomicUsize,   // 字节
+    pub cache_hits: AtomicU64,
+    pub cache_misses: AtomicU64,
+    pub error_count: AtomicU64,
+    pub slow_query_count: AtomicU64,
+    pub last_reset: AtomicU64, // 时间戳
+}
+
+impl Default for PerformanceMetrics {
+    fn default() -> Self {
+        Self {
+            query_count: AtomicU64::new(0),
+            total_query_time: AtomicU64::new(0),
+            memory_usage: AtomicUsize::new(0),
+            cache_hits: AtomicU64::new(0),
+            cache_misses: AtomicU64::new(0),
+            error_count: AtomicU64::new(0),
+            slow_query_count: AtomicU64::new(0),
+            last_reset: AtomicU64::new(chrono::Utc::now().timestamp() as u64),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QueryDiagnostics {
+    pub query_id: String,
+    pub query_type: String,
+    pub start_time: i64,
+    pub end_time: i64,
+    pub duration_ms: f64,
+    pub memory_used: usize,
+    pub cache_hit: bool,
+    pub error_message: Option<String>,
+    pub parameters: HashMap<String, String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SystemDiagnostics {
+    pub timestamp: i64,
+    pub cpu_usage: f64,
+    pub memory_usage: usize,
+    pub disk_usage: usize,
+    pub active_connections: usize,
+    pub query_queue_size: usize,
+    pub cache_size: usize,
+    pub index_size: usize,
+}
+
+pub struct PerformanceMonitor {
+    metrics: Arc<PerformanceMetrics>,
+    query_history: Arc<std::sync::Mutex<Vec<QueryDiagnostics>>>,
+    system_history: Arc<std::sync::Mutex<Vec<SystemDiagnostics>>>,
+    slow_query_threshold_ms: f64,
+}
+
+impl PerformanceMonitor {
+    pub fn new(slow_query_threshold_ms: f64) -> Self {
+        Self {
+            metrics: Arc::new(PerformanceMetrics::default()),
+            query_history: Arc::new(std::sync::Mutex::new(Vec::new())),
+            system_history: Arc::new(std::sync::Mutex::new(Vec::new())),
+            slow_query_threshold_ms,
+        }
+    }
+
+    pub fn start_query(&self, query_type: &str, parameters: HashMap<String, String>) -> QueryTracker {
+        let query_id = Uuid::new_v4().to_string();
+        QueryTracker {
+            query_id,
+            query_type: query_type.to_string(),
+            start_time: Instant::now(),
+            start_timestamp: chrono::Utc::now().timestamp(),
+            parameters,
+            monitor: self.metrics.clone(),
+            history: self.query_history.clone(),
+            slow_threshold: self.slow_query_threshold_ms,
+        }
+    }
+
+    pub fn record_cache_hit(&self) {
+        self.metrics.cache_hits.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn record_cache_miss(&self) {
+        self.metrics.cache_misses.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn record_error(&self) {
+        self.metrics.error_count.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn update_memory_usage(&self, bytes: usize) {
+        self.metrics.memory_usage.store(bytes, Ordering::Relaxed);
+    }
+
+    pub fn get_metrics_snapshot(&self) -> PerformanceSnapshot {
+        let query_count = self.metrics.query_count.load(Ordering::Relaxed);
+        let total_time = self.metrics.total_query_time.load(Ordering::Relaxed);
+        let avg_query_time = if query_count > 0 {
+            (total_time as f64) / (query_count as f64) / 1_000_000.0 // 转换为毫秒
+        } else {
+            0.0
+        };
+
+        let cache_hits = self.metrics.cache_hits.load(Ordering::Relaxed);
+        let cache_misses = self.metrics.cache_misses.load(Ordering::Relaxed);
+        let cache_hit_rate = if cache_hits + cache_misses > 0 {
+            (cache_hits as f64) / ((cache_hits + cache_misses) as f64)
+        } else {
+            0.0
+        };
+
+        PerformanceSnapshot {
+            timestamp: chrono::Utc::now().timestamp(),
+            query_count,
+            avg_query_time_ms: avg_query_time,
+            memory_usage_bytes: self.metrics.memory_usage.load(Ordering::Relaxed),
+            cache_hit_rate,
+            error_count: self.metrics.error_count.load(Ordering::Relaxed),
+            slow_query_count: self.metrics.slow_query_count.load(Ordering::Relaxed),
+        }
+    }
+
+    pub fn reset_metrics(&self) {
+        self.metrics.query_count.store(0, Ordering::Relaxed);
+        self.metrics.total_query_time.store(0, Ordering::Relaxed);
+        self.metrics.cache_hits.store(0, Ordering::Relaxed);
+        self.metrics.cache_misses.store(0, Ordering::Relaxed);
+        self.metrics.error_count.store(0, Ordering::Relaxed);
+        self.metrics.slow_query_count.store(0, Ordering::Relaxed);
+        self.metrics.last_reset.store(chrono::Utc::now().timestamp() as u64, Ordering::Relaxed);
+    }
+
+    pub fn get_slow_queries(&self, limit: usize) -> Vec<QueryDiagnostics> {
+        let history = self.query_history.lock().unwrap();
+        history.iter()
+            .filter(|q| q.duration_ms >= self.slow_query_threshold_ms)
+            .take(limit)
+            .cloned()
+            .collect()
+    }
+
+    pub fn record_system_metrics(&self, diagnostics: SystemDiagnostics) {
+        let mut history = self.system_history.lock().unwrap();
+        history.push(diagnostics);
+
+        // 保持最近1000条记录
+        if history.len() > 1000 {
+            history.remove(0);
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PerformanceSnapshot {
+    pub timestamp: i64,
+    pub query_count: u64,
+    pub avg_query_time_ms: f64,
+    pub memory_usage_bytes: usize,
+    pub cache_hit_rate: f64,
+    pub error_count: u64,
+    pub slow_query_count: u64,
+}
+
+pub struct QueryTracker {
+    query_id: String,
+    query_type: String,
+    start_time: Instant,
+    start_timestamp: i64,
+    parameters: HashMap<String, String>,
+    monitor: Arc<PerformanceMetrics>,
+    history: Arc<std::sync::Mutex<Vec<QueryDiagnostics>>>,
+    slow_threshold: f64,
+}
+
+impl QueryTracker {
+    pub fn finish(self, error: Option<String>) {
+        let duration = self.start_time.elapsed();
+        let duration_ms = duration.as_secs_f64() * 1000.0;
+
+        // 更新指标
+        self.monitor.query_count.fetch_add(1, Ordering::Relaxed);
+        self.monitor.total_query_time.fetch_add(duration.as_nanos() as u64, Ordering::Relaxed);
+
+        if duration_ms >= self.slow_threshold {
+            self.monitor.slow_query_count.fetch_add(1, Ordering::Relaxed);
+        }
+
+        if error.is_some() {
+            self.monitor.error_count.fetch_add(1, Ordering::Relaxed);
+        }
+
+        // 记录查询历史
+        let diagnostics = QueryDiagnostics {
+            query_id: self.query_id,
+            query_type: self.query_type,
+            start_time: self.start_timestamp,
+            end_time: chrono::Utc::now().timestamp(),
+            duration_ms,
+            memory_used: 0, // 可以在实际使用中测量
+            cache_hit: false, // 可以在实际使用中设置
+            error_message: error,
+            parameters: self.parameters,
+        };
+
+        let mut history = self.history.lock().unwrap();
+        history.push(diagnostics);
+
+        // 保持最近1000条查询记录
+        if history.len() > 1000 {
+            history.remove(0);
+        }
+    }
+}
+
+// 智能数据压缩和存储优化系统
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum CompressionType {
+    None,
+    LZ4,
+    Zstd,
+    Gzip,
+    Snappy,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompressionMetrics {
+    pub original_size: usize,
+    pub compressed_size: usize,
+    pub compression_ratio: f64,
+    pub compression_time_ms: f64,
+    pub decompression_time_ms: f64,
+    pub algorithm: CompressionType,
+}
+
+pub struct DataCompressor {
+    compression_type: CompressionType,
+    compression_level: i32,
+    min_size_threshold: usize, // 最小压缩阈值
+}
+
+impl DataCompressor {
+    pub fn new(compression_type: CompressionType, compression_level: i32, min_size_threshold: usize) -> Self {
+        Self {
+            compression_type,
+            compression_level,
+            min_size_threshold,
+        }
+    }
+
+    pub fn compress(&self, data: &[u8]) -> Result<(Vec<u8>, CompressionMetrics), AgentDbError> {
+        if data.len() < self.min_size_threshold {
+            // 数据太小，不值得压缩
+            return Ok((data.to_vec(), CompressionMetrics {
+                original_size: data.len(),
+                compressed_size: data.len(),
+                compression_ratio: 1.0,
+                compression_time_ms: 0.0,
+                decompression_time_ms: 0.0,
+                algorithm: CompressionType::None,
+            }));
+        }
+
+        let start_time = Instant::now();
+        let compressed_data = match self.compression_type {
+            CompressionType::None => data.to_vec(),
+            CompressionType::LZ4 => self.lz4_compress(data)?,
+            CompressionType::Zstd => self.zstd_compress(data)?,
+            CompressionType::Gzip => self.gzip_compress(data)?,
+            CompressionType::Snappy => self.snappy_compress(data)?,
+        };
+        let compression_time = start_time.elapsed().as_secs_f64() * 1000.0;
+
+        let compressed_size = compressed_data.len();
+        let compression_ratio = data.len() as f64 / compressed_size as f64;
+
+        Ok((compressed_data, CompressionMetrics {
+            original_size: data.len(),
+            compressed_size,
+            compression_ratio,
+            compression_time_ms: compression_time,
+            decompression_time_ms: 0.0, // 将在解压时更新
+            algorithm: self.compression_type.clone(),
+        }))
+    }
+
+    pub fn decompress(&self, compressed_data: &[u8], algorithm: &CompressionType) -> Result<(Vec<u8>, f64), AgentDbError> {
+        let start_time = Instant::now();
+        let decompressed_data = match algorithm {
+            CompressionType::None => compressed_data.to_vec(),
+            CompressionType::LZ4 => self.lz4_decompress(compressed_data)?,
+            CompressionType::Zstd => self.zstd_decompress(compressed_data)?,
+            CompressionType::Gzip => self.gzip_decompress(compressed_data)?,
+            CompressionType::Snappy => self.snappy_decompress(compressed_data)?,
+        };
+        let decompression_time = start_time.elapsed().as_secs_f64() * 1000.0;
+
+        Ok((decompressed_data, decompression_time))
+    }
+
+    // 简化的LZ4压缩实现（实际应用中应使用专业库）
+    fn lz4_compress(&self, data: &[u8]) -> Result<Vec<u8>, AgentDbError> {
+        // 简化的RLE压缩作为LZ4的替代
+        let mut compressed = Vec::new();
+        let mut i = 0;
+
+        while i < data.len() {
+            let current_byte = data[i];
+            let mut count = 1;
+
+            // 计算连续相同字节的数量
+            while i + count < data.len() && data[i + count] == current_byte && count < 255 {
+                count += 1;
+            }
+
+            if count > 3 {
+                // 使用RLE编码
+                compressed.push(0xFF); // 标记字节
+                compressed.push(count as u8);
+                compressed.push(current_byte);
+            } else {
+                // 直接存储
+                for _ in 0..count {
+                    compressed.push(current_byte);
+                }
+            }
+
+            i += count;
+        }
+
+        Ok(compressed)
+    }
+
+    fn lz4_decompress(&self, data: &[u8]) -> Result<Vec<u8>, AgentDbError> {
+        let mut decompressed = Vec::new();
+        let mut i = 0;
+
+        while i < data.len() {
+            if data[i] == 0xFF && i + 2 < data.len() {
+                // RLE解码
+                let count = data[i + 1] as usize;
+                let byte_value = data[i + 2];
+                for _ in 0..count {
+                    decompressed.push(byte_value);
+                }
+                i += 3;
+            } else {
+                decompressed.push(data[i]);
+                i += 1;
+            }
+        }
+
+        Ok(decompressed)
+    }
+
+    // 简化的Zstd压缩实现
+    fn zstd_compress(&self, data: &[u8]) -> Result<Vec<u8>, AgentDbError> {
+        // 使用字典压缩的简化版本
+        let mut compressed = Vec::new();
+        let mut dictionary = std::collections::HashMap::new();
+        let mut dict_index = 0u16;
+
+        let mut i = 0;
+        while i < data.len() {
+            let mut best_match_len = 0;
+            let mut best_match_index = 0u16;
+
+            // 寻找最长匹配
+            for len in (1..=8.min(data.len() - i)).rev() {
+                let pattern = &data[i..i + len];
+                if let Some(&index) = dictionary.get(pattern) {
+                    best_match_len = len;
+                    best_match_index = index;
+                    break;
+                }
+            }
+
+            if best_match_len > 2 {
+                // 使用字典引用
+                compressed.push(0xFE); // 字典标记
+                compressed.extend_from_slice(&best_match_index.to_le_bytes());
+                compressed.push(best_match_len as u8);
+                i += best_match_len;
+            } else {
+                // 直接存储并添加到字典
+                compressed.push(data[i]);
+                if i + 1 < data.len() {
+                    let pattern = &data[i..i + 2];
+                    dictionary.insert(pattern.to_vec(), dict_index);
+                    dict_index += 1;
+                }
+                i += 1;
+            }
+        }
+
+        Ok(compressed)
+    }
+
+    fn zstd_decompress(&self, data: &[u8]) -> Result<Vec<u8>, AgentDbError> {
+        let mut decompressed = Vec::new();
+        let mut dictionary: Vec<Vec<u8>> = Vec::new();
+        let mut i = 0;
+
+        while i < data.len() {
+            if data[i] == 0xFE && i + 3 < data.len() {
+                // 字典引用
+                let index = u16::from_le_bytes([data[i + 1], data[i + 2]]) as usize;
+                let length = data[i + 3] as usize;
+
+                if index < dictionary.len() && dictionary[index].len() >= length {
+                    let pattern = &dictionary[index][..length];
+                    decompressed.extend_from_slice(pattern);
+                }
+                i += 4;
+            } else {
+                decompressed.push(data[i]);
+
+                // 更新字典
+                if decompressed.len() >= 2 {
+                    let start = decompressed.len() - 2;
+                    dictionary.push(decompressed[start..].to_vec());
+                }
+                i += 1;
+            }
+        }
+
+        Ok(decompressed)
+    }
+
+    // 简化的Gzip压缩实现
+    fn gzip_compress(&self, data: &[u8]) -> Result<Vec<u8>, AgentDbError> {
+        // 使用Huffman编码的简化版本
+        let mut frequency = [0u32; 256];
+        for &byte in data {
+            frequency[byte as usize] += 1;
+        }
+
+        // 构建简化的Huffman树（这里使用固定编码）
+        let mut compressed = Vec::new();
+        compressed.extend_from_slice(b"GZIP"); // 标识符
+        compressed.extend_from_slice(&(data.len() as u32).to_le_bytes());
+
+        // 简化的压缩：使用变长编码
+        for &byte in data {
+            if frequency[byte as usize] > data.len() as u32 / 10 {
+                // 高频字节使用短编码
+                compressed.push(0x80 | (byte >> 1));
+            } else {
+                // 低频字节使用原始编码
+                compressed.push(byte);
+            }
+        }
+
+        Ok(compressed)
+    }
+
+    fn gzip_decompress(&self, data: &[u8]) -> Result<Vec<u8>, AgentDbError> {
+        if data.len() < 8 || &data[0..4] != b"GZIP" {
+            return Err(AgentDbError::InvalidArgument("Invalid GZIP data".to_string()));
+        }
+
+        let original_len = u32::from_le_bytes([data[4], data[5], data[6], data[7]]) as usize;
+        let mut decompressed = Vec::with_capacity(original_len);
+
+        for &byte in &data[8..] {
+            if byte & 0x80 != 0 {
+                // 解码高频字节
+                decompressed.push((byte & 0x7F) << 1);
+            } else {
+                decompressed.push(byte);
+            }
+        }
+
+        Ok(decompressed)
+    }
+
+    // 简化的Snappy压缩实现
+    fn snappy_compress(&self, data: &[u8]) -> Result<Vec<u8>, AgentDbError> {
+        // 使用简单的重复序列检测
+        let mut compressed = Vec::new();
+        let mut i = 0;
+
+        while i < data.len() {
+            let mut best_match_len = 0;
+            let mut best_match_offset = 0;
+
+            // 向前搜索匹配
+            for offset in 1..=64.min(i) {
+                let start = i - offset;
+                let mut match_len = 0;
+
+                while i + match_len < data.len() &&
+                      start + match_len < i &&
+                      data[start + match_len] == data[i + match_len] &&
+                      match_len < 64 {
+                    match_len += 1;
+                }
+
+                if match_len > best_match_len {
+                    best_match_len = match_len;
+                    best_match_offset = offset;
+                }
+            }
+
+            if best_match_len > 3 {
+                // 编码匹配
+                compressed.push(0xF0 | (best_match_len as u8 - 4));
+                compressed.push(best_match_offset as u8);
+                i += best_match_len;
+            } else {
+                // 直接存储
+                compressed.push(data[i]);
+                i += 1;
+            }
+        }
+
+        Ok(compressed)
+    }
+
+    fn snappy_decompress(&self, data: &[u8]) -> Result<Vec<u8>, AgentDbError> {
+        let mut decompressed = Vec::new();
+        let mut i = 0;
+
+        while i < data.len() {
+            let byte = data[i];
+            if byte & 0xF0 == 0xF0 && i + 1 < data.len() {
+                // 解码匹配
+                let match_len = (byte & 0x0F) as usize + 4;
+                let offset = data[i + 1] as usize;
+
+                if offset <= decompressed.len() {
+                    let start = decompressed.len() - offset;
+                    for j in 0..match_len {
+                        if start + j < decompressed.len() {
+                            let byte_to_copy = decompressed[start + j];
+                            decompressed.push(byte_to_copy);
+                        }
+                    }
+                }
+                i += 2;
+            } else {
+                decompressed.push(byte);
+                i += 1;
+            }
+        }
+
+        Ok(decompressed)
+    }
+
+    pub fn choose_best_algorithm(&self, data: &[u8]) -> CompressionType {
+        // 基于数据特征选择最佳压缩算法
+        let entropy = self.calculate_entropy(data);
+        let repetition_ratio = self.calculate_repetition_ratio(data);
+
+        if entropy < 3.0 {
+            // 低熵数据，适合RLE类压缩
+            CompressionType::LZ4
+        } else if repetition_ratio > 0.3 {
+            // 高重复率，适合字典压缩
+            CompressionType::Zstd
+        } else if data.len() > 1024 {
+            // 大数据，使用通用压缩
+            CompressionType::Gzip
+        } else {
+            // 小数据，使用快速压缩
+            CompressionType::Snappy
+        }
+    }
+
+    fn calculate_entropy(&self, data: &[u8]) -> f64 {
+        let mut frequency = [0u32; 256];
+        for &byte in data {
+            frequency[byte as usize] += 1;
+        }
+
+        let len = data.len() as f64;
+        let mut entropy = 0.0;
+
+        for &freq in &frequency {
+            if freq > 0 {
+                let p = freq as f64 / len;
+                entropy -= p * p.log2();
+            }
+        }
+
+        entropy
+    }
+
+    fn calculate_repetition_ratio(&self, data: &[u8]) -> f64 {
+        if data.len() < 2 {
+            return 0.0;
+        }
+
+        let mut repeated_bytes = 0;
+        for i in 1..data.len() {
+            if data[i] == data[i - 1] {
+                repeated_bytes += 1;
+            }
+        }
+
+        repeated_bytes as f64 / (data.len() - 1) as f64
+    }
+}
+
+// 高级安全和权限管理系统
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum Permission {
+    Read,
+    Write,
+    Delete,
+    Admin,
+    Execute,
+    CreateAgent,
+    ModifyAgent,
+    ViewMetrics,
+    ManageUsers,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Role {
+    pub role_id: String,
+    pub name: String,
+    pub description: String,
+    pub permissions: Vec<Permission>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct User {
+    pub user_id: String,
+    pub username: String,
+    pub email: String,
+    pub password_hash: String,
+    pub salt: String,
+    pub roles: Vec<String>, // role_ids
+    pub is_active: bool,
+    pub last_login: Option<i64>,
+    pub failed_login_attempts: u32,
+    pub locked_until: Option<i64>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AccessToken {
+    pub token_id: String,
+    pub user_id: String,
+    pub token_hash: String,
+    pub expires_at: i64,
+    pub scopes: Vec<String>,
+    pub created_at: i64,
+    pub last_used: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuditLog {
+    pub log_id: String,
+    pub user_id: String,
+    pub action: String,
+    pub resource: String,
+    pub resource_id: Option<String>,
+    pub ip_address: String,
+    pub user_agent: String,
+    pub success: bool,
+    pub error_message: Option<String>,
+    pub timestamp: i64,
+    pub additional_data: HashMap<String, String>,
+}
+
+pub struct SecurityManager {
+    users: Arc<std::sync::RwLock<HashMap<String, User>>>,
+    roles: Arc<std::sync::RwLock<HashMap<String, Role>>>,
+    tokens: Arc<std::sync::RwLock<HashMap<String, AccessToken>>>,
+    audit_logs: Arc<std::sync::Mutex<Vec<AuditLog>>>,
+    password_policy: PasswordPolicy,
+    session_timeout: Duration,
+    max_failed_attempts: u32,
+    lockout_duration: Duration,
+}
+
+#[derive(Debug, Clone)]
+pub struct PasswordPolicy {
+    pub min_length: usize,
+    pub require_uppercase: bool,
+    pub require_lowercase: bool,
+    pub require_numbers: bool,
+    pub require_special_chars: bool,
+    pub max_age_days: u32,
+    pub history_count: usize, // 不能重复使用的历史密码数量
+}
+
+impl Default for PasswordPolicy {
+    fn default() -> Self {
+        Self {
+            min_length: 8,
+            require_uppercase: true,
+            require_lowercase: true,
+            require_numbers: true,
+            require_special_chars: true,
+            max_age_days: 90,
+            history_count: 5,
+        }
+    }
+}
+
+impl SecurityManager {
+    pub fn new() -> Self {
+        let mut roles = HashMap::new();
+
+        // 创建默认角色
+        roles.insert("admin".to_string(), Role {
+            role_id: "admin".to_string(),
+            name: "Administrator".to_string(),
+            description: "Full system access".to_string(),
+            permissions: vec![
+                Permission::Read, Permission::Write, Permission::Delete,
+                Permission::Admin, Permission::Execute, Permission::CreateAgent,
+                Permission::ModifyAgent, Permission::ViewMetrics, Permission::ManageUsers,
+            ],
+            created_at: chrono::Utc::now().timestamp(),
+            updated_at: chrono::Utc::now().timestamp(),
+        });
+
+        roles.insert("user".to_string(), Role {
+            role_id: "user".to_string(),
+            name: "Regular User".to_string(),
+            description: "Basic read/write access".to_string(),
+            permissions: vec![Permission::Read, Permission::Write],
+            created_at: chrono::Utc::now().timestamp(),
+            updated_at: chrono::Utc::now().timestamp(),
+        });
+
+        roles.insert("readonly".to_string(), Role {
+            role_id: "readonly".to_string(),
+            name: "Read Only".to_string(),
+            description: "Read-only access".to_string(),
+            permissions: vec![Permission::Read],
+            created_at: chrono::Utc::now().timestamp(),
+            updated_at: chrono::Utc::now().timestamp(),
+        });
+
+        Self {
+            users: Arc::new(std::sync::RwLock::new(HashMap::new())),
+            roles: Arc::new(std::sync::RwLock::new(roles)),
+            tokens: Arc::new(std::sync::RwLock::new(HashMap::new())),
+            audit_logs: Arc::new(std::sync::Mutex::new(Vec::new())),
+            password_policy: PasswordPolicy::default(),
+            session_timeout: Duration::from_secs(3600), // 1小时
+            max_failed_attempts: 5,
+            lockout_duration: Duration::from_secs(900), // 15分钟
+        }
+    }
+
+    pub fn create_user(&self, username: &str, email: &str, password: &str, role_ids: Vec<String>) -> Result<String, AgentDbError> {
+        // 验证密码策略
+        self.validate_password(password)?;
+
+        // 生成盐和密码哈希
+        let salt = self.generate_salt();
+        let password_hash = self.hash_password(password, &salt)?;
+
+        let user_id = Uuid::new_v4().to_string();
+        let user = User {
+            user_id: user_id.clone(),
+            username: username.to_string(),
+            email: email.to_string(),
+            password_hash,
+            salt,
+            roles: role_ids,
+            is_active: true,
+            last_login: None,
+            failed_login_attempts: 0,
+            locked_until: None,
+            created_at: chrono::Utc::now().timestamp(),
+            updated_at: chrono::Utc::now().timestamp(),
+        };
+
+        let mut users = self.users.write().unwrap();
+        users.insert(user_id.clone(), user);
+
+        // 记录审计日志
+        self.log_action("system", "create_user", "user", Some(&user_id), "127.0.0.1", "system", true, None);
+
+        Ok(user_id)
+    }
+
+    pub fn authenticate(&self, username: &str, password: &str, ip_address: &str, user_agent: &str) -> Result<String, AgentDbError> {
+        let mut users = self.users.write().unwrap();
+
+        // 查找用户
+        let user = users.values_mut()
+            .find(|u| u.username == username)
+            .ok_or_else(|| AgentDbError::Unauthorized("Invalid credentials".to_string()))?;
+
+        // 检查账户是否被锁定
+        if let Some(locked_until) = user.locked_until {
+            if chrono::Utc::now().timestamp() < locked_until {
+                self.log_action(&user.user_id, "login", "user", Some(&user.user_id), ip_address, user_agent, false, Some("Account locked"));
+                return Err(AgentDbError::Unauthorized("Account is locked".to_string()));
+            } else {
+                // 锁定期已过，重置失败次数
+                user.locked_until = None;
+                user.failed_login_attempts = 0;
+            }
+        }
+
+        // 检查账户是否激活
+        if !user.is_active {
+            self.log_action(&user.user_id, "login", "user", Some(&user.user_id), ip_address, user_agent, false, Some("Account inactive"));
+            return Err(AgentDbError::Unauthorized("Account is inactive".to_string()));
+        }
+
+        // 验证密码
+        if !self.verify_password(password, &user.password_hash, &user.salt)? {
+            user.failed_login_attempts += 1;
+
+            // 检查是否需要锁定账户
+            if user.failed_login_attempts >= self.max_failed_attempts {
+                user.locked_until = Some(chrono::Utc::now().timestamp() + self.lockout_duration.as_secs() as i64);
+                self.log_action(&user.user_id, "login", "user", Some(&user.user_id), ip_address, user_agent, false, Some("Too many failed attempts"));
+                return Err(AgentDbError::Unauthorized("Account locked due to too many failed attempts".to_string()));
+            }
+
+            self.log_action(&user.user_id, "login", "user", Some(&user.user_id), ip_address, user_agent, false, Some("Invalid password"));
+            return Err(AgentDbError::Unauthorized("Invalid credentials".to_string()));
+        }
+
+        // 登录成功，重置失败次数
+        user.failed_login_attempts = 0;
+        user.last_login = Some(chrono::Utc::now().timestamp());
+        user.updated_at = chrono::Utc::now().timestamp();
+
+        // 生成访问令牌
+        let token = self.generate_access_token(&user.user_id, &user.roles)?;
+
+        self.log_action(&user.user_id, "login", "user", Some(&user.user_id), ip_address, user_agent, true, None);
+
+        Ok(token)
+    }
+
+    pub fn validate_token(&self, token: &str) -> Result<String, AgentDbError> {
+        let tokens = self.tokens.read().unwrap();
+        let access_token = tokens.values()
+            .find(|t| self.verify_token_hash(token, &t.token_hash))
+            .ok_or_else(|| AgentDbError::Unauthorized("Invalid token".to_string()))?;
+
+        // 检查令牌是否过期
+        if chrono::Utc::now().timestamp() > access_token.expires_at {
+            return Err(AgentDbError::Unauthorized("Token expired".to_string()));
+        }
+
+        Ok(access_token.user_id.clone())
+    }
+
+    pub fn check_permission(&self, user_id: &str, permission: &Permission) -> Result<bool, AgentDbError> {
+        let users = self.users.read().unwrap();
+        let user = users.get(user_id)
+            .ok_or_else(|| AgentDbError::NotFound("User not found".to_string()))?;
+
+        let roles = self.roles.read().unwrap();
+
+        for role_id in &user.roles {
+            if let Some(role) = roles.get(role_id) {
+                if role.permissions.contains(permission) {
+                    return Ok(true);
+                }
+            }
+        }
+
+        Ok(false)
+    }
+
+    pub fn revoke_token(&self, token: &str) -> Result<(), AgentDbError> {
+        let mut tokens = self.tokens.write().unwrap();
+        tokens.retain(|_, t| !self.verify_token_hash(token, &t.token_hash));
+        Ok(())
+    }
+
+    pub fn cleanup_expired_tokens(&self) {
+        let mut tokens = self.tokens.write().unwrap();
+        let now = chrono::Utc::now().timestamp();
+        tokens.retain(|_, token| token.expires_at > now);
+    }
+
+    fn validate_password(&self, password: &str) -> Result<(), AgentDbError> {
+        if password.len() < self.password_policy.min_length {
+            return Err(AgentDbError::InvalidArgument(format!("Password must be at least {} characters", self.password_policy.min_length)));
+        }
+
+        if self.password_policy.require_uppercase && !password.chars().any(|c| c.is_uppercase()) {
+            return Err(AgentDbError::InvalidArgument("Password must contain uppercase letters".to_string()));
+        }
+
+        if self.password_policy.require_lowercase && !password.chars().any(|c| c.is_lowercase()) {
+            return Err(AgentDbError::InvalidArgument("Password must contain lowercase letters".to_string()));
+        }
+
+        if self.password_policy.require_numbers && !password.chars().any(|c| c.is_numeric()) {
+            return Err(AgentDbError::InvalidArgument("Password must contain numbers".to_string()));
+        }
+
+        if self.password_policy.require_special_chars && !password.chars().any(|c| "!@#$%^&*()_+-=[]{}|;:,.<>?".contains(c)) {
+            return Err(AgentDbError::InvalidArgument("Password must contain special characters".to_string()));
+        }
+
+        Ok(())
+    }
+
+    fn generate_salt(&self) -> String {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut hasher = DefaultHasher::new();
+        chrono::Utc::now().timestamp_nanos().hash(&mut hasher);
+        format!("{:x}", hasher.finish())
+    }
+
+    fn hash_password(&self, password: &str, salt: &str) -> Result<String, AgentDbError> {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut hasher = DefaultHasher::new();
+        password.hash(&mut hasher);
+        salt.hash(&mut hasher);
+        Ok(format!("{:x}", hasher.finish()))
+    }
+
+    fn verify_password(&self, password: &str, hash: &str, salt: &str) -> Result<bool, AgentDbError> {
+        let computed_hash = self.hash_password(password, salt)?;
+        Ok(computed_hash == hash)
+    }
+
+    fn generate_access_token(&self, user_id: &str, roles: &[String]) -> Result<String, AgentDbError> {
+        let token_id = Uuid::new_v4().to_string();
+        let token = format!("{}:{}", token_id, chrono::Utc::now().timestamp_nanos());
+        let token_hash = self.hash_token(&token)?;
+
+        let access_token = AccessToken {
+            token_id: token_id.clone(),
+            user_id: user_id.to_string(),
+            token_hash,
+            expires_at: chrono::Utc::now().timestamp() + self.session_timeout.as_secs() as i64,
+            scopes: roles.to_vec(),
+            created_at: chrono::Utc::now().timestamp(),
+            last_used: None,
+        };
+
+        let mut tokens = self.tokens.write().unwrap();
+        tokens.insert(token_id, access_token);
+
+        Ok(token)
+    }
+
+    fn hash_token(&self, token: &str) -> Result<String, AgentDbError> {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut hasher = DefaultHasher::new();
+        token.hash(&mut hasher);
+        Ok(format!("{:x}", hasher.finish()))
+    }
+
+    fn verify_token_hash(&self, token: &str, hash: &str) -> bool {
+        if let Ok(computed_hash) = self.hash_token(token) {
+            computed_hash == hash
+        } else {
+            false
+        }
+    }
+
+    fn log_action(&self, user_id: &str, action: &str, resource: &str, resource_id: Option<&str>,
+                  ip_address: &str, user_agent: &str, success: bool, error_message: Option<&str>) {
+        let log = AuditLog {
+            log_id: Uuid::new_v4().to_string(),
+            user_id: user_id.to_string(),
+            action: action.to_string(),
+            resource: resource.to_string(),
+            resource_id: resource_id.map(|s| s.to_string()),
+            ip_address: ip_address.to_string(),
+            user_agent: user_agent.to_string(),
+            success,
+            error_message: error_message.map(|s| s.to_string()),
+            timestamp: chrono::Utc::now().timestamp(),
+            additional_data: HashMap::new(),
+        };
+
+        let mut logs = self.audit_logs.lock().unwrap();
+        logs.push(log);
+
+        // 保持最近10000条日志
+        if logs.len() > 10000 {
+            logs.remove(0);
+        }
+    }
+
+    pub fn get_audit_logs(&self, user_id: Option<&str>, limit: usize) -> Vec<AuditLog> {
+        let logs = self.audit_logs.lock().unwrap();
+        logs.iter()
+            .filter(|log| user_id.map_or(true, |uid| log.user_id == uid))
+            .rev()
+            .take(limit)
+            .cloned()
+            .collect()
+    }
+}
+
 // 多模态数据支持系统
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum ModalityType {
     Text,
     Image,
