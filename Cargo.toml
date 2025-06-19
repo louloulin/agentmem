@@ -23,6 +23,9 @@ chrono = { version = "0.4", features = ["serde"] }
 cbindgen = "0.26"
 libc = "0.2"
 rand = "0.8"
+sha2 = "0.10"
+aes-gcm = "0.10"
+hex = "0.4"
 
 [build-dependencies]
 cbindgen = "0.26"
