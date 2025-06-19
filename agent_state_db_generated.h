@@ -8,6 +8,7 @@
 #include "stdint.h"
 #include "stddef.h"
 
+<<<<<<< HEAD
 /**
  * Agent数据库的主要API接口
  */
@@ -26,6 +27,24 @@ typedef struct CMemoryManager {
 typedef struct CRAGEngine {
   struct AgentDB *db;
   uint8_t *rt;
+=======
+typedef struct AgentStateDB AgentStateDB;
+
+typedef struct MemoryManager MemoryManager;
+
+typedef struct RAGEngine RAGEngine;
+
+typedef struct CAgentStateDB {
+  struct AgentStateDB *db;
+} CAgentStateDB;
+
+typedef struct CMemoryManager {
+  struct MemoryManager *mgr;
+} CMemoryManager;
+
+typedef struct CRAGEngine {
+  struct RAGEngine *engine;
+>>>>>>> origin/feature-module
 } CRAGEngine;
 
 #ifdef __cplusplus
@@ -50,6 +69,7 @@ int agent_db_load_state(struct CAgentStateDB *db,
 
 void agent_db_free_data(uint8_t *data, uintptr_t data_len);
 
+<<<<<<< HEAD
 int agent_db_save_vector_state(struct CAgentStateDB *db,
                                uint64_t agent_id,
                                uint64_t session_id,
@@ -66,6 +86,8 @@ int agent_db_vector_search(struct CAgentStateDB *db,
                            uint64_t **results_out,
                            uintptr_t *results_count_out);
 
+=======
+>>>>>>> origin/feature-module
 struct CMemoryManager *memory_manager_new(const char *db_path);
 
 void memory_manager_free(struct CMemoryManager *mgr);
@@ -74,11 +96,19 @@ int memory_manager_store_memory(struct CMemoryManager *mgr,
                                 uint64_t agent_id,
                                 int memory_type,
                                 const char *content,
+<<<<<<< HEAD
                                 float importance);
 
 int memory_manager_retrieve_memories(struct CMemoryManager *mgr,
                                      uint64_t agent_id,
                                      uintptr_t limit,
+=======
+                                double importance);
+
+int memory_manager_retrieve_memories(struct CMemoryManager *mgr,
+                                     uint64_t agent_id,
+                                     uintptr_t _limit,
+>>>>>>> origin/feature-module
                                      uintptr_t *memory_count_out);
 
 struct CRAGEngine *rag_engine_new(const char *db_path);
@@ -104,6 +134,37 @@ int rag_engine_build_context(struct CRAGEngine *engine,
 
 void rag_engine_free_context(char *context);
 
+<<<<<<< HEAD
+=======
+int agent_db_save_vector_state(struct CAgentStateDB *db,
+                               uint64_t agent_id,
+                               uint64_t session_id,
+                               int state_type,
+                               const uint8_t *data,
+                               uintptr_t data_len,
+                               const float *embedding,
+                               uintptr_t embedding_len);
+
+int agent_db_load_vector_state(struct CAgentStateDB *db,
+                               uint64_t agent_id,
+                               uint8_t **data_out,
+                               uintptr_t *data_len_out,
+                               float **embedding_out,
+                               uintptr_t *embedding_len_out);
+
+void agent_db_free_vector_data(uint8_t *data,
+                               uintptr_t data_len,
+                               float *embedding,
+                               uintptr_t embedding_len);
+
+int agent_db_vector_search(struct CAgentStateDB *db,
+                           const float *query_embedding,
+                           uintptr_t embedding_len,
+                           uintptr_t limit,
+                           uint64_t **results_out,
+                           uintptr_t *results_count_out);
+
+>>>>>>> origin/feature-module
 #ifdef __cplusplus
 } // extern "C"
 #endif // __cplusplus

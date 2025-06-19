@@ -262,7 +262,7 @@ pub const AgentDatabase = struct {
 
         const agent_ids = try self.allocator.alloc(u64, results_count);
         @memcpy(agent_ids, results_ptr[0..results_count]);
-        std.c.free(results_ptr);
+        c.agent_db_free_data(@ptrCast(results_ptr), results_count * @sizeOf(u64));
 
         return SearchResults{
             .agent_ids = agent_ids,
