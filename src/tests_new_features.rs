@@ -12,8 +12,10 @@ mod tests {
     // 向量状态管理测试
     #[tokio::test]
     async fn test_vector_state_management() {
-        let db_path = ":memory:";
-        let agent_db = AgentStateDB::new(db_path).await.unwrap();
+        let temp_dir = std::env::temp_dir();
+        let db_path = temp_dir.join("test_vector_state.db");
+        let db_path_str = db_path.to_str().unwrap();
+        let agent_db = AgentStateDB::new(db_path_str).await.unwrap();
 
         // 创建测试状态
         let state = AgentState {
@@ -53,8 +55,10 @@ mod tests {
     // RAG引擎测试
     #[tokio::test]
     async fn test_rag_engine() {
-        let db_path = ":memory:";
-        let rag_engine = RAGEngine::new(db_path).await.unwrap();
+        let temp_dir = std::env::temp_dir();
+        let db_path = temp_dir.join("test_rag_engine.db");
+        let db_path_str = db_path.to_str().unwrap();
+        let rag_engine = RAGEngine::new(db_path_str).await.unwrap();
 
         // 创建测试文档
         let mut document = Document::new(
@@ -119,8 +123,20 @@ mod tests {
     // 高级记忆管理测试
     #[tokio::test]
     async fn test_advanced_memory_management() {
-        let db_path = ":memory:";
-        let connection = connect(db_path).execute().await.unwrap();
+        let temp_dir = std::env::temp_dir();
+        let unique_id = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let db_path = temp_dir.join(format!("test_memory_mgmt_{}.db", unique_id));
+        let db_path_str = db_path.to_str().unwrap();
+
+        // 确保数据库文件不存在
+        if db_path.exists() {
+            std::fs::remove_dir_all(&db_path).ok();
+        }
+
+        let connection = connect(db_path_str).execute().await.unwrap();
         let memory_manager = MemoryManager::new(connection);
 
         // 创建测试记忆

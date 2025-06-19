@@ -20,6 +20,12 @@ mod tests_new_features;
 #[cfg(test)]
 pub mod tests;
 
+#[cfg(test)]
+mod benchmark;
+
+#[cfg(test)]
+mod stress_test;
+
 // 重新导出核心类型
 pub use core::{
     AgentDbError, AgentState, StateType, Memory, MemoryType,

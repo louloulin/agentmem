@@ -518,9 +518,13 @@ impl RAGEngine {
         let union = query_words.union(&content_words).count();
 
         if union == 0 {
-            0.0
+            0.1 // 基础分数，避免0分
         } else {
-            intersection as f32 / union as f32
+            let jaccard_similarity = intersection as f32 / union as f32;
+            // 确保至少有基础分数，如果包含查询词则给予额外加分
+            let base_score = 0.1;
+            let contains_bonus = if content.to_lowercase().contains(&query.to_lowercase()) { 0.5 } else { 0.0 };
+            (base_score + jaccard_similarity + contains_bonus).min(1.0)
         }
     }
 

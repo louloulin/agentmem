@@ -363,10 +363,10 @@ impl MemoryManager {
     pub async fn get_memories_by_importance(&self, agent_id: u64, min_importance: f64, limit: usize) -> Result<Vec<Memory>, AgentDbError> {
         let table = self.ensure_table().await?;
 
+        // 先获取该Agent的所有记忆，然后在内存中过滤
         let mut results = table
             .query()
-            .only_if(&format!("agent_id = {} AND importance >= {}", agent_id, min_importance))
-            .limit(limit)
+            .only_if(&format!("agent_id = {}", agent_id))
             .execute()
             .await?;
 
@@ -374,12 +374,18 @@ impl MemoryManager {
         while let Some(batch) = results.try_next().await? {
             for row in 0..batch.num_rows() {
                 let memory = self.extract_memory_from_batch(&batch, row)?;
-                memories.push(memory);
+                // 在内存中过滤重要性
+                if memory.importance >= min_importance {
+                    memories.push(memory);
+                }
             }
         }
 
         // 按重要性排序
         memories.sort_by(|a, b| b.importance.partial_cmp(&a.importance).unwrap_or(std::cmp::Ordering::Equal));
+
+        // 限制结果数量
+        memories.truncate(limit);
 
         Ok(memories)
     }
