@@ -7176,9 +7176,1278 @@ pub extern "C" fn memory_organizer_free_archives(archives: *mut CMemoryArchive, 
     }
 }
 
+// 分布式Agent网络支持系统
+use std::sync::{RwLock, Mutex};
+use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::sync::mpsc;
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum NodeStatus {
+    Active,
+    Inactive,
+    Disconnected,
+    Maintenance,
+}
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentNode {
+    pub node_id: String,
+    pub agent_id: u64,
+    pub address: String,
+    pub port: u16,
+    pub capabilities: Vec<String>,
+    pub status: NodeStatus,
+    pub last_heartbeat: i64,
+    pub metadata: HashMap<String, String>,
+    pub join_time: i64,
+    pub version: String,
+}
 
+impl AgentNode {
+    pub fn new(agent_id: u64, address: String, port: u16, capabilities: Vec<String>) -> Self {
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
+        Self {
+            node_id: Uuid::new_v4().to_string(),
+            agent_id,
+            address,
+            port,
+            capabilities,
+            status: NodeStatus::Active,
+            last_heartbeat: now,
+            metadata: HashMap::new(),
+            join_time: now,
+            version: "1.0.0".to_string(),
+        }
+    }
+
+    pub fn update_heartbeat(&mut self) {
+        self.last_heartbeat = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
+    }
+
+    pub fn is_alive(&self, timeout_seconds: i64) -> bool {
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
+        now - self.last_heartbeat < timeout_seconds
+    }
+
+    pub fn set_status(&mut self, status: NodeStatus) {
+        self.status = status;
+    }
+
+    pub fn add_capability(&mut self, capability: String) {
+        if !self.capabilities.contains(&capability) {
+            self.capabilities.push(capability);
+        }
+    }
+
+    pub fn remove_capability(&mut self, capability: &str) {
+        self.capabilities.retain(|c| c != capability);
+    }
+
+    pub fn set_metadata(&mut self, key: String, value: String) {
+        self.metadata.insert(key, value);
+    }
+
+    pub fn get_metadata(&self, key: &str) -> Option<&String> {
+        self.metadata.get(key)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum MessageType {
+    StateSync,
+    Command,
+    Query,
+    Response,
+    Heartbeat,
+    Broadcast,
+    Registration,
+    Deregistration,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum MessagePriority {
+    Low,
+    Normal,
+    High,
+    Critical,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentMessage {
+    pub message_id: String,
+    pub from_agent: u64,
+    pub to_agent: Option<u64>, // None for broadcast
+    pub message_type: MessageType,
+    pub payload: Vec<u8>,
+    pub timestamp: i64,
+    pub ttl: u32,
+    pub priority: MessagePriority,
+    pub correlation_id: Option<String>,
+    pub reply_to: Option<String>,
+}
+
+impl AgentMessage {
+    pub fn new(from_agent: u64, to_agent: Option<u64>, message_type: MessageType, payload: Vec<u8>) -> Self {
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
+        Self {
+            message_id: Uuid::new_v4().to_string(),
+            from_agent,
+            to_agent,
+            message_type,
+            payload,
+            timestamp: now,
+            ttl: 300, // 5 minutes default TTL
+            priority: MessagePriority::Normal,
+            correlation_id: None,
+            reply_to: None,
+        }
+    }
+
+    pub fn with_priority(mut self, priority: MessagePriority) -> Self {
+        self.priority = priority;
+        self
+    }
+
+    pub fn with_ttl(mut self, ttl: u32) -> Self {
+        self.ttl = ttl;
+        self
+    }
+
+    pub fn with_correlation_id(mut self, correlation_id: String) -> Self {
+        self.correlation_id = Some(correlation_id);
+        self
+    }
+
+    pub fn is_expired(&self) -> bool {
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
+        now - self.timestamp > self.ttl as i64
+    }
+
+    pub fn create_response(&self, payload: Vec<u8>) -> Self {
+        Self::new(
+            self.to_agent.unwrap_or(0),
+            Some(self.from_agent),
+            MessageType::Response,
+            payload,
+        ).with_correlation_id(self.message_id.clone())
+    }
+}
+
+// Agent注册中心
+pub struct AgentRegistry {
+    nodes: Arc<RwLock<HashMap<String, AgentNode>>>,
+    agent_to_node: Arc<RwLock<HashMap<u64, String>>>,
+    heartbeat_timeout: Duration,
+    cleanup_interval: Duration,
+}
+
+impl AgentRegistry {
+    pub fn new(heartbeat_timeout: Duration, cleanup_interval: Duration) -> Self {
+        Self {
+            nodes: Arc::new(RwLock::new(HashMap::new())),
+            agent_to_node: Arc::new(RwLock::new(HashMap::new())),
+            heartbeat_timeout,
+            cleanup_interval,
+        }
+    }
+
+    pub fn register_node(&self, mut node: AgentNode) -> Result<String, AgentDbError> {
+        node.update_heartbeat();
+        let node_id = node.node_id.clone();
+        let agent_id = node.agent_id;
+
+        {
+            let mut nodes = self.nodes.write().unwrap();
+            let mut agent_to_node = self.agent_to_node.write().unwrap();
+
+            // 检查是否已经存在相同的agent_id
+            if let Some(existing_node_id) = agent_to_node.get(&agent_id) {
+                if let Some(existing_node) = nodes.get_mut(existing_node_id) {
+                    // 更新现有节点信息
+                    existing_node.address = node.address;
+                    existing_node.port = node.port;
+                    existing_node.capabilities = node.capabilities;
+                    existing_node.status = NodeStatus::Active;
+                    existing_node.update_heartbeat();
+                    return Ok(existing_node_id.clone());
+                }
+            }
+
+            nodes.insert(node_id.clone(), node);
+            agent_to_node.insert(agent_id, node_id.clone());
+        }
+
+        Ok(node_id)
+    }
+
+    pub fn deregister_node(&self, node_id: &str) -> Result<(), AgentDbError> {
+        let mut nodes = self.nodes.write().unwrap();
+        let mut agent_to_node = self.agent_to_node.write().unwrap();
+
+        if let Some(node) = nodes.remove(node_id) {
+            agent_to_node.remove(&node.agent_id);
+            Ok(())
+        } else {
+            Err(AgentDbError::NotFound(format!("Node {} not found", node_id)))
+        }
+    }
+
+    pub fn update_heartbeat(&self, node_id: &str) -> Result<(), AgentDbError> {
+        let mut nodes = self.nodes.write().unwrap();
+        if let Some(node) = nodes.get_mut(node_id) {
+            node.update_heartbeat();
+            node.status = NodeStatus::Active;
+            Ok(())
+        } else {
+            Err(AgentDbError::NotFound(format!("Node {} not found", node_id)))
+        }
+    }
+
+    pub fn get_node(&self, node_id: &str) -> Option<AgentNode> {
+        let nodes = self.nodes.read().unwrap();
+        nodes.get(node_id).cloned()
+    }
+
+    pub fn get_node_by_agent(&self, agent_id: u64) -> Option<AgentNode> {
+        let agent_to_node = self.agent_to_node.read().unwrap();
+        let nodes = self.nodes.read().unwrap();
+
+        if let Some(node_id) = agent_to_node.get(&agent_id) {
+            nodes.get(node_id).cloned()
+        } else {
+            None
+        }
+    }
+
+    pub fn list_nodes(&self) -> Vec<AgentNode> {
+        let nodes = self.nodes.read().unwrap();
+        nodes.values().cloned().collect()
+    }
+
+    pub fn list_active_nodes(&self) -> Vec<AgentNode> {
+        let nodes = self.nodes.read().unwrap();
+        let timeout_seconds = self.heartbeat_timeout.as_secs() as i64;
+
+        nodes.values()
+            .filter(|node| node.status == NodeStatus::Active && node.is_alive(timeout_seconds))
+            .cloned()
+            .collect()
+    }
+
+    pub fn find_nodes_by_capability(&self, capability: &str) -> Vec<AgentNode> {
+        let nodes = self.nodes.read().unwrap();
+        let timeout_seconds = self.heartbeat_timeout.as_secs() as i64;
+
+        nodes.values()
+            .filter(|node| {
+                node.status == NodeStatus::Active
+                && node.is_alive(timeout_seconds)
+                && node.capabilities.contains(&capability.to_string())
+            })
+            .cloned()
+            .collect()
+    }
+
+    pub fn cleanup_inactive_nodes(&self) -> usize {
+        let mut nodes = self.nodes.write().unwrap();
+        let mut agent_to_node = self.agent_to_node.write().unwrap();
+        let timeout_seconds = self.heartbeat_timeout.as_secs() as i64;
+
+        let inactive_nodes: Vec<String> = nodes.iter()
+            .filter(|(_, node)| !node.is_alive(timeout_seconds))
+            .map(|(node_id, _)| node_id.clone())
+            .collect();
+
+        let count = inactive_nodes.len();
+        for node_id in inactive_nodes {
+            if let Some(node) = nodes.remove(&node_id) {
+                agent_to_node.remove(&node.agent_id);
+            }
+        }
+
+        count
+    }
+
+    pub fn get_statistics(&self) -> RegistryStatistics {
+        let nodes = self.nodes.read().unwrap();
+        let timeout_seconds = self.heartbeat_timeout.as_secs() as i64;
+
+        let total_nodes = nodes.len();
+        let active_nodes = nodes.values()
+            .filter(|node| node.status == NodeStatus::Active && node.is_alive(timeout_seconds))
+            .count();
+        let inactive_nodes = nodes.values()
+            .filter(|node| !node.is_alive(timeout_seconds))
+            .count();
+        let maintenance_nodes = nodes.values()
+            .filter(|node| node.status == NodeStatus::Maintenance)
+            .count();
+
+        RegistryStatistics {
+            total_nodes,
+            active_nodes,
+            inactive_nodes,
+            maintenance_nodes,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegistryStatistics {
+    pub total_nodes: usize,
+    pub active_nodes: usize,
+    pub inactive_nodes: usize,
+    pub maintenance_nodes: usize,
+}
+
+// 消息传递系统
+pub struct MessagePassing {
+    message_queue: Arc<Mutex<Vec<AgentMessage>>>,
+    message_handlers: Arc<RwLock<HashMap<u64, mpsc::UnboundedSender<AgentMessage>>>>,
+    broadcast_handlers: Arc<RwLock<Vec<mpsc::UnboundedSender<AgentMessage>>>>,
+    message_history: Arc<Mutex<Vec<AgentMessage>>>,
+    max_queue_size: usize,
+    max_history_size: usize,
+}
+
+impl MessagePassing {
+    pub fn new(max_queue_size: usize, max_history_size: usize) -> Self {
+        Self {
+            message_queue: Arc::new(Mutex::new(Vec::new())),
+            message_handlers: Arc::new(RwLock::new(HashMap::new())),
+            broadcast_handlers: Arc::new(RwLock::new(Vec::new())),
+            message_history: Arc::new(Mutex::new(Vec::new())),
+            max_queue_size,
+            max_history_size,
+        }
+    }
+
+    pub fn register_agent_handler(&self, agent_id: u64, sender: mpsc::UnboundedSender<AgentMessage>) {
+        let mut handlers = self.message_handlers.write().unwrap();
+        handlers.insert(agent_id, sender);
+    }
+
+    pub fn unregister_agent_handler(&self, agent_id: u64) {
+        let mut handlers = self.message_handlers.write().unwrap();
+        handlers.remove(&agent_id);
+    }
+
+    pub fn register_broadcast_handler(&self, sender: mpsc::UnboundedSender<AgentMessage>) {
+        let mut handlers = self.broadcast_handlers.write().unwrap();
+        handlers.push(sender);
+    }
+
+    pub fn send_message(&self, message: AgentMessage) -> Result<(), AgentDbError> {
+        // 检查消息是否过期
+        if message.is_expired() {
+            return Err(AgentDbError::InvalidArgument("Message has expired".to_string()));
+        }
+
+        // 记录消息历史
+        self.add_to_history(message.clone());
+
+        match message.to_agent {
+            Some(target_agent) => {
+                // 点对点消息
+                let handlers = self.message_handlers.read().unwrap();
+                if let Some(sender) = handlers.get(&target_agent) {
+                    sender.send(message).map_err(|_| {
+                        AgentDbError::Internal("Failed to send message to agent".to_string())
+                    })?;
+                } else {
+                    // 如果目标Agent不在线，将消息加入队列
+                    self.queue_message(message)?;
+                }
+            }
+            None => {
+                // 广播消息
+                let handlers = self.broadcast_handlers.read().unwrap();
+                for sender in handlers.iter() {
+                    let _ = sender.send(message.clone());
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn send_response(&self, original_message: &AgentMessage, response_payload: Vec<u8>) -> Result<(), AgentDbError> {
+        let response = original_message.create_response(response_payload);
+        self.send_message(response)
+    }
+
+    pub fn broadcast_message(&self, from_agent: u64, payload: Vec<u8>) -> Result<(), AgentDbError> {
+        let message = AgentMessage::new(from_agent, None, MessageType::Broadcast, payload);
+        self.send_message(message)
+    }
+
+    pub fn send_command(&self, from_agent: u64, to_agent: u64, command: Vec<u8>) -> Result<String, AgentDbError> {
+        let message = AgentMessage::new(from_agent, Some(to_agent), MessageType::Command, command);
+        let message_id = message.message_id.clone();
+        self.send_message(message)?;
+        Ok(message_id)
+    }
+
+    pub fn send_query(&self, from_agent: u64, to_agent: u64, query: Vec<u8>) -> Result<String, AgentDbError> {
+        let message = AgentMessage::new(from_agent, Some(to_agent), MessageType::Query, query);
+        let message_id = message.message_id.clone();
+        self.send_message(message)?;
+        Ok(message_id)
+    }
+
+    fn queue_message(&self, message: AgentMessage) -> Result<(), AgentDbError> {
+        let mut queue = self.message_queue.lock().unwrap();
+
+        if queue.len() >= self.max_queue_size {
+            // 移除最旧的消息
+            queue.remove(0);
+        }
+
+        queue.push(message);
+        Ok(())
+    }
+
+    pub fn get_queued_messages(&self, agent_id: u64) -> Vec<AgentMessage> {
+        let mut queue = self.message_queue.lock().unwrap();
+        let mut agent_messages = Vec::new();
+
+        // 提取属于该Agent的消息
+        let mut i = 0;
+        while i < queue.len() {
+            if queue[i].to_agent == Some(agent_id) {
+                agent_messages.push(queue.remove(i));
+            } else {
+                i += 1;
+            }
+        }
+
+        agent_messages
+    }
+
+    fn add_to_history(&self, message: AgentMessage) {
+        let mut history = self.message_history.lock().unwrap();
+
+        if history.len() >= self.max_history_size {
+            history.remove(0);
+        }
+
+        history.push(message);
+    }
+
+    pub fn get_message_history(&self, limit: usize) -> Vec<AgentMessage> {
+        let history = self.message_history.lock().unwrap();
+        let start = if history.len() > limit { history.len() - limit } else { 0 };
+        history[start..].to_vec()
+    }
+
+    pub fn get_message_statistics(&self) -> MessageStatistics {
+        let queue = self.message_queue.lock().unwrap();
+        let history = self.message_history.lock().unwrap();
+        let handlers = self.message_handlers.read().unwrap();
+        let broadcast_handlers = self.broadcast_handlers.read().unwrap();
+
+        MessageStatistics {
+            queued_messages: queue.len(),
+            total_messages_sent: history.len(),
+            active_agents: handlers.len(),
+            broadcast_subscribers: broadcast_handlers.len(),
+        }
+    }
+
+    pub fn cleanup_expired_messages(&self) -> usize {
+        let mut queue = self.message_queue.lock().unwrap();
+        let initial_len = queue.len();
+
+        queue.retain(|msg| !msg.is_expired());
+
+        initial_len - queue.len()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MessageStatistics {
+    pub queued_messages: usize,
+    pub total_messages_sent: usize,
+    pub active_agents: usize,
+    pub broadcast_subscribers: usize,
+}
+
+// 分布式状态管理器
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ConsistencyLevel {
+    Eventual,    // 最终一致性
+    Strong,      // 强一致性
+    Causal,      // 因果一致性
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DistributedState {
+    pub state_id: String,
+    pub agent_id: u64,
+    pub version: u64,
+    pub vector_clock: HashMap<String, u64>,
+    pub data: Vec<u8>,
+    pub replicas: Vec<String>,
+    pub consistency_level: ConsistencyLevel,
+    pub last_modified: i64,
+    pub checksum: u32,
+}
+
+impl DistributedState {
+    pub fn new(agent_id: u64, data: Vec<u8>, consistency_level: ConsistencyLevel) -> Self {
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
+        let checksum = data.iter().fold(0u32, |acc, &byte| acc.wrapping_add(byte as u32));
+
+        Self {
+            state_id: Uuid::new_v4().to_string(),
+            agent_id,
+            version: 1,
+            vector_clock: HashMap::new(),
+            data,
+            replicas: Vec::new(),
+            consistency_level,
+            last_modified: now,
+            checksum,
+        }
+    }
+
+    pub fn update_data(&mut self, new_data: Vec<u8>, node_id: &str) {
+        self.data = new_data;
+        self.version += 1;
+        self.last_modified = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
+        self.checksum = self.data.iter().fold(0u32, |acc, &byte| acc.wrapping_add(byte as u32));
+
+        // 更新向量时钟
+        let current_clock = self.vector_clock.get(node_id).unwrap_or(&0);
+        self.vector_clock.insert(node_id.to_string(), current_clock + 1);
+    }
+
+    pub fn merge_vector_clock(&mut self, other_clock: &HashMap<String, u64>) {
+        for (node_id, &timestamp) in other_clock {
+            let current = self.vector_clock.get(node_id).unwrap_or(&0);
+            self.vector_clock.insert(node_id.clone(), (*current).max(timestamp));
+        }
+    }
+
+    pub fn is_concurrent_with(&self, other: &DistributedState) -> bool {
+        let self_dominates = self.vector_clock.iter().all(|(node, &ts)| {
+            other.vector_clock.get(node).map_or(true, |&other_ts| ts >= other_ts)
+        });
+
+        let other_dominates = other.vector_clock.iter().all(|(node, &ts)| {
+            self.vector_clock.get(node).map_or(true, |&self_ts| ts >= self_ts)
+        });
+
+        !self_dominates && !other_dominates
+    }
+
+    pub fn happens_before(&self, other: &DistributedState) -> bool {
+        let dominates = self.vector_clock.iter().all(|(node, &ts)| {
+            other.vector_clock.get(node).map_or(false, |&other_ts| ts <= other_ts)
+        });
+
+        let strictly_less = self.vector_clock.iter().any(|(node, &ts)| {
+            other.vector_clock.get(node).map_or(false, |&other_ts| ts < other_ts)
+        });
+
+        dominates && strictly_less
+    }
+
+    pub fn validate_checksum(&self) -> bool {
+        let calculated = self.data.iter().fold(0u32, |acc, &byte| acc.wrapping_add(byte as u32));
+        calculated == self.checksum
+    }
+
+    pub fn add_replica(&mut self, node_id: String) {
+        if !self.replicas.contains(&node_id) {
+            self.replicas.push(node_id);
+        }
+    }
+
+    pub fn remove_replica(&mut self, node_id: &str) {
+        self.replicas.retain(|id| id != node_id);
+    }
+}
+
+pub struct DistributedStateManager {
+    states: Arc<RwLock<HashMap<String, DistributedState>>>,
+    agent_states: Arc<RwLock<HashMap<u64, Vec<String>>>>,
+    node_id: String,
+    replication_factor: usize,
+    sync_interval: Duration,
+}
+
+impl DistributedStateManager {
+    pub fn new(node_id: String, replication_factor: usize, sync_interval: Duration) -> Self {
+        Self {
+            states: Arc::new(RwLock::new(HashMap::new())),
+            agent_states: Arc::new(RwLock::new(HashMap::new())),
+            node_id,
+            replication_factor,
+            sync_interval,
+        }
+    }
+
+    pub fn store_state(&self, mut state: DistributedState) -> Result<String, AgentDbError> {
+        // 更新向量时钟
+        let current_clock = state.vector_clock.get(&self.node_id).unwrap_or(&0);
+        state.vector_clock.insert(self.node_id.clone(), current_clock + 1);
+
+        let state_id = state.state_id.clone();
+        let agent_id = state.agent_id;
+
+        {
+            let mut states = self.states.write().unwrap();
+            let mut agent_states = self.agent_states.write().unwrap();
+
+            states.insert(state_id.clone(), state);
+
+            // 更新agent到状态的映射
+            agent_states.entry(agent_id).or_insert_with(Vec::new).push(state_id.clone());
+        }
+
+        Ok(state_id)
+    }
+
+    pub fn get_state(&self, state_id: &str) -> Option<DistributedState> {
+        let states = self.states.read().unwrap();
+        states.get(state_id).cloned()
+    }
+
+    pub fn get_agent_states(&self, agent_id: u64) -> Vec<DistributedState> {
+        let states = self.states.read().unwrap();
+        let agent_states = self.agent_states.read().unwrap();
+
+        if let Some(state_ids) = agent_states.get(&agent_id) {
+            state_ids.iter()
+                .filter_map(|id| states.get(id).cloned())
+                .collect()
+        } else {
+            Vec::new()
+        }
+    }
+
+    pub fn update_state(&self, state_id: &str, new_data: Vec<u8>) -> Result<(), AgentDbError> {
+        let mut states = self.states.write().unwrap();
+
+        if let Some(state) = states.get_mut(state_id) {
+            state.update_data(new_data, &self.node_id);
+            Ok(())
+        } else {
+            Err(AgentDbError::NotFound(format!("State {} not found", state_id)))
+        }
+    }
+
+    pub fn sync_state(&self, remote_state: DistributedState) -> Result<SyncResult, AgentDbError> {
+        let mut states = self.states.write().unwrap();
+
+        match states.get_mut(&remote_state.state_id) {
+            Some(local_state) => {
+                // 状态已存在，需要合并
+                if remote_state.happens_before(local_state) {
+                    // 远程状态较旧，忽略
+                    Ok(SyncResult::LocalNewer)
+                } else if local_state.happens_before(&remote_state) {
+                    // 远程状态较新，更新本地状态
+                    *local_state = remote_state;
+                    Ok(SyncResult::RemoteNewer)
+                } else if local_state.is_concurrent_with(&remote_state) {
+                    // 并发冲突，需要解决
+                    let resolved = self.resolve_conflict(local_state, &remote_state)?;
+                    *local_state = resolved;
+                    Ok(SyncResult::ConflictResolved)
+                } else {
+                    // 状态相同
+                    Ok(SyncResult::AlreadySynced)
+                }
+            }
+            None => {
+                // 新状态，直接存储
+                let agent_id = remote_state.agent_id;
+                let state_id = remote_state.state_id.clone();
+
+                states.insert(state_id.clone(), remote_state);
+
+                // 更新agent映射
+                drop(states);
+                let mut agent_states = self.agent_states.write().unwrap();
+                agent_states.entry(agent_id).or_insert_with(Vec::new).push(state_id);
+
+                Ok(SyncResult::NewState)
+            }
+        }
+    }
+
+    fn resolve_conflict(&self, local: &DistributedState, remote: &DistributedState) -> Result<DistributedState, AgentDbError> {
+        // 简单的冲突解决策略：选择版本号更高的状态
+        // 实际应用中可能需要更复杂的策略
+        let mut resolved = if local.version > remote.version {
+            local.clone()
+        } else if remote.version > local.version {
+            remote.clone()
+        } else {
+            // 版本号相同，选择时间戳更新的
+            if local.last_modified > remote.last_modified {
+                local.clone()
+            } else {
+                remote.clone()
+            }
+        };
+
+        // 合并向量时钟
+        resolved.merge_vector_clock(&local.vector_clock);
+        resolved.merge_vector_clock(&remote.vector_clock);
+
+        // 更新向量时钟
+        let current_clock = resolved.vector_clock.get(&self.node_id).unwrap_or(&0);
+        resolved.vector_clock.insert(self.node_id.clone(), current_clock + 1);
+
+        Ok(resolved)
+    }
+
+    pub fn get_sync_candidates(&self) -> Vec<DistributedState> {
+        let states = self.states.read().unwrap();
+        states.values().cloned().collect()
+    }
+
+    pub fn cleanup_old_states(&self, max_age_seconds: i64) -> usize {
+        let mut states = self.states.write().unwrap();
+        let mut agent_states = self.agent_states.write().unwrap();
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
+
+        let old_states: Vec<String> = states.iter()
+            .filter(|(_, state)| now - state.last_modified > max_age_seconds)
+            .map(|(id, _)| id.clone())
+            .collect();
+
+        let count = old_states.len();
+        for state_id in old_states {
+            if let Some(state) = states.remove(&state_id) {
+                // 从agent映射中移除
+                if let Some(agent_state_list) = agent_states.get_mut(&state.agent_id) {
+                    agent_state_list.retain(|id| id != &state_id);
+                    if agent_state_list.is_empty() {
+                        agent_states.remove(&state.agent_id);
+                    }
+                }
+            }
+        }
+
+        count
+    }
+
+    pub fn get_statistics(&self) -> StateManagerStatistics {
+        let states = self.states.read().unwrap();
+        let agent_states = self.agent_states.read().unwrap();
+
+        StateManagerStatistics {
+            total_states: states.len(),
+            total_agents: agent_states.len(),
+            node_id: self.node_id.clone(),
+            replication_factor: self.replication_factor,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum SyncResult {
+    LocalNewer,
+    RemoteNewer,
+    ConflictResolved,
+    AlreadySynced,
+    NewState,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StateManagerStatistics {
+    pub total_states: usize,
+    pub total_agents: usize,
+    pub node_id: String,
+    pub replication_factor: usize,
+}
+
+// Agent网络管理器
+pub struct AgentNetworkManager {
+    node_id: String,
+    registry: Arc<AgentRegistry>,
+    messenger: Arc<MessagePassing>,
+    state_manager: Arc<DistributedStateManager>,
+    local_agent_id: u64,
+    address: String,
+    port: u16,
+    capabilities: Vec<String>,
+    is_running: Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl AgentNetworkManager {
+    pub fn new(
+        local_agent_id: u64,
+        address: String,
+        port: u16,
+        capabilities: Vec<String>,
+    ) -> Self {
+        let node_id = Uuid::new_v4().to_string();
+        let registry = Arc::new(AgentRegistry::new(
+            Duration::from_secs(30), // heartbeat timeout
+            Duration::from_secs(60), // cleanup interval
+        ));
+        let messenger = Arc::new(MessagePassing::new(1000, 10000));
+        let state_manager = Arc::new(DistributedStateManager::new(
+            node_id.clone(),
+            3, // replication factor
+            Duration::from_secs(10), // sync interval
+        ));
+
+        Self {
+            node_id,
+            registry,
+            messenger,
+            state_manager,
+            local_agent_id,
+            address,
+            port,
+            capabilities,
+            is_running: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        }
+    }
+
+    pub async fn join_network(&self, bootstrap_nodes: Vec<String>) -> Result<(), AgentDbError> {
+        // 1. 注册本地节点
+        let local_node = AgentNode::new(
+            self.local_agent_id,
+            self.address.clone(),
+            self.port,
+            self.capabilities.clone(),
+        );
+
+        let node_id = self.registry.register_node(local_node)?;
+
+        // 2. 连接到引导节点
+        for bootstrap_addr in bootstrap_nodes {
+            match self.connect_to_node(&bootstrap_addr).await {
+                Ok(_) => {
+                    println!("Successfully connected to bootstrap node: {}", bootstrap_addr);
+                }
+                Err(e) => {
+                    eprintln!("Failed to connect to bootstrap node {}: {:?}", bootstrap_addr, e);
+                }
+            }
+        }
+
+        // 3. 启动网络服务
+        self.start_network_services().await?;
+
+        self.is_running.store(true, std::sync::atomic::Ordering::SeqCst);
+        Ok(())
+    }
+
+    pub async fn register_agent(&self, agent_id: u64, capabilities: Vec<String>) -> Result<(), AgentDbError> {
+        let node = AgentNode::new(agent_id, self.address.clone(), self.port, capabilities);
+        self.registry.register_node(node)?;
+        Ok(())
+    }
+
+    pub async fn send_message(&self, message: AgentMessage) -> Result<(), AgentDbError> {
+        self.messenger.send_message(message)
+    }
+
+    pub async fn broadcast_message(&self, payload: Vec<u8>) -> Result<(), AgentDbError> {
+        self.messenger.broadcast_message(self.local_agent_id, payload)
+    }
+
+    pub async fn sync_state(&self, state: DistributedState) -> Result<SyncResult, AgentDbError> {
+        self.state_manager.sync_state(state)
+    }
+
+    pub async fn leave_network(&self) -> Result<(), AgentDbError> {
+        self.is_running.store(false, std::sync::atomic::Ordering::SeqCst);
+
+        // 注销本地节点
+        if let Some(node) = self.registry.get_node_by_agent(self.local_agent_id) {
+            self.registry.deregister_node(&node.node_id)?;
+        }
+
+        // 发送离开网络的消息
+        let leave_message = AgentMessage::new(
+            self.local_agent_id,
+            None,
+            MessageType::Deregistration,
+            b"leaving network".to_vec(),
+        );
+
+        let _ = self.messenger.broadcast_message(self.local_agent_id, b"leaving network".to_vec());
+
+        Ok(())
+    }
+
+    async fn connect_to_node(&self, address: &str) -> Result<(), AgentDbError> {
+        // 简化的连接实现
+        // 实际应用中需要实现TCP连接和握手协议
+        println!("Connecting to node: {}", address);
+
+        // 发送注册消息
+        let registration_message = AgentMessage::new(
+            self.local_agent_id,
+            None,
+            MessageType::Registration,
+            serde_json::to_vec(&AgentNode::new(
+                self.local_agent_id,
+                self.address.clone(),
+                self.port,
+                self.capabilities.clone(),
+            )).unwrap(),
+        );
+
+        // 在实际实现中，这里会通过网络发送消息
+        Ok(())
+    }
+
+    async fn start_network_services(&self) -> Result<(), AgentDbError> {
+        // 启动心跳服务
+        self.start_heartbeat_service().await;
+
+        // 启动状态同步服务
+        self.start_state_sync_service().await;
+
+        // 启动清理服务
+        self.start_cleanup_service().await;
+
+        Ok(())
+    }
+
+    async fn start_heartbeat_service(&self) {
+        let registry = Arc::clone(&self.registry);
+        let node_id = self.node_id.clone();
+        let is_running = Arc::clone(&self.is_running);
+
+        tokio::spawn(async move {
+            while is_running.load(std::sync::atomic::Ordering::SeqCst) {
+                let _ = registry.update_heartbeat(&node_id);
+                tokio::time::sleep(Duration::from_secs(10)).await;
+            }
+        });
+    }
+
+    async fn start_state_sync_service(&self) {
+        let state_manager = Arc::clone(&self.state_manager);
+        let is_running = Arc::clone(&self.is_running);
+
+        tokio::spawn(async move {
+            while is_running.load(std::sync::atomic::Ordering::SeqCst) {
+                // 在实际实现中，这里会与其他节点同步状态
+                tokio::time::sleep(Duration::from_secs(30)).await;
+            }
+        });
+    }
+
+    async fn start_cleanup_service(&self) {
+        let registry = Arc::clone(&self.registry);
+        let state_manager = Arc::clone(&self.state_manager);
+        let messenger = Arc::clone(&self.messenger);
+        let is_running = Arc::clone(&self.is_running);
+
+        tokio::spawn(async move {
+            while is_running.load(std::sync::atomic::Ordering::SeqCst) {
+                // 清理不活跃的节点
+                let cleaned_nodes = registry.cleanup_inactive_nodes();
+                if cleaned_nodes > 0 {
+                    println!("Cleaned up {} inactive nodes", cleaned_nodes);
+                }
+
+                // 清理过期的消息
+                let cleaned_messages = messenger.cleanup_expired_messages();
+                if cleaned_messages > 0 {
+                    println!("Cleaned up {} expired messages", cleaned_messages);
+                }
+
+                // 清理旧状态
+                let cleaned_states = state_manager.cleanup_old_states(24 * 3600); // 24小时
+                if cleaned_states > 0 {
+                    println!("Cleaned up {} old states", cleaned_states);
+                }
+
+                tokio::time::sleep(Duration::from_secs(300)).await; // 5分钟清理一次
+            }
+        });
+    }
+
+    pub fn get_network_statistics(&self) -> NetworkStatistics {
+        let registry_stats = self.registry.get_statistics();
+        let message_stats = self.messenger.get_message_statistics();
+        let state_stats = self.state_manager.get_statistics();
+
+        NetworkStatistics {
+            node_id: self.node_id.clone(),
+            local_agent_id: self.local_agent_id,
+            registry_stats,
+            message_stats,
+            state_stats,
+            is_running: self.is_running.load(std::sync::atomic::Ordering::SeqCst),
+        }
+    }
+
+    pub fn list_active_nodes(&self) -> Vec<AgentNode> {
+        self.registry.list_active_nodes()
+    }
+
+    pub fn find_nodes_by_capability(&self, capability: &str) -> Vec<AgentNode> {
+        self.registry.find_nodes_by_capability(capability)
+    }
+
+    pub fn get_agent_states(&self, agent_id: u64) -> Vec<DistributedState> {
+        self.state_manager.get_agent_states(agent_id)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NetworkStatistics {
+    pub node_id: String,
+    pub local_agent_id: u64,
+    pub registry_stats: RegistryStatistics,
+    pub message_stats: MessageStatistics,
+    pub state_stats: StateManagerStatistics,
+    pub is_running: bool,
+}
+
+// 分布式Agent网络的C FFI接口
+#[repr(C)]
+pub struct CAgentNetworkManager {
+    manager: *mut AgentNetworkManager,
+}
+
+#[no_mangle]
+pub extern "C" fn agent_network_manager_new(
+    agent_id: u64,
+    address: *const c_char,
+    port: u16,
+    capabilities: *const *const c_char,
+    capabilities_count: usize,
+) -> *mut CAgentNetworkManager {
+    if address.is_null() || capabilities.is_null() {
+        return ptr::null_mut();
+    }
+
+    let address_str = unsafe {
+        match CStr::from_ptr(address).to_str() {
+            Ok(s) => s.to_string(),
+            Err(_) => return ptr::null_mut(),
+        }
+    };
+
+    let capabilities_vec = unsafe {
+        let mut caps = Vec::new();
+        for i in 0..capabilities_count {
+            let cap_ptr = *capabilities.add(i);
+            if !cap_ptr.is_null() {
+                if let Ok(cap_str) = CStr::from_ptr(cap_ptr).to_str() {
+                    caps.push(cap_str.to_string());
+                }
+            }
+        }
+        caps
+    };
+
+    let manager = AgentNetworkManager::new(agent_id, address_str, port, capabilities_vec);
+    let manager_ptr = Box::into_raw(Box::new(manager));
+
+    Box::into_raw(Box::new(CAgentNetworkManager {
+        manager: manager_ptr,
+    }))
+}
+
+#[no_mangle]
+pub extern "C" fn agent_network_manager_free(manager: *mut CAgentNetworkManager) {
+    if !manager.is_null() {
+        unsafe {
+            let c_manager = Box::from_raw(manager);
+            if !c_manager.manager.is_null() {
+                let _ = Box::from_raw(c_manager.manager);
+            }
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn agent_network_join_network(
+    manager: *mut CAgentNetworkManager,
+    bootstrap_nodes: *const *const c_char,
+    bootstrap_count: usize,
+) -> c_int {
+    if manager.is_null() || bootstrap_nodes.is_null() {
+        return -1;
+    }
+
+    let c_manager = unsafe { &*manager };
+    let network_manager = unsafe { &*c_manager.manager };
+
+    let bootstrap_vec = unsafe {
+        let mut nodes = Vec::new();
+        for i in 0..bootstrap_count {
+            let node_ptr = *bootstrap_nodes.add(i);
+            if !node_ptr.is_null() {
+                if let Ok(node_str) = CStr::from_ptr(node_ptr).to_str() {
+                    nodes.push(node_str.to_string());
+                }
+            }
+        }
+        nodes
+    };
+
+    let rt = match Runtime::new() {
+        Ok(rt) => rt,
+        Err(_) => return -1,
+    };
+
+    match rt.block_on(network_manager.join_network(bootstrap_vec)) {
+        Ok(_) => 0,
+        Err(_) => -1,
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn agent_network_send_message(
+    manager: *mut CAgentNetworkManager,
+    from_agent: u64,
+    to_agent: u64,
+    message_type: c_int,
+    payload: *const u8,
+    payload_len: usize,
+) -> c_int {
+    if manager.is_null() || payload.is_null() {
+        return -1;
+    }
+
+    let c_manager = unsafe { &*manager };
+    let network_manager = unsafe { &*c_manager.manager };
+
+    let msg_type = match message_type {
+        0 => MessageType::StateSync,
+        1 => MessageType::Command,
+        2 => MessageType::Query,
+        3 => MessageType::Response,
+        4 => MessageType::Heartbeat,
+        5 => MessageType::Broadcast,
+        6 => MessageType::Registration,
+        7 => MessageType::Deregistration,
+        _ => return -1,
+    };
+
+    let payload_vec = unsafe { std::slice::from_raw_parts(payload, payload_len).to_vec() };
+    let message = AgentMessage::new(from_agent, Some(to_agent), msg_type, payload_vec);
+
+    let rt = match Runtime::new() {
+        Ok(rt) => rt,
+        Err(_) => return -1,
+    };
+
+    match rt.block_on(network_manager.send_message(message)) {
+        Ok(_) => 0,
+        Err(_) => -1,
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn agent_network_broadcast_message(
+    manager: *mut CAgentNetworkManager,
+    payload: *const u8,
+    payload_len: usize,
+) -> c_int {
+    if manager.is_null() || payload.is_null() {
+        return -1;
+    }
+
+    let c_manager = unsafe { &*manager };
+    let network_manager = unsafe { &*c_manager.manager };
+
+    let payload_vec = unsafe { std::slice::from_raw_parts(payload, payload_len).to_vec() };
+
+    let rt = match Runtime::new() {
+        Ok(rt) => rt,
+        Err(_) => return -1,
+    };
+
+    match rt.block_on(network_manager.broadcast_message(payload_vec)) {
+        Ok(_) => 0,
+        Err(_) => -1,
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn agent_network_leave_network(manager: *mut CAgentNetworkManager) -> c_int {
+    if manager.is_null() {
+        return -1;
+    }
+
+    let c_manager = unsafe { &*manager };
+    let network_manager = unsafe { &*c_manager.manager };
+
+    let rt = match Runtime::new() {
+        Ok(rt) => rt,
+        Err(_) => return -1,
+    };
+
+    match rt.block_on(network_manager.leave_network()) {
+        Ok(_) => 0,
+        Err(_) => -1,
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn agent_network_get_active_nodes_count(manager: *mut CAgentNetworkManager) -> c_int {
+    if manager.is_null() {
+        return -1;
+    }
+
+    let c_manager = unsafe { &*manager };
+    let network_manager = unsafe { &*c_manager.manager };
+
+    let active_nodes = network_manager.list_active_nodes();
+    active_nodes.len() as c_int
+}
+
+#[no_mangle]
+pub extern "C" fn agent_network_find_nodes_by_capability(
+    manager: *mut CAgentNetworkManager,
+    capability: *const c_char,
+    nodes_out: *mut *mut u64,
+    nodes_count_out: *mut usize,
+) -> c_int {
+    if manager.is_null() || capability.is_null() || nodes_out.is_null() || nodes_count_out.is_null() {
+        return -1;
+    }
+
+    let c_manager = unsafe { &*manager };
+    let network_manager = unsafe { &*c_manager.manager };
+
+    let capability_str = unsafe {
+        match CStr::from_ptr(capability).to_str() {
+            Ok(s) => s,
+            Err(_) => return -1,
+        }
+    };
+
+    let nodes = network_manager.find_nodes_by_capability(capability_str);
+    let agent_ids: Vec<u64> = nodes.iter().map(|n| n.agent_id).collect();
+
+    if agent_ids.is_empty() {
+        unsafe {
+            *nodes_out = ptr::null_mut();
+            *nodes_count_out = 0;
+        }
+        return 0;
+    }
+
+    let agent_ids_copy = agent_ids.into_boxed_slice();
+    let len = agent_ids_copy.len();
+    let ptr = Box::into_raw(agent_ids_copy) as *mut u64;
+
+    unsafe {
+        *nodes_out = ptr;
+        *nodes_count_out = len;
+    }
+
+    0
+}
 
 
 

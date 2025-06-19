@@ -100,9 +100,14 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/agent_state.zig"),
     });
 
+    const distributed_network_module = b.addModule("distributed_network", .{
+        .root_source_file = b.path("src/distributed_network.zig"),
+    });
+
     // 为模块添加include路径
     agent_db_module.addIncludePath(b.path("include"));
     agent_state_module.addIncludePath(b.path("include"));
+    distributed_network_module.addIncludePath(b.path("include"));
 
     example.root_module.addImport("agent_db", agent_db_module);
 
@@ -142,6 +147,7 @@ pub fn build(b: *std.Build) void {
     // 添加模块依赖
     benchmark.root_module.addImport("agent_db.zig", agent_db_module);
     benchmark.root_module.addImport("agent_state.zig", agent_state_module);
+    benchmark.root_module.addImport("distributed_network.zig", distributed_network_module);
 
     // 添加头文件路径
     benchmark.addIncludePath(b.path("include"));
@@ -167,4 +173,33 @@ pub fn build(b: *std.Build) void {
     const run_benchmark = b.addRunArtifact(benchmark);
     const benchmark_step = b.step("benchmark", "Run performance benchmarks");
     benchmark_step.dependOn(&run_benchmark.step);
+
+    // 创建分布式网络测试
+    const distributed_test = b.addTest(.{
+        .name = "distributed_network_test",
+        .root_source_file = b.path("src/distributed_network_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    distributed_test.addIncludePath(b.path("include"));
+    distributed_test.addLibraryPath(b.path("target/release"));
+    distributed_test.linkSystemLibrary("agent_state_db_rust");
+    distributed_test.linkLibC();
+
+    // 在Windows上需要链接额外的系统库
+    if (target.result.os.tag == .windows) {
+        distributed_test.linkSystemLibrary("ws2_32");
+        distributed_test.linkSystemLibrary("advapi32");
+        distributed_test.linkSystemLibrary("userenv");
+        distributed_test.linkSystemLibrary("ntdll");
+        distributed_test.linkSystemLibrary("bcrypt");
+    }
+
+    // 确保Rust库先构建
+    distributed_test.step.dependOn(&generate_bindings.step);
+
+    const run_distributed_test = b.addRunArtifact(distributed_test);
+    const distributed_test_step = b.step("test-distributed", "Run distributed network tests");
+    distributed_test_step.dependOn(&run_distributed_test.step);
 }

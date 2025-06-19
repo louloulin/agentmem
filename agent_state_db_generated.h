@@ -8,6 +8,8 @@
 #include "stdint.h"
 #include "stddef.h"
 
+typedef struct AgentNetworkManager AgentNetworkManager;
+
 typedef struct AgentStateDB AgentStateDB;
 
 typedef struct IntelligentMemoryOrganizer IntelligentMemoryOrganizer;
@@ -46,6 +48,10 @@ typedef struct CMemoryArchive {
   int64_t archived_at;
   char *summary;
 } CMemoryArchive;
+
+typedef struct CAgentNetworkManager {
+  struct AgentNetworkManager *manager;
+} CAgentNetworkManager;
 
 #ifdef __cplusplus
 extern "C" {
@@ -145,6 +151,38 @@ int memory_organizer_archive_old_memories(struct CIntelligentMemoryOrganizer *or
 void memory_organizer_free_clusters(struct CMemoryCluster *clusters, uintptr_t count);
 
 void memory_organizer_free_archives(struct CMemoryArchive *archives, uintptr_t count);
+
+struct CAgentNetworkManager *agent_network_manager_new(uint64_t agent_id,
+                                                       const char *address,
+                                                       uint16_t port,
+                                                       const char *const *capabilities,
+                                                       uintptr_t capabilities_count);
+
+void agent_network_manager_free(struct CAgentNetworkManager *manager);
+
+int agent_network_join_network(struct CAgentNetworkManager *manager,
+                               const char *const *bootstrap_nodes,
+                               uintptr_t bootstrap_count);
+
+int agent_network_send_message(struct CAgentNetworkManager *manager,
+                               uint64_t from_agent,
+                               uint64_t to_agent,
+                               int message_type,
+                               const uint8_t *payload,
+                               uintptr_t payload_len);
+
+int agent_network_broadcast_message(struct CAgentNetworkManager *manager,
+                                    const uint8_t *payload,
+                                    uintptr_t payload_len);
+
+int agent_network_leave_network(struct CAgentNetworkManager *manager);
+
+int agent_network_get_active_nodes_count(struct CAgentNetworkManager *manager);
+
+int agent_network_find_nodes_by_capability(struct CAgentNetworkManager *manager,
+                                           const char *capability,
+                                           uint64_t **nodes_out,
+                                           uintptr_t *nodes_count_out);
 
 #ifdef __cplusplus
 } // extern "C"
