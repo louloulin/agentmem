@@ -18,6 +18,12 @@ typedef struct MemoryManager MemoryManager;
 
 typedef struct RAGEngine RAGEngine;
 
+typedef struct RealTimeStreamProcessor RealTimeStreamProcessor;
+
+typedef struct StreamProcessingStats StreamProcessingStats;
+
+typedef struct StreamQueryProcessor StreamQueryProcessor;
+
 typedef struct CAgentStateDB {
   struct AgentStateDB *db;
 } CAgentStateDB;
@@ -48,6 +54,14 @@ typedef struct CMemoryArchive {
   int64_t archived_at;
   char *summary;
 } CMemoryArchive;
+
+typedef struct CRealTimeStreamProcessor {
+  struct RealTimeStreamProcessor *processor;
+} CRealTimeStreamProcessor;
+
+typedef struct CStreamQueryProcessor {
+  struct StreamQueryProcessor *processor;
+} CStreamQueryProcessor;
 
 typedef struct CAgentNetworkManager {
   struct AgentNetworkManager *manager;
@@ -151,6 +165,39 @@ int memory_organizer_archive_old_memories(struct CIntelligentMemoryOrganizer *or
 void memory_organizer_free_clusters(struct CMemoryCluster *clusters, uintptr_t count);
 
 void memory_organizer_free_archives(struct CMemoryArchive *archives, uintptr_t count);
+
+struct CRealTimeStreamProcessor *stream_processor_new(void);
+
+void stream_processor_free(struct CRealTimeStreamProcessor *processor);
+
+int stream_processor_start(struct CRealTimeStreamProcessor *processor);
+
+int stream_processor_stop(struct CRealTimeStreamProcessor *processor);
+
+int stream_processor_submit_data(struct CRealTimeStreamProcessor *processor,
+                                 uint64_t agent_id,
+                                 int data_type,
+                                 const uint8_t *payload,
+                                 uintptr_t payload_len,
+                                 uint8_t priority);
+
+int stream_processor_get_stats(struct CRealTimeStreamProcessor *processor,
+                               struct StreamProcessingStats *stats_out);
+
+int stream_processor_get_buffer_size(struct CRealTimeStreamProcessor *processor);
+
+struct CStreamQueryProcessor *stream_query_processor_new(void);
+
+void stream_query_processor_free(struct CStreamQueryProcessor *processor);
+
+int stream_query_register(struct CStreamQueryProcessor *processor,
+                          const char *query_id,
+                          int query_type,
+                          const char *callback);
+
+int stream_query_unregister(struct CStreamQueryProcessor *processor, const char *query_id);
+
+int stream_query_get_active_count(struct CStreamQueryProcessor *processor);
 
 struct CAgentNetworkManager *agent_network_manager_new(uint64_t agent_id,
                                                        const char *address,

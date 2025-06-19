@@ -104,10 +104,15 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/distributed_network.zig"),
     });
 
+    const realtime_stream_module = b.addModule("realtime_stream", .{
+        .root_source_file = b.path("src/realtime_stream.zig"),
+    });
+
     // 为模块添加include路径
     agent_db_module.addIncludePath(b.path("include"));
     agent_state_module.addIncludePath(b.path("include"));
     distributed_network_module.addIncludePath(b.path("include"));
+    realtime_stream_module.addIncludePath(b.path("include"));
 
     example.root_module.addImport("agent_db", agent_db_module);
 
@@ -202,4 +207,33 @@ pub fn build(b: *std.Build) void {
     const run_distributed_test = b.addRunArtifact(distributed_test);
     const distributed_test_step = b.step("test-distributed", "Run distributed network tests");
     distributed_test_step.dependOn(&run_distributed_test.step);
+
+    // 创建实时数据流处理测试
+    const realtime_test = b.addTest(.{
+        .name = "realtime_stream_test",
+        .root_source_file = b.path("src/simple_realtime_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    realtime_test.addIncludePath(b.path("include"));
+    realtime_test.addLibraryPath(b.path("target/release"));
+    realtime_test.linkSystemLibrary("agent_state_db_rust");
+    realtime_test.linkLibC();
+
+    // 在Windows上需要链接额外的系统库
+    if (target.result.os.tag == .windows) {
+        realtime_test.linkSystemLibrary("ws2_32");
+        realtime_test.linkSystemLibrary("advapi32");
+        realtime_test.linkSystemLibrary("userenv");
+        realtime_test.linkSystemLibrary("ntdll");
+        realtime_test.linkSystemLibrary("bcrypt");
+    }
+
+    // 确保Rust库先构建
+    realtime_test.step.dependOn(&generate_bindings.step);
+
+    const run_realtime_test = b.addRunArtifact(realtime_test);
+    const realtime_test_step = b.step("test-realtime", "Run real-time stream processing tests");
+    realtime_test_step.dependOn(&run_realtime_test.step);
 }

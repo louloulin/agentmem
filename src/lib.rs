@@ -8209,6 +8209,1171 @@ pub struct NetworkStatistics {
     pub is_running: bool,
 }
 
+// 实时数据流处理系统
+use std::sync::{mpsc as std_mpsc, atomic::AtomicBool};
+use std::collections::VecDeque;
+use std::thread;
+use std::hash::{Hash, Hasher, DefaultHasher};
+
+// 流数据类型
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub enum StreamDataType {
+    AgentState,
+    Memory,
+    Document,
+    Vector,
+    Event,
+    Metric,
+}
+
+// 流数据项
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StreamDataItem {
+    pub id: String,
+    pub agent_id: u64,
+    pub data_type: StreamDataType,
+    pub payload: Vec<u8>,
+    pub timestamp: i64,
+    pub metadata: HashMap<String, String>,
+    pub priority: u8, // 0-255, 255为最高优先级
+}
+
+impl StreamDataItem {
+    pub fn new(
+        agent_id: u64,
+        data_type: StreamDataType,
+        payload: Vec<u8>,
+        metadata: HashMap<String, String>,
+    ) -> Self {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        Self {
+            id: Uuid::new_v4().to_string(),
+            agent_id,
+            data_type,
+            payload,
+            timestamp: now,
+            metadata,
+            priority: 128, // 默认中等优先级
+        }
+    }
+
+    pub fn with_priority(mut self, priority: u8) -> Self {
+        self.priority = priority;
+        self
+    }
+
+    pub fn is_high_priority(&self) -> bool {
+        self.priority > 200
+    }
+
+    pub fn age_seconds(&self) -> i64 {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+        now - self.timestamp
+    }
+}
+
+// 流处理配置
+#[derive(Debug, Clone)]
+pub struct StreamProcessingConfig {
+    pub buffer_size: usize,
+    pub batch_size: usize,
+    pub flush_interval_ms: u64,
+    pub max_latency_ms: u64,
+    pub enable_compression: bool,
+    pub enable_deduplication: bool,
+    pub worker_threads: usize,
+}
+
+impl Default for StreamProcessingConfig {
+    fn default() -> Self {
+        Self {
+            buffer_size: 10000,
+            batch_size: 100,
+            flush_interval_ms: 1000,
+            max_latency_ms: 5000,
+            enable_compression: true,
+            enable_deduplication: true,
+            worker_threads: 4,
+        }
+    }
+}
+
+// 流处理统计
+#[derive(Debug, Clone, Default)]
+pub struct StreamProcessingStats {
+    pub items_received: u64,
+    pub items_processed: u64,
+    pub items_dropped: u64,
+    pub batches_processed: u64,
+    pub avg_latency_ms: f64,
+    pub max_latency_ms: u64,
+    pub throughput_per_sec: f64,
+    pub buffer_utilization: f64,
+    pub error_count: u64,
+    pub last_update: i64,
+}
+
+impl StreamProcessingStats {
+    pub fn update_latency(&mut self, latency_ms: u64) {
+        self.avg_latency_ms = (self.avg_latency_ms * 0.9) + (latency_ms as f64 * 0.1);
+        if latency_ms > self.max_latency_ms {
+            self.max_latency_ms = latency_ms;
+        }
+    }
+
+    pub fn update_throughput(&mut self, items_per_sec: f64) {
+        self.throughput_per_sec = (self.throughput_per_sec * 0.9) + (items_per_sec * 0.1);
+    }
+}
+
+// 流数据处理器特征
+pub trait StreamProcessor: Send + Sync {
+    fn process_item(&self, item: &StreamDataItem) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+    fn process_batch(&self, items: &[StreamDataItem]) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+    fn get_processor_name(&self) -> &str;
+}
+
+// Agent状态流处理器
+pub struct AgentStateStreamProcessor {
+    db: Arc<AgentStateDB>,
+}
+
+impl AgentStateStreamProcessor {
+    pub fn new(db: Arc<AgentStateDB>) -> Self {
+        Self { db }
+    }
+}
+
+impl StreamProcessor for AgentStateStreamProcessor {
+    fn process_item(&self, item: &StreamDataItem) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        match item.data_type {
+            StreamDataType::AgentState => {
+                let state: AgentState = serde_json::from_slice(&item.payload)
+                    .map_err(|e| Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, e)) as Box<dyn std::error::Error + Send + Sync>)?;
+                // 简化处理，实际应用中需要异步处理
+                println!("Processing agent state for agent {}", item.agent_id);
+            }
+            _ => return Err(Box::new(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Unsupported data type"))),
+        }
+        Ok(())
+    }
+
+    fn process_batch(&self, items: &[StreamDataItem]) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        for item in items {
+            self.process_item(item)?;
+        }
+        Ok(())
+    }
+
+    fn get_processor_name(&self) -> &str {
+        "AgentStateStreamProcessor"
+    }
+}
+
+// 记忆流处理器
+pub struct MemoryStreamProcessor {
+    memory_manager: Arc<MemoryManager>,
+}
+
+impl MemoryStreamProcessor {
+    pub fn new(memory_manager: Arc<MemoryManager>) -> Self {
+        Self { memory_manager }
+    }
+}
+
+impl StreamProcessor for MemoryStreamProcessor {
+    fn process_item(&self, item: &StreamDataItem) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        match item.data_type {
+            StreamDataType::Memory => {
+                let _memory: Memory = serde_json::from_slice(&item.payload)
+                    .map_err(|e| Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, e)) as Box<dyn std::error::Error + Send + Sync>)?;
+                // 简化处理，实际应用中需要异步处理
+                println!("Processing memory for agent {}", item.agent_id);
+            }
+            _ => return Err(Box::new(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Unsupported data type"))),
+        }
+        Ok(())
+    }
+
+    fn process_batch(&self, items: &[StreamDataItem]) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        for item in items {
+            self.process_item(item)?;
+        }
+        Ok(())
+    }
+
+    fn get_processor_name(&self) -> &str {
+        "MemoryStreamProcessor"
+    }
+}
+
+// 向量流处理器
+pub struct VectorStreamProcessor {
+    vector_engine: Arc<AdvancedVectorEngine>,
+}
+
+impl VectorStreamProcessor {
+    pub fn new(vector_engine: Arc<AdvancedVectorEngine>) -> Self {
+        Self { vector_engine }
+    }
+}
+
+impl StreamProcessor for VectorStreamProcessor {
+    fn process_item(&self, item: &StreamDataItem) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        match item.data_type {
+            StreamDataType::Vector => {
+                let _vector_data: (Vec<f32>, HashMap<String, String>) = serde_json::from_slice(&item.payload)
+                    .map_err(|e| Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, e)) as Box<dyn std::error::Error + Send + Sync>)?;
+                // 简化处理，实际应用中需要异步处理
+                println!("Processing vector for agent {}", item.agent_id);
+            }
+            _ => return Err(Box::new(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Unsupported data type"))),
+        }
+        Ok(())
+    }
+
+    fn process_batch(&self, items: &[StreamDataItem]) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        for item in items {
+            if let StreamDataType::Vector = item.data_type {
+                let _vector_data: (Vec<f32>, HashMap<String, String>) = serde_json::from_slice(&item.payload)
+                    .map_err(|e| Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, e)) as Box<dyn std::error::Error + Send + Sync>)?;
+                println!("Batch processing vector for agent {}", item.agent_id);
+            }
+        }
+        Ok(())
+    }
+
+    fn get_processor_name(&self) -> &str {
+        "VectorStreamProcessor"
+    }
+}
+
+// 实时数据流处理引擎
+pub struct RealTimeStreamProcessor {
+    config: StreamProcessingConfig,
+    processors: HashMap<StreamDataType, Arc<dyn StreamProcessor>>,
+    sender: std_mpsc::Sender<StreamDataItem>,
+    receiver: Arc<Mutex<std_mpsc::Receiver<StreamDataItem>>>,
+    buffer: Arc<Mutex<VecDeque<StreamDataItem>>>,
+    stats: Arc<RwLock<StreamProcessingStats>>,
+    is_running: Arc<AtomicBool>,
+    worker_handles: Vec<thread::JoinHandle<()>>,
+}
+
+impl RealTimeStreamProcessor {
+    pub fn new(config: StreamProcessingConfig) -> Self {
+        let (sender, receiver) = std_mpsc::channel();
+
+        Self {
+            config,
+            processors: HashMap::new(),
+            sender,
+            receiver: Arc::new(Mutex::new(receiver)),
+            buffer: Arc::new(Mutex::new(VecDeque::new())),
+            stats: Arc::new(RwLock::new(StreamProcessingStats::default())),
+            is_running: Arc::new(AtomicBool::new(false)),
+            worker_handles: Vec::new(),
+        }
+    }
+
+    pub fn register_processor(&mut self, data_type: StreamDataType, processor: Arc<dyn StreamProcessor>) {
+        self.processors.insert(data_type, processor);
+    }
+
+    pub fn start(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if self.is_running.load(Ordering::SeqCst) {
+            return Err(Box::new(std::io::Error::new(std::io::ErrorKind::AlreadyExists, "Stream processor already running")));
+        }
+
+        self.is_running.store(true, Ordering::SeqCst);
+
+        // 启动工作线程
+        for i in 0..self.config.worker_threads {
+            let receiver = Arc::clone(&self.receiver);
+            let buffer = Arc::clone(&self.buffer);
+            let stats = Arc::clone(&self.stats);
+            let is_running = Arc::clone(&self.is_running);
+            let processors = self.processors.clone();
+            let config = self.config.clone();
+
+            let handle = thread::spawn(move || {
+                Self::worker_thread(i, receiver, buffer, stats, is_running, processors, config);
+            });
+
+            self.worker_handles.push(handle);
+        }
+
+        // 启动批处理线程
+        let buffer = Arc::clone(&self.buffer);
+        let stats = Arc::clone(&self.stats);
+        let is_running = Arc::clone(&self.is_running);
+        let processors = self.processors.clone();
+        let config = self.config.clone();
+
+        let batch_handle = thread::spawn(move || {
+            Self::batch_processor_thread(buffer, stats, is_running, processors, config);
+        });
+
+        self.worker_handles.push(batch_handle);
+
+        Ok(())
+    }
+
+    pub fn stop(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.is_running.store(false, Ordering::SeqCst);
+
+        // 等待所有工作线程完成
+        while let Some(handle) = self.worker_handles.pop() {
+            let _ = handle.join();
+        }
+
+        Ok(())
+    }
+
+    pub fn submit_data(&self, item: StreamDataItem) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if !self.is_running.load(Ordering::SeqCst) {
+            return Err(Box::new(std::io::Error::new(std::io::ErrorKind::NotConnected, "Stream processor not running")));
+        }
+
+        self.sender.send(item)
+            .map_err(|e| Box::new(std::io::Error::new(std::io::ErrorKind::BrokenPipe, format!("Failed to submit data: {}", e))) as Box<dyn std::error::Error + Send + Sync>)?;
+
+        // 更新统计
+        if let Ok(mut stats) = self.stats.write() {
+            stats.items_received += 1;
+        }
+
+        Ok(())
+    }
+
+    pub fn get_stats(&self) -> StreamProcessingStats {
+        self.stats.read().unwrap().clone()
+    }
+
+    fn worker_thread(
+        worker_id: usize,
+        receiver: Arc<Mutex<std_mpsc::Receiver<StreamDataItem>>>,
+        buffer: Arc<Mutex<VecDeque<StreamDataItem>>>,
+        stats: Arc<RwLock<StreamProcessingStats>>,
+        is_running: Arc<AtomicBool>,
+        processors: HashMap<StreamDataType, Arc<dyn StreamProcessor>>,
+        config: StreamProcessingConfig,
+    ) {
+        println!("Stream worker thread {} started", worker_id);
+
+        while is_running.load(Ordering::SeqCst) {
+            // 从通道接收数据
+            if let Ok(receiver_guard) = receiver.try_lock() {
+                match receiver_guard.try_recv() {
+                    Ok(item) => {
+                        let start_time = Instant::now();
+
+                        // 检查是否为高优先级项目，直接处理
+                        if item.is_high_priority() {
+                            if let Some(processor) = processors.get(&item.data_type) {
+                                match processor.process_item(&item) {
+                                    Ok(_) => {
+                                        if let Ok(mut stats) = stats.write() {
+                                            stats.items_processed += 1;
+                                            let latency = start_time.elapsed().as_millis() as u64;
+                                            stats.update_latency(latency);
+                                        }
+                                    }
+                                    Err(_) => {
+                                        if let Ok(mut stats) = stats.write() {
+                                            stats.error_count += 1;
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            // 低优先级项目加入缓冲区
+                            if let Ok(mut buffer_guard) = buffer.try_lock() {
+                                if buffer_guard.len() < config.buffer_size {
+                                    buffer_guard.push_back(item);
+                                } else {
+                                    // 缓冲区满，丢弃最旧的项目
+                                    buffer_guard.pop_front();
+                                    buffer_guard.push_back(item);
+                                    if let Ok(mut stats) = stats.write() {
+                                        stats.items_dropped += 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Err(std_mpsc::TryRecvError::Empty) => {
+                        // 没有数据，短暂休眠
+                        thread::sleep(Duration::from_millis(1));
+                    }
+                    Err(std_mpsc::TryRecvError::Disconnected) => {
+                        break;
+                    }
+                }
+            } else {
+                thread::sleep(Duration::from_millis(1));
+            }
+        }
+
+        println!("Stream worker thread {} stopped", worker_id);
+    }
+
+    fn batch_processor_thread(
+        buffer: Arc<Mutex<VecDeque<StreamDataItem>>>,
+        stats: Arc<RwLock<StreamProcessingStats>>,
+        is_running: Arc<AtomicBool>,
+        processors: HashMap<StreamDataType, Arc<dyn StreamProcessor>>,
+        config: StreamProcessingConfig,
+    ) {
+        println!("Batch processor thread started");
+        let mut last_flush = Instant::now();
+
+        while is_running.load(Ordering::SeqCst) {
+            let should_flush = last_flush.elapsed().as_millis() >= config.flush_interval_ms as u128;
+            let mut batch_items = Vec::new();
+
+            // 从缓冲区提取批次
+            if let Ok(mut buffer_guard) = buffer.try_lock() {
+                let batch_size = std::cmp::min(config.batch_size, buffer_guard.len());
+
+                if batch_size > 0 && (should_flush || batch_size >= config.batch_size) {
+                    for _ in 0..batch_size {
+                        if let Some(item) = buffer_guard.pop_front() {
+                            batch_items.push(item);
+                        }
+                    }
+                }
+
+                // 更新缓冲区利用率
+                if let Ok(mut stats) = stats.write() {
+                    stats.buffer_utilization = buffer_guard.len() as f64 / config.buffer_size as f64;
+                }
+            }
+
+            // 处理批次
+            if !batch_items.is_empty() {
+                let start_time = Instant::now();
+
+                // 按数据类型分组
+                let mut grouped_items: HashMap<StreamDataType, Vec<StreamDataItem>> = HashMap::new();
+                for item in batch_items {
+                    grouped_items.entry(item.data_type.clone()).or_insert_with(Vec::new).push(item);
+                }
+
+                // 处理每个组
+                for (data_type, items) in grouped_items {
+                    if let Some(processor) = processors.get(&data_type) {
+                        match processor.process_batch(&items) {
+                            Ok(_) => {
+                                if let Ok(mut stats) = stats.write() {
+                                    stats.items_processed += items.len() as u64;
+                                    stats.batches_processed += 1;
+                                    let latency = start_time.elapsed().as_millis() as u64;
+                                    stats.update_latency(latency);
+
+                                    // 更新吞吐量
+                                    let throughput = items.len() as f64 / start_time.elapsed().as_secs_f64();
+                                    stats.update_throughput(throughput);
+                                }
+                            }
+                            Err(_) => {
+                                if let Ok(mut stats) = stats.write() {
+                                    stats.error_count += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                last_flush = Instant::now();
+            } else {
+                thread::sleep(Duration::from_millis(10));
+            }
+        }
+
+        println!("Batch processor thread stopped");
+    }
+
+    pub fn get_buffer_size(&self) -> usize {
+        self.buffer.lock().unwrap().len()
+    }
+
+    pub fn clear_buffer(&self) -> usize {
+        let mut buffer = self.buffer.lock().unwrap();
+        let size = buffer.len();
+        buffer.clear();
+        size
+    }
+}
+
+// 实时特征提取器
+pub struct RealTimeFeatureExtractor {
+    extractors: HashMap<StreamDataType, Box<dyn StreamFeatureExtractor>>,
+}
+
+pub trait StreamFeatureExtractor: Send + Sync {
+    fn extract_features(&self, data: &[u8]) -> Result<Vec<f32>, Box<dyn std::error::Error + Send + Sync>>;
+    fn get_feature_dimension(&self) -> usize;
+    fn get_extractor_name(&self) -> &str;
+}
+
+// 流文本特征提取器
+pub struct StreamTextFeatureExtractor;
+
+impl StreamFeatureExtractor for StreamTextFeatureExtractor {
+    fn extract_features(&self, data: &[u8]) -> Result<Vec<f32>, Box<dyn std::error::Error + Send + Sync>> {
+        let text = String::from_utf8_lossy(data);
+        let words: Vec<&str> = text.split_whitespace().collect();
+
+        let mut features = vec![0.0; 64]; // 64维特征向量
+
+        // 基础统计特征
+        features[0] = words.len() as f32; // 词数
+        features[1] = text.len() as f32; // 字符数
+        features[2] = text.chars().filter(|c| c.is_uppercase()).count() as f32; // 大写字母数
+        features[3] = text.chars().filter(|c| c.is_numeric()).count() as f32; // 数字字符数
+
+        // 词长度分布
+        let avg_word_len = if !words.is_empty() {
+            words.iter().map(|w| w.len()).sum::<usize>() as f32 / words.len() as f32
+        } else {
+            0.0
+        };
+        features[4] = avg_word_len;
+
+        // 简单的词频特征（前10个最常见的词）
+        let mut word_freq: HashMap<String, usize> = HashMap::new();
+        for word in &words {
+            let lower_word = word.to_lowercase();
+            *word_freq.entry(lower_word).or_insert(0) += 1;
+        }
+
+        let mut freq_pairs: Vec<_> = word_freq.iter().collect();
+        freq_pairs.sort_by(|a, b| b.1.cmp(a.1));
+
+        for (i, (_, &freq)) in freq_pairs.iter().take(10).enumerate() {
+            if i + 5 < features.len() {
+                features[i + 5] = freq as f32;
+            }
+        }
+
+        // 字符n-gram特征
+        for i in 0..std::cmp::min(text.len().saturating_sub(1), 20) {
+            if let Some(bigram) = text.chars().nth(i).zip(text.chars().nth(i + 1)) {
+                let hash = (bigram.0 as u32 + bigram.1 as u32) % 30;
+                if (15 + hash as usize) < features.len() {
+                    features[15 + hash as usize] += 1.0;
+                }
+            }
+        }
+
+        Ok(features)
+    }
+
+    fn get_feature_dimension(&self) -> usize {
+        64
+    }
+
+    fn get_extractor_name(&self) -> &str {
+        "StreamTextFeatureExtractor"
+    }
+}
+
+// 流数值特征提取器
+pub struct StreamNumericFeatureExtractor;
+
+impl StreamFeatureExtractor for StreamNumericFeatureExtractor {
+    fn extract_features(&self, data: &[u8]) -> Result<Vec<f32>, Box<dyn std::error::Error + Send + Sync>> {
+        // 假设数据是JSON格式的数值数组
+        let numbers: Vec<f32> = serde_json::from_slice(data)
+            .map_err(|e| Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, e)) as Box<dyn std::error::Error + Send + Sync>)?;
+
+        let mut features = vec![0.0; 32];
+
+        if !numbers.is_empty() {
+            // 基础统计特征
+            let sum: f32 = numbers.iter().sum();
+            let mean = sum / numbers.len() as f32;
+            let variance = numbers.iter().map(|x| (x - mean).powi(2)).sum::<f32>() / numbers.len() as f32;
+            let std_dev = variance.sqrt();
+
+            features[0] = numbers.len() as f32;
+            features[1] = sum;
+            features[2] = mean;
+            features[3] = std_dev;
+            features[4] = numbers.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+            features[5] = numbers.iter().cloned().fold(f32::INFINITY, f32::min);
+
+            // 分位数特征
+            let mut sorted_numbers = numbers.clone();
+            sorted_numbers.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+            let len = sorted_numbers.len();
+            features[6] = sorted_numbers[len / 4]; // Q1
+            features[7] = sorted_numbers[len / 2]; // 中位数
+            features[8] = sorted_numbers[3 * len / 4]; // Q3
+
+            // 分布特征
+            let positive_count = numbers.iter().filter(|&&x| x > 0.0).count() as f32;
+            let negative_count = numbers.iter().filter(|&&x| x < 0.0).count() as f32;
+            let zero_count = numbers.iter().filter(|&&x| x == 0.0).count() as f32;
+
+            features[9] = positive_count / numbers.len() as f32;
+            features[10] = negative_count / numbers.len() as f32;
+            features[11] = zero_count / numbers.len() as f32;
+
+            // 趋势特征（如果数据有时序性）
+            if numbers.len() > 1 {
+                let mut increasing = 0;
+                let mut decreasing = 0;
+                for i in 1..numbers.len() {
+                    if numbers[i] > numbers[i-1] {
+                        increasing += 1;
+                    } else if numbers[i] < numbers[i-1] {
+                        decreasing += 1;
+                    }
+                }
+                features[12] = increasing as f32 / (numbers.len() - 1) as f32;
+                features[13] = decreasing as f32 / (numbers.len() - 1) as f32;
+            }
+        }
+
+        Ok(features)
+    }
+
+    fn get_feature_dimension(&self) -> usize {
+        32
+    }
+
+    fn get_extractor_name(&self) -> &str {
+        "StreamNumericFeatureExtractor"
+    }
+}
+
+impl RealTimeFeatureExtractor {
+    pub fn new() -> Self {
+        let mut extractors: HashMap<StreamDataType, Box<dyn StreamFeatureExtractor>> = HashMap::new();
+        extractors.insert(StreamDataType::Document, Box::new(StreamTextFeatureExtractor));
+        extractors.insert(StreamDataType::Event, Box::new(StreamNumericFeatureExtractor));
+
+        Self { extractors }
+    }
+
+    pub fn extract_features(&self, item: &StreamDataItem) -> Result<Vec<f32>, Box<dyn std::error::Error + Send + Sync>> {
+        if let Some(extractor) = self.extractors.get(&item.data_type) {
+            extractor.extract_features(&item.payload)
+        } else {
+            Err(Box::new(std::io::Error::new(std::io::ErrorKind::NotFound, format!("No feature extractor for data type: {:?}", item.data_type))))
+        }
+    }
+
+    pub fn register_extractor(&mut self, data_type: StreamDataType, extractor: Box<dyn StreamFeatureExtractor>) {
+        self.extractors.insert(data_type, extractor);
+    }
+}
+
+// 增量索引构建器
+pub struct IncrementalIndexBuilder {
+    feature_extractor: RealTimeFeatureExtractor,
+    pending_updates: Arc<Mutex<Vec<IndexUpdate>>>,
+    build_threshold: usize,
+    last_build: std::time::Instant,
+    build_interval: Duration,
+}
+
+#[derive(Debug, Clone)]
+pub struct IndexUpdate {
+    pub agent_id: u64,
+    pub vector: Vec<f32>,
+    pub metadata: HashMap<String, String>,
+    pub operation: IndexOperation,
+}
+
+#[derive(Debug, Clone)]
+pub enum IndexOperation {
+    Insert,
+    Update,
+    Delete,
+}
+
+impl IncrementalIndexBuilder {
+    pub fn new() -> Self {
+        Self {
+            feature_extractor: RealTimeFeatureExtractor::new(),
+            pending_updates: Arc::new(Mutex::new(Vec::new())),
+            build_threshold: 100,
+            last_build: std::time::Instant::now(),
+            build_interval: Duration::from_secs(30),
+        }
+    }
+
+    pub fn add_update(&self, update: IndexUpdate) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let mut pending = self.pending_updates.lock().unwrap();
+        pending.push(update);
+
+        // 检查是否需要触发索引构建
+        if pending.len() >= self.build_threshold ||
+           self.last_build.elapsed() >= self.build_interval {
+            self.build_incremental_index()?;
+        }
+
+        Ok(())
+    }
+
+    pub fn build_incremental_index(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let mut pending = self.pending_updates.lock().unwrap();
+        if pending.is_empty() {
+            return Ok(());
+        }
+
+        println!("Building incremental index with {} updates", pending.len());
+
+        // 分组处理不同类型的操作
+        let mut inserts = Vec::new();
+        let mut updates = Vec::new();
+        let mut deletes = Vec::new();
+
+        for update in pending.drain(..) {
+            match update.operation {
+                IndexOperation::Insert => inserts.push((update.agent_id, update.vector, update.metadata)),
+                IndexOperation::Update => updates.push((update.agent_id, update.vector, update.metadata)),
+                IndexOperation::Delete => deletes.push(update.agent_id),
+            }
+        }
+
+        // 执行批量操作（简化实现）
+        if !inserts.is_empty() {
+            println!("Processing {} vector inserts", inserts.len());
+        }
+
+        if !updates.is_empty() {
+            println!("Processing {} vector updates", updates.len());
+        }
+
+        if !deletes.is_empty() {
+            println!("Processing {} vector deletes", deletes.len());
+        }
+
+        println!("Incremental index build completed");
+        Ok(())
+    }
+
+    pub fn force_build(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.build_incremental_index()
+    }
+
+    pub fn get_pending_count(&self) -> usize {
+        self.pending_updates.lock().unwrap().len()
+    }
+}
+
+// 流式查询处理器
+pub struct StreamQueryProcessor {
+    query_cache: Arc<RwLock<HashMap<String, (Vec<u8>, Instant)>>>,
+    cache_ttl: Duration,
+    active_queries: Arc<RwLock<HashMap<String, StreamQuery>>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct StreamQuery {
+    pub id: String,
+    pub query_type: StreamQueryType,
+    pub parameters: HashMap<String, String>,
+    pub callback: String, // 回调地址或标识
+    pub created_at: std::time::Instant,
+    pub last_result: Option<Vec<u8>>,
+}
+
+#[derive(Debug, Clone)]
+pub enum StreamQueryType {
+    VectorSimilarity,
+    MemorySearch,
+    AgentStateMonitor,
+    EventPattern,
+    RealTimeStats,
+}
+
+impl StreamQueryProcessor {
+    pub fn new() -> Self {
+        Self {
+            query_cache: Arc::new(RwLock::new(HashMap::new())),
+            cache_ttl: Duration::from_secs(300), // 5分钟缓存
+            active_queries: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+
+    pub fn register_query(&self, query: StreamQuery) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let mut queries = self.active_queries.write().unwrap();
+        queries.insert(query.id.clone(), query);
+        Ok(())
+    }
+
+    pub fn unregister_query(&self, query_id: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let mut queries = self.active_queries.write().unwrap();
+        queries.remove(query_id);
+        Ok(())
+    }
+
+    pub fn process_stream_item(&self, item: &StreamDataItem) -> Result<Vec<String>, Box<dyn std::error::Error + Send + Sync>> {
+        let mut triggered_queries = Vec::new();
+        let queries = self.active_queries.read().unwrap();
+
+        for (query_id, query) in queries.iter() {
+            if self.should_trigger_query(query, item) {
+                triggered_queries.push(query_id.clone());
+            }
+        }
+
+        Ok(triggered_queries)
+    }
+
+    fn should_trigger_query(&self, query: &StreamQuery, item: &StreamDataItem) -> bool {
+        match query.query_type {
+            StreamQueryType::AgentStateMonitor => {
+                if let Some(target_agent) = query.parameters.get("agent_id") {
+                    if let Ok(agent_id) = target_agent.parse::<u64>() {
+                        return item.agent_id == agent_id &&
+                               matches!(item.data_type, StreamDataType::AgentState);
+                    }
+                }
+                false
+            }
+            StreamQueryType::EventPattern => {
+                matches!(item.data_type, StreamDataType::Event)
+            }
+            StreamQueryType::VectorSimilarity => {
+                matches!(item.data_type, StreamDataType::Vector)
+            }
+            StreamQueryType::MemorySearch => {
+                matches!(item.data_type, StreamDataType::Memory)
+            }
+            StreamQueryType::RealTimeStats => {
+                true // 所有数据都可能触发统计查询
+            }
+        }
+    }
+
+    pub fn execute_query(&self, query_id: &str, context_data: &[u8]) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+        // 检查缓存
+        let mut hasher = DefaultHasher::new();
+        hasher.write(query_id.as_bytes());
+        hasher.write(context_data);
+        let cache_key = format!("{}:{}", query_id, hasher.finish());
+
+        if let Ok(cache) = self.query_cache.read() {
+            if let Some((result, timestamp)) = cache.get(&cache_key) {
+                if timestamp.elapsed() < self.cache_ttl {
+                    return Ok(result.clone());
+                }
+            }
+        }
+
+        // 执行查询
+        let result = self.execute_query_impl(query_id, context_data)?;
+
+        // 更新缓存
+        if let Ok(mut cache) = self.query_cache.write() {
+            cache.insert(cache_key, (result.clone(), std::time::Instant::now()));
+        }
+
+        Ok(result)
+    }
+
+    fn execute_query_impl(&self, query_id: &str, _context_data: &[u8]) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+        let queries = self.active_queries.read().unwrap();
+        if let Some(query) = queries.get(query_id) {
+            match query.query_type {
+                StreamQueryType::RealTimeStats => {
+                    let stats = serde_json::json!({
+                        "query_id": query_id,
+                        "timestamp": chrono::Utc::now().timestamp(),
+                        "status": "active"
+                    });
+                    Ok(serde_json::to_vec(&stats).unwrap())
+                }
+                _ => {
+                    // 其他查询类型的实现
+                    let result = serde_json::json!({
+                        "query_id": query_id,
+                        "result": "placeholder",
+                        "timestamp": chrono::Utc::now().timestamp()
+                    });
+                    Ok(serde_json::to_vec(&result).unwrap())
+                }
+            }
+        } else {
+            Err(Box::new(std::io::Error::new(std::io::ErrorKind::NotFound, format!("Query not found: {}", query_id))))
+        }
+    }
+
+    pub fn cleanup_expired_cache(&self) {
+        if let Ok(mut cache) = self.query_cache.write() {
+            cache.retain(|_, (_, timestamp)| timestamp.elapsed() < self.cache_ttl);
+        }
+    }
+
+    pub fn get_active_query_count(&self) -> usize {
+        self.active_queries.read().unwrap().len()
+    }
+
+    pub fn get_cache_size(&self) -> usize {
+        self.query_cache.read().unwrap().len()
+    }
+}
+
+// 实时数据流处理系统的C FFI接口
+#[repr(C)]
+pub struct CRealTimeStreamProcessor {
+    processor: *mut RealTimeStreamProcessor,
+}
+
+#[no_mangle]
+pub extern "C" fn stream_processor_new() -> *mut CRealTimeStreamProcessor {
+    let config = StreamProcessingConfig::default();
+    let processor = RealTimeStreamProcessor::new(config);
+    let processor_ptr = Box::into_raw(Box::new(processor));
+
+    Box::into_raw(Box::new(CRealTimeStreamProcessor {
+        processor: processor_ptr,
+    }))
+}
+
+#[no_mangle]
+pub extern "C" fn stream_processor_free(processor: *mut CRealTimeStreamProcessor) {
+    if !processor.is_null() {
+        unsafe {
+            let c_processor = Box::from_raw(processor);
+            if !c_processor.processor.is_null() {
+                let _ = Box::from_raw(c_processor.processor);
+            }
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn stream_processor_start(processor: *mut CRealTimeStreamProcessor) -> c_int {
+    if processor.is_null() {
+        return -1;
+    }
+
+    let c_processor = unsafe { &mut *processor };
+    let stream_processor = unsafe { &mut *c_processor.processor };
+
+    match stream_processor.start() {
+        Ok(_) => 0,
+        Err(_) => -1,
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn stream_processor_stop(processor: *mut CRealTimeStreamProcessor) -> c_int {
+    if processor.is_null() {
+        return -1;
+    }
+
+    let c_processor = unsafe { &mut *processor };
+    let stream_processor = unsafe { &mut *c_processor.processor };
+
+    match stream_processor.stop() {
+        Ok(_) => 0,
+        Err(_) => -1,
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn stream_processor_submit_data(
+    processor: *mut CRealTimeStreamProcessor,
+    agent_id: u64,
+    data_type: c_int,
+    payload: *const u8,
+    payload_len: usize,
+    priority: u8,
+) -> c_int {
+    if processor.is_null() || payload.is_null() {
+        return -1;
+    }
+
+    let c_processor = unsafe { &*processor };
+    let stream_processor = unsafe { &*c_processor.processor };
+
+    let stream_data_type = match data_type {
+        0 => StreamDataType::AgentState,
+        1 => StreamDataType::Memory,
+        2 => StreamDataType::Document,
+        3 => StreamDataType::Vector,
+        4 => StreamDataType::Event,
+        5 => StreamDataType::Metric,
+        _ => return -1,
+    };
+
+    let payload_vec = unsafe { std::slice::from_raw_parts(payload, payload_len).to_vec() };
+    let metadata = HashMap::new();
+
+    let item = StreamDataItem::new(agent_id, stream_data_type, payload_vec, metadata)
+        .with_priority(priority);
+
+    match stream_processor.submit_data(item) {
+        Ok(_) => 0,
+        Err(_) => -1,
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn stream_processor_get_stats(
+    processor: *mut CRealTimeStreamProcessor,
+    stats_out: *mut StreamProcessingStats,
+) -> c_int {
+    if processor.is_null() || stats_out.is_null() {
+        return -1;
+    }
+
+    let c_processor = unsafe { &*processor };
+    let stream_processor = unsafe { &*c_processor.processor };
+
+    let stats = stream_processor.get_stats();
+    unsafe {
+        *stats_out = stats;
+    }
+
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn stream_processor_get_buffer_size(processor: *mut CRealTimeStreamProcessor) -> c_int {
+    if processor.is_null() {
+        return -1;
+    }
+
+    let c_processor = unsafe { &*processor };
+    let stream_processor = unsafe { &*c_processor.processor };
+
+    stream_processor.get_buffer_size() as c_int
+}
+
+// 流式查询处理器的C FFI接口
+#[repr(C)]
+pub struct CStreamQueryProcessor {
+    processor: *mut StreamQueryProcessor,
+}
+
+#[no_mangle]
+pub extern "C" fn stream_query_processor_new() -> *mut CStreamQueryProcessor {
+    let processor = StreamQueryProcessor::new();
+    let processor_ptr = Box::into_raw(Box::new(processor));
+
+    Box::into_raw(Box::new(CStreamQueryProcessor {
+        processor: processor_ptr,
+    }))
+}
+
+#[no_mangle]
+pub extern "C" fn stream_query_processor_free(processor: *mut CStreamQueryProcessor) {
+    if !processor.is_null() {
+        unsafe {
+            let c_processor = Box::from_raw(processor);
+            if !c_processor.processor.is_null() {
+                let _ = Box::from_raw(c_processor.processor);
+            }
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn stream_query_register(
+    processor: *mut CStreamQueryProcessor,
+    query_id: *const c_char,
+    query_type: c_int,
+    callback: *const c_char,
+) -> c_int {
+    if processor.is_null() || query_id.is_null() || callback.is_null() {
+        return -1;
+    }
+
+    let c_processor = unsafe { &*processor };
+    let query_processor = unsafe { &*c_processor.processor };
+
+    let query_id_str = unsafe {
+        match CStr::from_ptr(query_id).to_str() {
+            Ok(s) => s.to_string(),
+            Err(_) => return -1,
+        }
+    };
+
+    let callback_str = unsafe {
+        match CStr::from_ptr(callback).to_str() {
+            Ok(s) => s.to_string(),
+            Err(_) => return -1,
+        }
+    };
+
+    let stream_query_type = match query_type {
+        0 => StreamQueryType::VectorSimilarity,
+        1 => StreamQueryType::MemorySearch,
+        2 => StreamQueryType::AgentStateMonitor,
+        3 => StreamQueryType::EventPattern,
+        4 => StreamQueryType::RealTimeStats,
+        _ => return -1,
+    };
+
+    let query = StreamQuery {
+        id: query_id_str,
+        query_type: stream_query_type,
+        parameters: HashMap::new(),
+        callback: callback_str,
+        created_at: std::time::Instant::now(),
+        last_result: None,
+    };
+
+    match query_processor.register_query(query) {
+        Ok(_) => 0,
+        Err(_) => -1,
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn stream_query_unregister(
+    processor: *mut CStreamQueryProcessor,
+    query_id: *const c_char,
+) -> c_int {
+    if processor.is_null() || query_id.is_null() {
+        return -1;
+    }
+
+    let c_processor = unsafe { &*processor };
+    let query_processor = unsafe { &*c_processor.processor };
+
+    let query_id_str = unsafe {
+        match CStr::from_ptr(query_id).to_str() {
+            Ok(s) => s,
+            Err(_) => return -1,
+        }
+    };
+
+    match query_processor.unregister_query(query_id_str) {
+        Ok(_) => 0,
+        Err(_) => -1,
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn stream_query_get_active_count(processor: *mut CStreamQueryProcessor) -> c_int {
+    if processor.is_null() {
+        return -1;
+    }
+
+    let c_processor = unsafe { &*processor };
+    let query_processor = unsafe { &*c_processor.processor };
+
+    query_processor.get_active_query_count() as c_int
+}
+
 // 分布式Agent网络的C FFI接口
 #[repr(C)]
 pub struct CAgentNetworkManager {
