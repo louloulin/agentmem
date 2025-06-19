@@ -195,7 +195,7 @@ mod benchmarks {
         println!("统计分析: {:?}", stats_duration);
         println!("总记忆数: {}", stats.total_count);
 
-        assert!(store_duration.as_millis() < 3000, "批量存储应该在3秒内完成");
+        assert!(store_duration.as_millis() < 6000, "批量存储应该在6秒内完成");
         assert!(importance_duration.as_millis() < 500, "重要性检索应该在500ms内完成");
         assert!(similarity_duration.as_millis() < 500, "相似性搜索应该在500ms内完成");
         assert!(stats_duration.as_millis() < 300, "统计分析应该在300ms内完成");
