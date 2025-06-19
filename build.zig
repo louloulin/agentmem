@@ -258,4 +258,24 @@ pub fn build(b: *std.Build) void {
     const run_realtime_test = b.addRunArtifact(realtime_test);
     const realtime_test_step = b.step("test-realtime", "Run real-time stream processing tests");
     realtime_test_step.dependOn(&run_realtime_test.step);
+
+    // 创建综合性能测试
+    const comprehensive_test = b.addTest(.{
+        .root_source_file = b.path("src/comprehensive_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const run_comprehensive_test = b.addRunArtifact(comprehensive_test);
+    const comprehensive_test_step = b.step("test-comprehensive", "Run comprehensive performance tests");
+    comprehensive_test_step.dependOn(&run_comprehensive_test.step);
+
+    // 创建所有测试的总目标
+    const all_tests_step = b.step("test-all", "Run all test suites");
+    all_tests_step.dependOn(minimal_test_step);
+    all_tests_step.dependOn(single_test_step);
+    all_tests_step.dependOn(test_step);
+    all_tests_step.dependOn(distributed_test_step);
+    all_tests_step.dependOn(realtime_test_step);
+    all_tests_step.dependOn(comprehensive_test_step);
 }
