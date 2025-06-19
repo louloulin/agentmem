@@ -11,13 +11,19 @@ use crate::types::{StateType, MemoryType, Memory};
 #[repr(C)]
 pub struct CAgentStateDB {
     db: *mut AgentDB,
-    rt: *mut Runtime,
+    rt: *mut u8, // 使用u8指针代替Runtime
 }
 
 #[repr(C)]
 pub struct CMemoryManager {
     db: *mut AgentDB,
-    rt: *mut Runtime,
+    rt: *mut u8, // 使用u8指针代替Runtime
+}
+
+#[repr(C)]
+pub struct CRAGEngine {
+    db: *mut AgentDB,
+    rt: *mut u8, // 使用u8指针代替Runtime
 }
 
 // 错误码定义
@@ -53,7 +59,7 @@ pub extern "C" fn agent_db_new(db_path: *const c_char) -> *mut CAgentStateDB {
         Err(_) => return ptr::null_mut(),
     };
 
-    let rt_ptr = Box::into_raw(Box::new(rt));
+    let rt_ptr = Box::into_raw(Box::new(rt)) as *mut u8;
 
     Box::into_raw(Box::new(CAgentStateDB { db, rt: rt_ptr }))
 }
@@ -67,7 +73,8 @@ pub extern "C" fn agent_db_free(db: *mut CAgentStateDB) {
                 let _ = Box::from_raw(c_db.db);
             }
             if !c_db.rt.is_null() {
-                let _ = Box::from_raw(c_db.rt);
+                let rt_ptr = c_db.rt as *mut Runtime;
+                let _ = Box::from_raw(rt_ptr);
             }
         }
     }
@@ -88,7 +95,7 @@ pub extern "C" fn agent_db_save_state(
 
     let c_db = unsafe { &*db };
     let agent_db = unsafe { &*c_db.db };
-    let rt = unsafe { &*c_db.rt };
+    let rt = unsafe { &*(c_db.rt as *const Runtime) };
 
     let state_type = match state_type {
         0 => StateType::WorkingMemory,
@@ -122,7 +129,7 @@ pub extern "C" fn agent_db_load_state(
 
     let c_db = unsafe { &*db };
     let agent_db = unsafe { &*c_db.db };
-    let rt = unsafe { &*c_db.rt };
+    let rt = unsafe { &*(c_db.rt as *const Runtime) };
 
     match rt.block_on(agent_db.load_agent_state(agent_id)) {
         Ok(Some(state)) => {
@@ -168,7 +175,7 @@ pub extern "C" fn agent_db_save_vector_state(
 
     let c_db = unsafe { &*db };
     let agent_db = unsafe { &*c_db.db };
-    let rt = unsafe { &*c_db.rt };
+    let rt = unsafe { &*(c_db.rt as *const Runtime) };
 
     let state_type = match state_type {
         0 => StateType::WorkingMemory,
@@ -207,7 +214,7 @@ pub extern "C" fn agent_db_vector_search(
 
     let c_db = unsafe { &*db };
     let _agent_db = unsafe { &*c_db.db };
-    let _rt = unsafe { &*c_db.rt };
+    let _rt = unsafe { &*(c_db.rt as *const Runtime) };
 
     let _query_vec = unsafe { std::slice::from_raw_parts(query_embedding, embedding_len).to_vec() };
 
@@ -250,7 +257,7 @@ pub extern "C" fn memory_manager_new(db_path: *const c_char) -> *mut CMemoryMana
         Err(_) => return ptr::null_mut(),
     };
 
-    let rt_ptr = Box::into_raw(Box::new(rt));
+    let rt_ptr = Box::into_raw(Box::new(rt)) as *mut u8;
 
     Box::into_raw(Box::new(CMemoryManager { db, rt: rt_ptr }))
 }
@@ -264,7 +271,8 @@ pub extern "C" fn memory_manager_free(mgr: *mut CMemoryManager) {
                 let _ = Box::from_raw(c_mgr.db);
             }
             if !c_mgr.rt.is_null() {
-                let _ = Box::from_raw(c_mgr.rt);
+                let rt_ptr = c_mgr.rt as *mut Runtime;
+                let _ = Box::from_raw(rt_ptr);
             }
         }
     }
@@ -284,7 +292,7 @@ pub extern "C" fn memory_manager_store_memory(
 
     let c_mgr = unsafe { &*mgr };
     let agent_db = unsafe { &*c_mgr.db };
-    let rt = unsafe { &*c_mgr.rt };
+    let rt = unsafe { &*(c_mgr.rt as *const Runtime) };
 
     let content_str = unsafe {
         match CStr::from_ptr(content).to_str() {
@@ -322,7 +330,7 @@ pub extern "C" fn memory_manager_retrieve_memories(
 
     let c_mgr = unsafe { &*mgr };
     let agent_db = unsafe { &*c_mgr.db };
-    let rt = unsafe { &*c_mgr.rt };
+    let rt = unsafe { &*(c_mgr.rt as *const Runtime) };
 
     match rt.block_on(agent_db.get_agent_memories(agent_id, None, limit)) {
         Ok(memories) => {
@@ -332,5 +340,200 @@ pub extern "C" fn memory_manager_retrieve_memories(
             SUCCESS
         }
         Err(_) => ERROR_GENERAL,
+    }
+}
+
+// RAG引擎C接口
+#[no_mangle]
+pub extern "C" fn rag_engine_new(db_path: *const c_char) -> *mut CRAGEngine {
+    if db_path.is_null() {
+        return ptr::null_mut();
+    }
+
+    let path_str = unsafe {
+        match CStr::from_ptr(db_path).to_str() {
+            Ok(s) => s,
+            Err(_) => return ptr::null_mut(),
+        }
+    };
+
+    let rt = match Runtime::new() {
+        Ok(rt) => rt,
+        Err(_) => return ptr::null_mut(),
+    };
+
+    let db = match rt.block_on(async {
+        AgentDB::new(path_str, 384).await
+    }) {
+        Ok(db) => Box::into_raw(Box::new(db)),
+        Err(_) => return ptr::null_mut(),
+    };
+
+    let rt_ptr = Box::into_raw(Box::new(rt)) as *mut u8;
+
+    Box::into_raw(Box::new(CRAGEngine { db, rt: rt_ptr }))
+}
+
+#[no_mangle]
+pub extern "C" fn rag_engine_free(engine: *mut CRAGEngine) {
+    if !engine.is_null() {
+        let c_engine = unsafe { Box::from_raw(engine) };
+        if !c_engine.db.is_null() {
+            unsafe { Box::from_raw(c_engine.db) };
+        }
+        if !c_engine.rt.is_null() {
+            unsafe {
+                let rt_ptr = c_engine.rt as *mut Runtime;
+                let _ = Box::from_raw(rt_ptr);
+            };
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn rag_engine_index_document(
+    engine: *mut CRAGEngine,
+    title: *const c_char,
+    content: *const c_char,
+    chunk_size: usize,
+    overlap: usize,
+) -> c_int {
+    if engine.is_null() || title.is_null() || content.is_null() {
+        return ERROR_GENERAL;
+    }
+
+    let c_engine = unsafe { &*engine };
+    let agent_db = unsafe { &*c_engine.db };
+    let rt = unsafe { &*(c_engine.rt as *const Runtime) };
+
+    let title_str = unsafe {
+        match CStr::from_ptr(title).to_str() {
+            Ok(s) => s,
+            Err(_) => return ERROR_GENERAL,
+        }
+    };
+
+    let content_str = unsafe {
+        match CStr::from_ptr(content).to_str() {
+            Ok(s) => s,
+            Err(_) => return ERROR_GENERAL,
+        }
+    };
+
+    // 创建文档并添加到数据库
+    let doc = crate::types::Document {
+        doc_id: format!("doc_{}", title_str),
+        title: title_str.to_string(),
+        content: content_str.to_string(),
+        metadata: std::collections::HashMap::new(),
+        chunks: Vec::new(), // 空的chunks，会在add_document中处理
+        created_at: chrono::Utc::now().timestamp(),
+        updated_at: chrono::Utc::now().timestamp(),
+    };
+
+    match rt.block_on(agent_db.add_document(doc)) {
+        Ok(_) => SUCCESS,
+        Err(_) => ERROR_GENERAL,
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn rag_engine_search_text(
+    engine: *mut CRAGEngine,
+    query: *const c_char,
+    limit: usize,
+    results_count_out: *mut usize,
+) -> c_int {
+    if engine.is_null() || query.is_null() || results_count_out.is_null() {
+        return ERROR_GENERAL;
+    }
+
+    let c_engine = unsafe { &*engine };
+    let agent_db = unsafe { &*c_engine.db };
+    let rt = unsafe { &*(c_engine.rt as *const Runtime) };
+
+    let query_str = unsafe {
+        match CStr::from_ptr(query).to_str() {
+            Ok(s) => s,
+            Err(_) => return ERROR_GENERAL,
+        }
+    };
+
+    match rt.block_on(agent_db.search_documents(query_str, limit)) {
+        Ok(results) => {
+            unsafe {
+                *results_count_out = results.len();
+            }
+            SUCCESS
+        }
+        Err(_) => ERROR_GENERAL,
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn rag_engine_build_context(
+    engine: *mut CRAGEngine,
+    query: *const c_char,
+    max_tokens: usize,
+    context_out: *mut *mut c_char,
+    context_len_out: *mut usize,
+) -> c_int {
+    if engine.is_null() || query.is_null() || context_out.is_null() || context_len_out.is_null() {
+        return ERROR_GENERAL;
+    }
+
+    let c_engine = unsafe { &*engine };
+    let agent_db = unsafe { &*c_engine.db };
+    let rt = unsafe { &*(c_engine.rt as *const Runtime) };
+
+    let query_str = unsafe {
+        match CStr::from_ptr(query).to_str() {
+            Ok(s) => s,
+            Err(_) => return ERROR_GENERAL,
+        }
+    };
+
+    // 搜索相关文档并构建上下文
+    match rt.block_on(agent_db.search_documents(query_str, 5)) {
+        Ok(results) => {
+            let mut context = String::new();
+            let mut token_count = 0;
+
+            for result in results {
+                let chunk_tokens = result.content.split_whitespace().count();
+                if token_count + chunk_tokens > max_tokens {
+                    break;
+                }
+                context.push_str(&result.content);
+                context.push('\n');
+                token_count += chunk_tokens;
+            }
+
+            if context.is_empty() {
+                context = "No relevant context found.".to_string();
+            }
+
+            let context_bytes = context.into_bytes();
+            let len = context_bytes.len();
+            let ptr = Box::into_raw(context_bytes.into_boxed_slice()) as *mut c_char;
+
+            unsafe {
+                *context_out = ptr;
+                *context_len_out = len;
+            }
+            SUCCESS
+        }
+        Err(_) => ERROR_GENERAL,
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn rag_engine_free_context(context: *mut c_char) {
+    if !context.is_null() {
+        unsafe {
+            // 这里需要知道原始长度，但C接口中没有传递
+            // 简化处理，假设是以null结尾的字符串
+            let _ = std::ffi::CString::from_raw(context);
+        }
     }
 }

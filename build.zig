@@ -7,9 +7,9 @@ pub fn build(b: *std.Build) void {
     // 构建Rust库
     const cargo_build = b.addSystemCommand(&[_][]const u8{ "cargo", "build", "--release" });
 
-    // 生成C头文件
-    const generate_bindings = b.addSystemCommand(&[_][]const u8{ "cargo", "run", "--bin", "generate_bindings" });
-    generate_bindings.step.dependOn(&cargo_build.step);
+    // 生成C头文件 (暂时禁用，使用手动创建的头文件)
+    // const generate_bindings = b.addSystemCommand(&[_][]const u8{ "cargo", "run", "--bin", "generate_bindings" });
+    // generate_bindings.step.dependOn(&cargo_build.step);
 
     // 创建Agent状态数据库库
     const agent_db_lib = b.addStaticLibrary(.{
@@ -37,7 +37,7 @@ pub fn build(b: *std.Build) void {
     }
 
     // 确保Rust库先构建
-    agent_db_lib.step.dependOn(&generate_bindings.step);
+    agent_db_lib.step.dependOn(&cargo_build.step);
 
     b.installArtifact(agent_db_lib);
 
@@ -51,6 +51,50 @@ pub fn build(b: *std.Build) void {
     const run_simple_tests = b.addRunArtifact(simple_tests);
     const simple_test_step = b.step("test-simple", "Run simple unit tests");
     simple_test_step.dependOn(&run_simple_tests.step);
+
+    // 创建诊断测试
+    const diagnostic_tests = b.addTest(.{
+        .name = "diagnostic",
+        .root_source_file = b.path("src/test_zig_simple.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    diagnostic_tests.addIncludePath(b.path("include"));
+    diagnostic_tests.addLibraryPath(b.path("target/release"));
+    diagnostic_tests.linkSystemLibrary("agent_state_db_rust");
+    diagnostic_tests.linkLibC();
+
+    if (target.result.os.tag == .windows) {
+        diagnostic_tests.linkSystemLibrary("ws2_32");
+        diagnostic_tests.linkSystemLibrary("advapi32");
+        diagnostic_tests.linkSystemLibrary("userenv");
+        diagnostic_tests.linkSystemLibrary("ntdll");
+        diagnostic_tests.linkSystemLibrary("bcrypt");
+        diagnostic_tests.linkSystemLibrary("crypt32");
+        diagnostic_tests.linkSystemLibrary("secur32");
+        diagnostic_tests.linkSystemLibrary("ncrypt");
+        diagnostic_tests.linkSystemLibrary("kernel32");
+    }
+
+    // 确保Rust库先构建
+    diagnostic_tests.step.dependOn(&cargo_build.step);
+
+    const run_diagnostic_tests = b.addRunArtifact(diagnostic_tests);
+    const diagnostic_test_step = b.step("test-diagnostic", "Run diagnostic tests");
+    diagnostic_test_step.dependOn(&run_diagnostic_tests.step);
+
+    // 创建最小化测试
+    const minimal_tests = b.addTest(.{
+        .name = "minimal",
+        .root_source_file = b.path("src/test_minimal.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const run_minimal_tests = b.addRunArtifact(minimal_tests);
+    const minimal_test_step = b.step("test-minimal", "Run minimal tests");
+    minimal_test_step.dependOn(&run_minimal_tests.step);
 
     // 创建完整测试（依赖Rust库）
     const tests = b.addTest(.{
@@ -74,10 +118,14 @@ pub fn build(b: *std.Build) void {
         tests.linkSystemLibrary("userenv");
         tests.linkSystemLibrary("ntdll");
         tests.linkSystemLibrary("bcrypt");
+        tests.linkSystemLibrary("crypt32");
+        tests.linkSystemLibrary("secur32");
+        tests.linkSystemLibrary("ncrypt");
+        tests.linkSystemLibrary("kernel32");
     }
 
     // 确保Rust库先构建
-    tests.step.dependOn(&generate_bindings.step);
+    tests.step.dependOn(&cargo_build.step);
 
     const run_tests = b.addRunArtifact(tests);
     const test_step = b.step("test", "Run unit tests");
@@ -116,10 +164,14 @@ pub fn build(b: *std.Build) void {
         example.linkSystemLibrary("userenv");
         example.linkSystemLibrary("ntdll");
         example.linkSystemLibrary("bcrypt");
+        example.linkSystemLibrary("crypt32");
+        example.linkSystemLibrary("secur32");
+        example.linkSystemLibrary("ncrypt");
+        example.linkSystemLibrary("kernel32");
     }
 
     // 确保Rust库先构建
-    example.step.dependOn(&generate_bindings.step);
+    example.step.dependOn(&cargo_build.step);
     b.installArtifact(example);
 
     const run_example = b.addRunArtifact(example);
@@ -149,10 +201,14 @@ pub fn build(b: *std.Build) void {
         benchmark.linkSystemLibrary("userenv");
         benchmark.linkSystemLibrary("ntdll");
         benchmark.linkSystemLibrary("bcrypt");
+        benchmark.linkSystemLibrary("crypt32");
+        benchmark.linkSystemLibrary("secur32");
+        benchmark.linkSystemLibrary("ncrypt");
+        benchmark.linkSystemLibrary("kernel32");
     }
 
     // 确保Rust库先构建
-    benchmark.step.dependOn(&generate_bindings.step);
+    benchmark.step.dependOn(&cargo_build.step);
     b.installArtifact(benchmark);
 
     const run_benchmark = b.addRunArtifact(benchmark);

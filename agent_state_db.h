@@ -11,6 +11,7 @@ extern "C" {
 // 前向声明
 typedef struct CAgentStateDB CAgentStateDB;
 typedef struct CMemoryManager CMemoryManager;
+typedef struct CRAGEngine CRAGEngine;
 
 // 错误码
 #define AGENT_DB_SUCCESS 0
@@ -92,6 +93,35 @@ int memory_manager_retrieve_memories(
     size_t limit,
     size_t* memory_count_out
 );
+
+// RAG引擎接口
+CRAGEngine* rag_engine_new(const char* db_path);
+void rag_engine_free(CRAGEngine* engine);
+
+int rag_engine_index_document(
+    CRAGEngine* engine,
+    const char* title,
+    const char* content,
+    size_t chunk_size,
+    size_t overlap
+);
+
+int rag_engine_search_text(
+    CRAGEngine* engine,
+    const char* query,
+    size_t limit,
+    size_t* results_count_out
+);
+
+int rag_engine_build_context(
+    CRAGEngine* engine,
+    const char* query,
+    size_t max_tokens,
+    char** context_out,
+    size_t* context_len_out
+);
+
+void rag_engine_free_context(char* context);
 
 #ifdef __cplusplus
 }
