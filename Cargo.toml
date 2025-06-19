@@ -11,13 +11,8 @@ keywords = ["ai", "agent", "database", "vector", "rag"]
 categories = ["database", "science"]
 
 [lib]
-<<<<<<< HEAD
-name = "agent_state_db"
-crate-type = ["cdylib", "staticlib", "rlib"]
-=======
 name = "agent_db_rust"
 crate-type = ["cdylib", "staticlib"]
->>>>>>> origin/feature-module
 
 [dependencies]
 lancedb = "0.20.0"
@@ -35,17 +30,14 @@ chrono = { version = "0.4", features = ["serde"] }
 cbindgen = "0.26"
 libc = "0.2"
 rand = "0.8"
-<<<<<<< HEAD
 env_logger = "0.11.8"
 num_cpus = "1.17.0"
 bincode = "2.0.1"
 flate2 = "1.1.2"
 log = "0.4.27"
-=======
 sha2 = "0.10"
 aes-gcm = "0.10"
 hex = "0.4"
->>>>>>> origin/feature-module
 
 [build-dependencies]
 cbindgen = "0.26"

@@ -539,31 +539,10 @@ impl MemoryManager {
 
         Ok(Memory {
             memory_id,
-=======
-        let timestamp = timestamp_array.value(row);
-        let metadata_json = metadata_array.value(row);
-        let metadata: HashMap<String, String> = serde_json::from_str(metadata_json)?;
-        
-        let embedding_bytes = embedding_array.value(row);
-        let embedding = if embedding_bytes.is_empty() {
-            None
-        } else {
-            Some(serde_json::from_slice(embedding_bytes)?)
-        };
-
-        let access_count = access_count_array.value(row);
-        let last_accessed = last_accessed_array.value(row);
-        let expiry_time_raw = expiry_time_array.value(row);
-        let expiry_time = if expiry_time_raw == -1 { None } else { Some(expiry_time_raw) };
-
-        Ok(Memory {
-            id,
->>>>>>> origin/feature-module
             agent_id,
             memory_type,
             content,
             importance,
-<<<<<<< HEAD
             embedding: None, // 嵌入向量需要单独处理
             created_at,
             access_count,
@@ -756,15 +735,6 @@ impl MemoryManager {
 
         Ok(deleted_count)
     }
-=======
-            timestamp,
-            metadata,
-            embedding,
-            access_count,
-            last_accessed,
-            expiry_time,
-        })
-    }
 }
 
 // 记忆统计信息
@@ -839,5 +809,4 @@ impl MemoryManager {
         // 由于LanceDB的限制，这里简化处理
         Ok(())
     }
->>>>>>> origin/feature-module
 }

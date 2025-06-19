@@ -4,14 +4,14 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // 构建Rust库
+    // 构建Rust�?
     const cargo_build = b.addSystemCommand(&[_][]const u8{ "cargo", "build", "--release" });
 
-    // 生成C头文件 (暂时禁用，使用手动创建的头文件)
-    // const generate_bindings = b.addSystemCommand(&[_][]const u8{ "cargo", "run", "--bin", "generate_bindings" });
-    // generate_bindings.step.dependOn(&cargo_build.step);
+    // 生成C头文�?(暂时禁用，使用手动创建的头文�?
+    // const cargo_build = b.addSystemCommand(&[_][]const u8{ "cargo", "run", "--bin", "cargo_build" });
+    // cargo_build.step.dependOn(&cargo_build.step);
 
-    // 创建Agent状态数据库库
+    // 创建Agent状态数据库�?
     const agent_db_lib = b.addStaticLibrary(.{
         .name = "agent_db_zig",
         .root_source_file = b.path("src/main.zig"),
@@ -19,15 +19,15 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    // 添加C头文件路径
+    // 添加C头文件路�?
     agent_db_lib.addIncludePath(b.path("include"));
 
-    // 链接Rust库
+    // 链接Rust�?
     agent_db_lib.addLibraryPath(b.path("target/release"));
     agent_db_lib.linkSystemLibrary("agent_state_db_rust");
     agent_db_lib.linkLibC();
 
-    // 在Windows上需要链接额外的系统库
+    // 在Windows上需要链接额外的系统�?
     if (target.result.os.tag == .windows) {
         agent_db_lib.linkSystemLibrary("ws2_32");
         agent_db_lib.linkSystemLibrary("advapi32");
@@ -52,63 +52,18 @@ pub fn build(b: *std.Build) void {
     const simple_test_step = b.step("test-simple", "Run simple unit tests");
     simple_test_step.dependOn(&run_simple_tests.step);
 
-<<<<<<< HEAD
-    // 创建诊断测试
-    const diagnostic_tests = b.addTest(.{
-        .name = "diagnostic",
-        .root_source_file = b.path("src/test_zig_simple.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    diagnostic_tests.addIncludePath(b.path("include"));
-    diagnostic_tests.addLibraryPath(b.path("target/release"));
-    diagnostic_tests.linkSystemLibrary("agent_state_db_rust");
-    diagnostic_tests.linkLibC();
-
-    if (target.result.os.tag == .windows) {
-        diagnostic_tests.linkSystemLibrary("ws2_32");
-        diagnostic_tests.linkSystemLibrary("advapi32");
-        diagnostic_tests.linkSystemLibrary("userenv");
-        diagnostic_tests.linkSystemLibrary("ntdll");
-        diagnostic_tests.linkSystemLibrary("bcrypt");
-        diagnostic_tests.linkSystemLibrary("crypt32");
-        diagnostic_tests.linkSystemLibrary("secur32");
-        diagnostic_tests.linkSystemLibrary("ncrypt");
-        diagnostic_tests.linkSystemLibrary("kernel32");
-    }
-
-    // 确保Rust库先构建
-    diagnostic_tests.step.dependOn(&cargo_build.step);
-
-    const run_diagnostic_tests = b.addRunArtifact(diagnostic_tests);
-    const diagnostic_test_step = b.step("test-diagnostic", "Run diagnostic tests");
-    diagnostic_test_step.dependOn(&run_diagnostic_tests.step);
-
-    // 创建最小化测试
-    const minimal_tests = b.addTest(.{
-        .name = "minimal",
-        .root_source_file = b.path("src/test_minimal.zig"),
-=======
-    // 创建最小测试（基础Zig功能）
+    // 创建最小测试（基础Zig功能�?
     const minimal_tests = b.addTest(.{
         .root_source_file = b.path("src/minimal_test.zig"),
->>>>>>> origin/feature-module
         .target = target,
         .optimize = optimize,
     });
 
     const run_minimal_tests = b.addRunArtifact(minimal_tests);
-<<<<<<< HEAD
-    const minimal_test_step = b.step("test-minimal", "Run minimal tests");
-    minimal_test_step.dependOn(&run_minimal_tests.step);
-
-    // 创建完整测试（依赖Rust库）
-=======
     const minimal_test_step = b.step("test-minimal", "Run minimal unit tests");
     minimal_test_step.dependOn(&run_minimal_tests.step);
 
-    // 创建单个测试（诊断用）
+    // 创建单个测试（诊断用�?
     const single_tests = b.addTest(.{
         .root_source_file = b.path("src/single_test.zig"),
         .target = target,
@@ -119,23 +74,22 @@ pub fn build(b: *std.Build) void {
     const single_test_step = b.step("test-single", "Run single diagnostic test");
     single_test_step.dependOn(&run_single_tests.step);
 
-    // 创建完整测试（使用安全的Zig测试）
->>>>>>> origin/feature-module
+    // 创建完整测试（使用安全的Zig测试�?
     const tests = b.addTest(.{
         .root_source_file = b.path("src/safe_test.zig"),
         .target = target,
         .optimize = optimize,
     });
 
-    // 添加头文件路径
+    // 添加头文件路�?
     tests.addIncludePath(b.path("include"));
 
-    // 链接Rust库
+    // 链接Rust�?
     tests.addLibraryPath(b.path("target/release"));
     tests.linkSystemLibrary("agent_state_db_rust");
     tests.linkLibC();
 
-    // 在Windows上需要链接额外的系统库
+    // 在Windows上需要链接额外的系统�?
     if (target.result.os.tag == .windows) {
         tests.linkSystemLibrary("ws2_32");
         tests.linkSystemLibrary("advapi32");
@@ -188,15 +142,15 @@ pub fn build(b: *std.Build) void {
 
     example.root_module.addImport("agent_db", agent_db_module);
 
-    // 添加头文件路径
+    // 添加头文件路�?
     example.addIncludePath(b.path("include"));
 
-    // 链接Rust库
+    // 链接Rust�?
     example.addLibraryPath(b.path("target/release"));
     example.linkSystemLibrary("agent_state_db_rust");
     example.linkLibC();
 
-    // 在Windows上需要链接额外的系统库
+    // 在Windows上需要链接额外的系统�?
     if (target.result.os.tag == .windows) {
         example.linkSystemLibrary("ws2_32");
         example.linkSystemLibrary("advapi32");
@@ -230,15 +184,15 @@ pub fn build(b: *std.Build) void {
     benchmark.root_module.addImport("agent_state.zig", agent_state_module);
     benchmark.root_module.addImport("distributed_network.zig", distributed_network_module);
 
-    // 添加头文件路径
+    // 添加头文件路�?
     benchmark.addIncludePath(b.path("include"));
 
-    // 链接Rust库
+    // 链接Rust�?
     benchmark.addLibraryPath(b.path("target/release"));
     benchmark.linkSystemLibrary("agent_state_db_rust");
     benchmark.linkLibC();
 
-    // 在Windows上需要链接额外的系统库
+    // 在Windows上需要链接额外的系统�?
     if (target.result.os.tag == .windows) {
         benchmark.linkSystemLibrary("ws2_32");
         benchmark.linkSystemLibrary("advapi32");
@@ -259,7 +213,7 @@ pub fn build(b: *std.Build) void {
     const benchmark_step = b.step("benchmark", "Run performance benchmarks");
     benchmark_step.dependOn(&run_benchmark.step);
 
-    // 创建分布式网络测试
+    // 创建分布式网络测�?
     const distributed_test = b.addTest(.{
         .name = "distributed_network_test",
         .root_source_file = b.path("src/simple_distributed_test.zig"),
@@ -272,7 +226,7 @@ pub fn build(b: *std.Build) void {
     distributed_test.linkSystemLibrary("agent_state_db_rust");
     distributed_test.linkLibC();
 
-    // 在Windows上需要链接额外的系统库
+    // 在Windows上需要链接额外的系统�?
     if (target.result.os.tag == .windows) {
         distributed_test.linkSystemLibrary("ws2_32");
         distributed_test.linkSystemLibrary("advapi32");
@@ -282,13 +236,13 @@ pub fn build(b: *std.Build) void {
     }
 
     // 确保Rust库先构建
-    distributed_test.step.dependOn(&generate_bindings.step);
+    distributed_test.step.dependOn(&cargo_build.step);
 
     const run_distributed_test = b.addRunArtifact(distributed_test);
     const distributed_test_step = b.step("test-distributed", "Run distributed network tests");
     distributed_test_step.dependOn(&run_distributed_test.step);
 
-    // 创建实时数据流处理测试
+    // 创建实时数据流处理测�?
     const realtime_test = b.addTest(.{
         .name = "realtime_stream_test",
         .root_source_file = b.path("src/simple_realtime_test.zig"),
@@ -301,7 +255,7 @@ pub fn build(b: *std.Build) void {
     realtime_test.linkSystemLibrary("agent_state_db_rust");
     realtime_test.linkLibC();
 
-    // 在Windows上需要链接额外的系统库
+    // 在Windows上需要链接额外的系统�?
     if (target.result.os.tag == .windows) {
         realtime_test.linkSystemLibrary("ws2_32");
         realtime_test.linkSystemLibrary("advapi32");
@@ -311,7 +265,7 @@ pub fn build(b: *std.Build) void {
     }
 
     // 确保Rust库先构建
-    realtime_test.step.dependOn(&generate_bindings.step);
+    realtime_test.step.dependOn(&cargo_build.step);
 
     const run_realtime_test = b.addRunArtifact(realtime_test);
     const realtime_test_step = b.step("test-realtime", "Run real-time stream processing tests");
@@ -335,15 +289,15 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    // 添加C头文件路径
+    // 添加C头文件路�?
     c_ffi_test.addIncludePath(b.path("include"));
 
-    // 链接Rust库
+    // 链接Rust�?
     c_ffi_test.addLibraryPath(b.path("target/release"));
     c_ffi_test.linkSystemLibrary("agent_state_db");
     c_ffi_test.linkLibC();
 
-    // 在Windows上需要额外的系统库
+    // 在Windows上需要额外的系统�?
     if (target.result.os.tag == .windows) {
         c_ffi_test.linkSystemLibrary("ws2_32");
         c_ffi_test.linkSystemLibrary("advapi32");
@@ -353,7 +307,7 @@ pub fn build(b: *std.Build) void {
     }
 
     // 确保Rust库先构建
-    c_ffi_test.step.dependOn(&generate_bindings.step);
+    c_ffi_test.step.dependOn(&cargo_build.step);
 
     const run_c_ffi_test = b.addRunArtifact(c_ffi_test);
     const c_ffi_test_step = b.step("test-ffi", "Run real C FFI integration tests");
@@ -366,33 +320,33 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    // 添加C头文件路径
+    // 添加C头文件路�?
     simple_ffi_test.addIncludePath(b.path("include"));
     simple_ffi_test.linkLibC();
 
     // 确保头文件先生成
-    simple_ffi_test.step.dependOn(&generate_bindings.step);
+    simple_ffi_test.step.dependOn(&cargo_build.step);
 
     const run_simple_ffi_test = b.addRunArtifact(simple_ffi_test);
     const simple_ffi_test_step = b.step("test-ffi-simple", "Run simple FFI header tests");
     simple_ffi_test_step.dependOn(&run_simple_ffi_test.step);
 
-    // 创建真正的集成测试（实际调用C函数）
+    // 创建真正的集成测试（实际调用C函数�?
     const real_integration_test = b.addTest(.{
         .root_source_file = b.path("src/real_integration_test.zig"),
         .target = target,
         .optimize = optimize,
     });
 
-    // 添加C头文件路径
+    // 添加C头文件路�?
     real_integration_test.addIncludePath(b.path("include"));
 
-    // 链接Rust库
+    // 链接Rust�?
     real_integration_test.addLibraryPath(b.path("target/release"));
     real_integration_test.linkSystemLibrary("agent_state_db");
     real_integration_test.linkLibC();
 
-    // 在Windows上需要额外的系统库
+    // 在Windows上需要额外的系统�?
     if (target.result.os.tag == .windows) {
         real_integration_test.linkSystemLibrary("ws2_32");
         real_integration_test.linkSystemLibrary("advapi32");
@@ -402,28 +356,28 @@ pub fn build(b: *std.Build) void {
     }
 
     // 确保Rust库先构建
-    real_integration_test.step.dependOn(&generate_bindings.step);
+    real_integration_test.step.dependOn(&cargo_build.step);
 
     const run_real_integration_test = b.addRunArtifact(real_integration_test);
     const real_integration_test_step = b.step("test-real", "Run real integration tests with C FFI");
     real_integration_test_step.dependOn(&run_real_integration_test.step);
 
-    // 创建基础集成测试（验证函数调用但不依赖数据库）
+    // 创建基础集成测试（验证函数调用但不依赖数据库�?
     const basic_integration_test = b.addTest(.{
         .root_source_file = b.path("src/basic_integration_test.zig"),
         .target = target,
         .optimize = optimize,
     });
 
-    // 添加C头文件路径
+    // 添加C头文件路�?
     basic_integration_test.addIncludePath(b.path("include"));
 
-    // 链接Rust库
+    // 链接Rust�?
     basic_integration_test.addLibraryPath(b.path("target/release"));
     basic_integration_test.linkSystemLibrary("agent_state_db");
     basic_integration_test.linkLibC();
 
-    // 在Windows上需要额外的系统库
+    // 在Windows上需要额外的系统�?
     if (target.result.os.tag == .windows) {
         basic_integration_test.linkSystemLibrary("ws2_32");
         basic_integration_test.linkSystemLibrary("advapi32");
@@ -433,28 +387,28 @@ pub fn build(b: *std.Build) void {
     }
 
     // 确保Rust库先构建
-    basic_integration_test.step.dependOn(&generate_bindings.step);
+    basic_integration_test.step.dependOn(&cargo_build.step);
 
     const run_basic_integration_test = b.addRunArtifact(basic_integration_test);
     const basic_integration_test_step = b.step("test-basic", "Run basic integration tests with C FFI");
     basic_integration_test_step.dependOn(&run_basic_integration_test.step);
 
-    // 创建工作集成测试（只测试已实现的函数）
+    // 创建工作集成测试（只测试已实现的函数�?
     const working_integration_test = b.addTest(.{
         .root_source_file = b.path("src/working_integration_test.zig"),
         .target = target,
         .optimize = optimize,
     });
 
-    // 添加C头文件路径
+    // 添加C头文件路�?
     working_integration_test.addIncludePath(b.path("include"));
 
-    // 链接Rust库
+    // 链接Rust�?
     working_integration_test.addLibraryPath(b.path("target/release"));
     working_integration_test.linkSystemLibrary("agent_state_db");
     working_integration_test.linkLibC();
 
-    // 在Windows上需要额外的系统库
+    // 在Windows上需要额外的系统�?
     if (target.result.os.tag == .windows) {
         working_integration_test.linkSystemLibrary("ws2_32");
         working_integration_test.linkSystemLibrary("advapi32");
@@ -464,13 +418,13 @@ pub fn build(b: *std.Build) void {
     }
 
     // 确保Rust库先构建
-    working_integration_test.step.dependOn(&generate_bindings.step);
+    working_integration_test.step.dependOn(&cargo_build.step);
 
     const run_working_integration_test = b.addRunArtifact(working_integration_test);
     const working_integration_test_step = b.step("test-working", "Run working integration tests with implemented C FFI functions");
     working_integration_test_step.dependOn(&run_working_integration_test.step);
 
-    // 创建所有测试的总目标
+    // 创建所有测试的总目�?
     const all_tests_step = b.step("test-all", "Run all test suites");
     all_tests_step.dependOn(minimal_test_step);
     all_tests_step.dependOn(single_test_step);
