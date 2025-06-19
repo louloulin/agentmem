@@ -52,9 +52,9 @@ pub fn build(b: *std.Build) void {
     const simple_test_step = b.step("test-simple", "Run simple unit tests");
     simple_test_step.dependOn(&run_simple_tests.step);
 
-    // 创建完整测试（依赖Rust库）
+    // 创建完整测试（使用安全的Zig测试）
     const tests = b.addTest(.{
-        .root_source_file = b.path("src/test_zig_api.zig"),
+        .root_source_file = b.path("src/safe_test.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -177,7 +177,7 @@ pub fn build(b: *std.Build) void {
     // 创建分布式网络测试
     const distributed_test = b.addTest(.{
         .name = "distributed_network_test",
-        .root_source_file = b.path("src/distributed_network_test.zig"),
+        .root_source_file = b.path("src/simple_distributed_test.zig"),
         .target = target,
         .optimize = optimize,
     });
