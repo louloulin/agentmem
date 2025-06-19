@@ -270,6 +270,148 @@ pub fn build(b: *std.Build) void {
     const comprehensive_test_step = b.step("test-comprehensive", "Run comprehensive performance tests");
     comprehensive_test_step.dependOn(&run_comprehensive_test.step);
 
+    // 创建真正的C FFI集成测试
+    const c_ffi_test = b.addTest(.{
+        .root_source_file = b.path("src/c_ffi_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // 添加C头文件路径
+    c_ffi_test.addIncludePath(b.path("include"));
+
+    // 链接Rust库
+    c_ffi_test.addLibraryPath(b.path("target/release"));
+    c_ffi_test.linkSystemLibrary("agent_state_db");
+    c_ffi_test.linkLibC();
+
+    // 在Windows上需要额外的系统库
+    if (target.result.os.tag == .windows) {
+        c_ffi_test.linkSystemLibrary("ws2_32");
+        c_ffi_test.linkSystemLibrary("advapi32");
+        c_ffi_test.linkSystemLibrary("userenv");
+        c_ffi_test.linkSystemLibrary("ntdll");
+        c_ffi_test.linkSystemLibrary("bcrypt");
+    }
+
+    // 确保Rust库先构建
+    c_ffi_test.step.dependOn(&generate_bindings.step);
+
+    const run_c_ffi_test = b.addRunArtifact(c_ffi_test);
+    const c_ffi_test_step = b.step("test-ffi", "Run real C FFI integration tests");
+    c_ffi_test_step.dependOn(&run_c_ffi_test.step);
+
+    // 创建简单的FFI测试（只测试头文件）
+    const simple_ffi_test = b.addTest(.{
+        .root_source_file = b.path("src/simple_ffi_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // 添加C头文件路径
+    simple_ffi_test.addIncludePath(b.path("include"));
+    simple_ffi_test.linkLibC();
+
+    // 确保头文件先生成
+    simple_ffi_test.step.dependOn(&generate_bindings.step);
+
+    const run_simple_ffi_test = b.addRunArtifact(simple_ffi_test);
+    const simple_ffi_test_step = b.step("test-ffi-simple", "Run simple FFI header tests");
+    simple_ffi_test_step.dependOn(&run_simple_ffi_test.step);
+
+    // 创建真正的集成测试（实际调用C函数）
+    const real_integration_test = b.addTest(.{
+        .root_source_file = b.path("src/real_integration_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // 添加C头文件路径
+    real_integration_test.addIncludePath(b.path("include"));
+
+    // 链接Rust库
+    real_integration_test.addLibraryPath(b.path("target/release"));
+    real_integration_test.linkSystemLibrary("agent_state_db");
+    real_integration_test.linkLibC();
+
+    // 在Windows上需要额外的系统库
+    if (target.result.os.tag == .windows) {
+        real_integration_test.linkSystemLibrary("ws2_32");
+        real_integration_test.linkSystemLibrary("advapi32");
+        real_integration_test.linkSystemLibrary("userenv");
+        real_integration_test.linkSystemLibrary("ntdll");
+        real_integration_test.linkSystemLibrary("bcrypt");
+    }
+
+    // 确保Rust库先构建
+    real_integration_test.step.dependOn(&generate_bindings.step);
+
+    const run_real_integration_test = b.addRunArtifact(real_integration_test);
+    const real_integration_test_step = b.step("test-real", "Run real integration tests with C FFI");
+    real_integration_test_step.dependOn(&run_real_integration_test.step);
+
+    // 创建基础集成测试（验证函数调用但不依赖数据库）
+    const basic_integration_test = b.addTest(.{
+        .root_source_file = b.path("src/basic_integration_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // 添加C头文件路径
+    basic_integration_test.addIncludePath(b.path("include"));
+
+    // 链接Rust库
+    basic_integration_test.addLibraryPath(b.path("target/release"));
+    basic_integration_test.linkSystemLibrary("agent_state_db");
+    basic_integration_test.linkLibC();
+
+    // 在Windows上需要额外的系统库
+    if (target.result.os.tag == .windows) {
+        basic_integration_test.linkSystemLibrary("ws2_32");
+        basic_integration_test.linkSystemLibrary("advapi32");
+        basic_integration_test.linkSystemLibrary("userenv");
+        basic_integration_test.linkSystemLibrary("ntdll");
+        basic_integration_test.linkSystemLibrary("bcrypt");
+    }
+
+    // 确保Rust库先构建
+    basic_integration_test.step.dependOn(&generate_bindings.step);
+
+    const run_basic_integration_test = b.addRunArtifact(basic_integration_test);
+    const basic_integration_test_step = b.step("test-basic", "Run basic integration tests with C FFI");
+    basic_integration_test_step.dependOn(&run_basic_integration_test.step);
+
+    // 创建工作集成测试（只测试已实现的函数）
+    const working_integration_test = b.addTest(.{
+        .root_source_file = b.path("src/working_integration_test.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // 添加C头文件路径
+    working_integration_test.addIncludePath(b.path("include"));
+
+    // 链接Rust库
+    working_integration_test.addLibraryPath(b.path("target/release"));
+    working_integration_test.linkSystemLibrary("agent_state_db");
+    working_integration_test.linkLibC();
+
+    // 在Windows上需要额外的系统库
+    if (target.result.os.tag == .windows) {
+        working_integration_test.linkSystemLibrary("ws2_32");
+        working_integration_test.linkSystemLibrary("advapi32");
+        working_integration_test.linkSystemLibrary("userenv");
+        working_integration_test.linkSystemLibrary("ntdll");
+        working_integration_test.linkSystemLibrary("bcrypt");
+    }
+
+    // 确保Rust库先构建
+    working_integration_test.step.dependOn(&generate_bindings.step);
+
+    const run_working_integration_test = b.addRunArtifact(working_integration_test);
+    const working_integration_test_step = b.step("test-working", "Run working integration tests with implemented C FFI functions");
+    working_integration_test_step.dependOn(&run_working_integration_test.step);
+
     // 创建所有测试的总目标
     const all_tests_step = b.step("test-all", "Run all test suites");
     all_tests_step.dependOn(minimal_test_step);

@@ -12,6 +12,8 @@ typedef struct AgentStateDB AgentStateDB;
 
 typedef struct MemoryManager MemoryManager;
 
+typedef struct RAGEngine RAGEngine;
+
 typedef struct CAgentStateDB {
   struct AgentStateDB *db;
 } CAgentStateDB;
@@ -19,6 +21,10 @@ typedef struct CAgentStateDB {
 typedef struct CMemoryManager {
   struct MemoryManager *mgr;
 } CMemoryManager;
+
+typedef struct CRAGEngine {
+  struct RAGEngine *engine;
+} CRAGEngine;
 
 #ifdef __cplusplus
 extern "C" {
@@ -52,9 +58,61 @@ int memory_manager_store_memory(struct CMemoryManager *mgr,
                                 const char *content,
                                 double importance);
 
-int memory_manager_get_memories(struct CMemoryManager *mgr,
-                                uint64_t agent_id,
-                                uintptr_t *memory_count_out);
+int memory_manager_retrieve_memories(struct CMemoryManager *mgr,
+                                     uint64_t agent_id,
+                                     uintptr_t _limit,
+                                     uintptr_t *memory_count_out);
+
+struct CRAGEngine *rag_engine_new(const char *db_path);
+
+void rag_engine_free(struct CRAGEngine *engine);
+
+int rag_engine_index_document(struct CRAGEngine *engine,
+                              const char *title,
+                              const char *content,
+                              uintptr_t chunk_size,
+                              uintptr_t overlap);
+
+int rag_engine_search_text(struct CRAGEngine *engine,
+                           const char *query,
+                           uintptr_t limit,
+                           uintptr_t *results_count_out);
+
+int rag_engine_build_context(struct CRAGEngine *engine,
+                             const char *query,
+                             uintptr_t max_tokens,
+                             char **context_out,
+                             uintptr_t *context_len_out);
+
+void rag_engine_free_context(char *context);
+
+int agent_db_save_vector_state(struct CAgentStateDB *db,
+                               uint64_t agent_id,
+                               uint64_t session_id,
+                               int state_type,
+                               const uint8_t *data,
+                               uintptr_t data_len,
+                               const float *embedding,
+                               uintptr_t embedding_len);
+
+int agent_db_load_vector_state(struct CAgentStateDB *db,
+                               uint64_t agent_id,
+                               uint8_t **data_out,
+                               uintptr_t *data_len_out,
+                               float **embedding_out,
+                               uintptr_t *embedding_len_out);
+
+void agent_db_free_vector_data(uint8_t *data,
+                               uintptr_t data_len,
+                               float *embedding,
+                               uintptr_t embedding_len);
+
+int agent_db_vector_search(struct CAgentStateDB *db,
+                           const float *query_embedding,
+                           uintptr_t embedding_len,
+                           uintptr_t limit,
+                           uint64_t **results_out,
+                           uintptr_t *results_count_out);
 
 #ifdef __cplusplus
 } // extern "C"
