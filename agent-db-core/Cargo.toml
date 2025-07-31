@@ -1,8 +1,8 @@
 [package]
-name = "agent-db"
-version = "0.1.0"
+name = "agent-db-core"
+version = "0.2.0"
 edition = "2021"
-description = "High-performance AI agent database built on Rust+Zig+LanceDB hybrid architecture"
+description = "AgentDB Rust core engine - High-performance AI agent database"
 license = "MIT"
 repository = "https://github.com/louloulin/agent-db"
 homepage = "https://github.com/louloulin/agent-db"
@@ -11,8 +11,8 @@ keywords = ["ai", "agent", "database", "vector", "rag"]
 categories = ["database", "science"]
 
 [lib]
-name = "agent_db_rust"
-crate-type = ["cdylib", "staticlib"]
+name = "agent_db_core"
+crate-type = ["cdylib", "staticlib", "rlib"]
 
 [dependencies]
 lancedb = "0.20.0"
@@ -27,7 +27,6 @@ uuid = { version = "1.0", features = ["v4"] }
 thiserror = "1.0"
 anyhow = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
-cbindgen = "0.26"
 libc = "0.2"
 rand = "0.8"
 env_logger = "0.11.8"
@@ -41,10 +40,6 @@ hex = "0.4"
 
 [build-dependencies]
 cbindgen = "0.26"
-
-[[bin]]
-name = "generate_bindings"
-path = "src/generate_bindings.rs"
 
 [dev-dependencies]
 tempfile = "3.20.0"

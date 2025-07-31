@@ -1,15 +1,47 @@
 const std = @import("std");
 const agent_api = @import("agent_api.zig");
+const memory = @import("memory.zig");
+const vector = @import("vector.zig");
+const rag = @import("rag.zig");
+const distributed = @import("distributed.zig");
+const realtime = @import("realtime.zig");
 const testing = std.testing;
 
 // 导出主要的API
 pub const AgentDatabase = agent_api.AgentDatabase;
 pub const AgentState = agent_api.AgentState;
 pub const StateType = agent_api.StateType;
-pub const Memory = agent_api.Memory;
-pub const MemoryType = agent_api.MemoryType;
-pub const Document = agent_api.Document;
-pub const SearchResults = agent_api.SearchResults;
+
+// 记忆管理API
+pub const Memory = memory.Memory;
+pub const MemoryType = memory.MemoryType;
+pub const MemoryManager = memory.MemoryManager;
+pub const MemoryStatistics = memory.MemoryStatistics;
+
+// 向量处理API
+pub const VectorEngine = vector.VectorEngine;
+pub const VectorSearchResult = vector.VectorSearchResult;
+pub const SimilarityAlgorithm = vector.SimilarityAlgorithm;
+
+// RAG API
+pub const RAGEngine = rag.RAGEngine;
+pub const Document = rag.Document;
+pub const DocumentChunk = rag.DocumentChunk;
+pub const SearchResult = rag.SearchResult;
+pub const SearchResults = rag.SearchResults;
+pub const RAGContext = rag.RAGContext;
+
+// 分布式API
+pub const DistributedNetwork = distributed.DistributedNetwork;
+pub const AgentNode = distributed.AgentNode;
+pub const NodeStatus = distributed.NodeStatus;
+
+// 实时流API
+pub const RealTimeStream = realtime.RealTimeStream;
+pub const StreamMessage = realtime.StreamMessage;
+pub const MessageType = realtime.MessageType;
+
+// 错误类型
 pub const AgentDbError = agent_api.AgentDbError;
 
 // 简单的测试主函数

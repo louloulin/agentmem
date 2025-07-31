@@ -14,23 +14,12 @@ pub mod realtime;
 pub mod rag;
 pub mod ffi;
 
-// 测试模块
-#[cfg(test)]
-mod tests_new_features;
-
-#[cfg(test)]
-pub mod tests;
-
-#[cfg(test)]
-mod benchmark;
-
-#[cfg(test)]
-mod stress_test;
+// 测试模块已移动到 tests/ 目录
 
 // 重新导出核心类型
 pub use core::{
     AgentDbError, AgentState, StateType, Memory, MemoryType,
-    DatabaseConfig, QueryResult, PaginationParams, SortOrder
+    DatabaseConfig
 };
 pub use agent_state::AgentStateDB;
 pub use memory::{MemoryManager, MemoryStatistics};
@@ -42,6 +31,7 @@ pub use realtime::{RealTimeStreamProcessor, StreamDataItem, StreamDataType, Stre
 pub use rag::{RAGEngine, Document, DocumentChunk, SearchResult, RAGContext};
 
 // 导入必要的依赖
+use std::sync::Arc;
 use lancedb::connect;
 
 // 主要的集成数据库结构
@@ -56,9 +46,9 @@ pub struct AgentDatabase {
 
 impl AgentDatabase {
     pub async fn new(config: DatabaseConfig) -> Result<Self, AgentDbError> {
-        let connection = connect(&config.db_path).execute().await?;
-        let agent_state_db = AgentStateDB::new(&config.db_path).await?;
-        let memory_manager = MemoryManager::new(connection.clone());
+        let connection = connect(&config.path).execute().await?;
+        let agent_state_db = AgentStateDB::new(&config.path).await?;
+        let memory_manager = MemoryManager::new(Arc::new(connection.clone()));
 
         Ok(Self {
             agent_state_db,
@@ -71,8 +61,8 @@ impl AgentDatabase {
     }
 
     pub async fn with_vector_engine(mut self, config: vector::VectorIndexConfig) -> Result<Self, AgentDbError> {
-        let connection = connect(&self.config.db_path).execute().await?;
-        self.vector_engine = Some(AdvancedVectorEngine::new(connection, config));
+        let connection = connect(&self.config.path).execute().await?;
+        self.vector_engine = Some(AdvancedVectorEngine::new(Arc::new(connection), config));
         Ok(self)
     }
 
@@ -82,7 +72,7 @@ impl AgentDatabase {
     }
 
     pub async fn with_rag_engine(mut self) -> Result<Self, AgentDbError> {
-        self.rag_engine = Some(RAGEngine::new(&self.config.db_path).await?);
+        self.rag_engine = Some(RAGEngine::new(&self.config.path).await?);
         Ok(self)
     }
 
@@ -187,7 +177,7 @@ impl AgentDatabase {
 // 便利函数
 pub async fn create_database(db_path: &str) -> Result<AgentDatabase, AgentDbError> {
     let config = DatabaseConfig {
-        db_path: db_path.to_string(),
+        path: db_path.to_string(),
         ..Default::default()
     };
     AgentDatabase::new(config).await

@@ -121,8 +121,6 @@ pub const SearchResults = struct {
 // 统一的Agent数据库接口
 pub const AgentDatabase = struct {
     db_handle: ?*c.CAgentStateDB,
-    memory_handle: ?*c.CMemoryManager,
-    rag_handle: ?*c.CRAGEngine,
     allocator: std.mem.Allocator,
     db_path: []u8,
 
