@@ -14,6 +14,10 @@ categories = ["database", "science"]
 name = "agent_db_core"
 crate-type = ["cdylib", "staticlib", "rlib"]
 
+[[bin]]
+name = "generate_bindings"
+path = "src/generate_bindings.rs"
+
 [dependencies]
 lancedb = "0.20.0"
 arrow = "55.1"
@@ -37,6 +41,7 @@ log = "0.4.27"
 sha2 = "0.10"
 aes-gcm = "0.10"
 hex = "0.4"
+cbindgen = "0.26"
 
 [build-dependencies]
 cbindgen = "0.26"

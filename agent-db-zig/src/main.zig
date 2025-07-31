@@ -78,7 +78,7 @@ pub fn main() !void {
 
     // 测试记忆功能
     std.debug.print("\n3. Testing Memory operations...\n", .{});
-    try db.addMemory(agent_id, "This is a test memory", MemoryType.episodic, 0.8);
+    try db.addMemory(agent_id, "This is a test memory", agent_api.MemoryType.episodic, 0.8);
     std.debug.print("✅ Added memory\n", .{});
 
     const memory_count = try db.retrieveMemories(agent_id, 10);
@@ -132,8 +132,8 @@ test "Zig API Memory Operations" {
     var db = try AgentDatabase.init(allocator, "test_memory_unit.lance");
     defer db.deinit();
 
-    const memory = Memory.init(789, MemoryType.semantic, "test memory", 0.9);
-    try db.storeMemory(memory);
+    const test_memory = Memory.init(789, MemoryType.semantic, "test memory", 0.9);
+    try db.storeMemory(test_memory);
 
     const count = try db.retrieveMemories(789, 5);
     try testing.expect(count > 0);
