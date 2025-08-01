@@ -1,0 +1,29 @@
+{
+  "8f218e71-ed98-49ba-9797-6f0cb58216ca": {
+    "document": {
+      "id": "8f218e71-ed98-49ba-9797-6f0cb58216ca",
+      "doc_id": "8f218e71-ed98-49ba-9797-6f0cb58216ca",
+      "title": "Rust 编程指南",
+      "content": "Rust 是一种系统编程语言，专注于安全、速度和并发。它由 Mozilla 开发，旨在解决 C++ 的内存安全问题。",
+      "metadata": {
+        "author": "Rust Team",
+        "category": "Programming"
+      },
+      "chunks": [
+        {
+          "id": "8f218e71-ed98-49ba-9797-6f0cb58216ca_0",
+          "chunk_id": "8f218e71-ed98-49ba-9797-6f0cb58216ca_0",
+          "doc_id": "8f218e71-ed98-49ba-9797-6f0cb58216ca",
+          "content": "Rust 是一种系统编程语言，专注于安全、速度和并发。它由 Mozilla 开发，旨在解决 C++ 的内存安全问题。",
+          "chunk_index": 0,
+          "position": 0,
+          "size": 136,
+          "embedding": null
+        }
+      ],
+      "created_at": 1754008855,
+      "updated_at": 1754008855
+    },
+    "indexed_at": 1754008855
+  }
+}
