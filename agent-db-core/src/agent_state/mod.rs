@@ -71,21 +71,25 @@ impl AgentStateDB {
         let states_file = format!("{}/states.json", self.db_path);
         let vector_states_file = format!("{}/vector_states.json", self.db_path);
         
-        // 保存普通状态
-        {
+        // 使用异步写入提高性能
+        let states_json = {
             let states = self.states.read().unwrap();
-            let content = serde_json::to_string_pretty(&*states)
-                .map_err(|e| AgentDbError::Serialization(e.to_string()))?;
-            fs::write(&states_file, content).map_err(|e| AgentDbError::Io(e))?;
-        }
-        
-        // 保存向量状态
-        {
+            serde_json::to_string(&*states)
+                .map_err(|e| AgentDbError::Serialization(e.to_string()))?
+        };
+
+        let vector_states_json = {
             let vector_states = self.vector_states.read().unwrap();
-            let content = serde_json::to_string_pretty(&*vector_states)
-                .map_err(|e| AgentDbError::Serialization(e.to_string()))?;
-            fs::write(&vector_states_file, content).map_err(|e| AgentDbError::Io(e))?;
-        }
+            serde_json::to_string(&*vector_states)
+                .map_err(|e| AgentDbError::Serialization(e.to_string()))?
+        };
+
+        // 并行写入文件
+        let states_write = tokio::fs::write(&states_file, states_json);
+        let vector_states_write = tokio::fs::write(&vector_states_file, vector_states_json);
+
+        tokio::try_join!(states_write, vector_states_write)
+            .map_err(|e| AgentDbError::Io(e))?;
         
         Ok(())
     }

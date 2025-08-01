@@ -44,14 +44,14 @@ enum CAgentDbErrorCode agent_db_save_state(struct CAgentStateDB *db,
                                            uintptr_t data_len);
 
 enum CAgentDbErrorCode agent_db_load_state(struct CAgentStateDB *db,
-                                           uint64_t agent_id,
+                                           uint64_t _agent_id,
                                            char **out_data,
                                            uintptr_t *out_len);
 
 enum CAgentDbErrorCode agent_db_vector_search(struct CAgentStateDB *db,
                                               const float *query_vector,
-                                              uintptr_t vector_len,
-                                              uintptr_t limit,
+                                              uintptr_t _vector_len,
+                                              uintptr_t _limit,
                                               uint64_t **out_results,
                                               uintptr_t *out_count);
 

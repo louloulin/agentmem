@@ -11,13 +11,18 @@ use crate::core::{AgentDbError, Memory, MemoryType};
 pub struct MemoryManager {
     db_path: String,
     memories: Arc<RwLock<HashMap<String, Memory>>>,
+    // 添加索引以提高查询性能
+    agent_index: Arc<RwLock<HashMap<u64, Vec<String>>>>, // agent_id -> memory ids
+    type_index: Arc<RwLock<HashMap<MemoryType, Vec<String>>>>, // memory_type -> memory ids
 }
 
 impl MemoryManager {
     pub fn new(db_path: &str) -> Self {
-        Self { 
+        Self {
             db_path: db_path.to_string(),
             memories: Arc::new(RwLock::new(HashMap::new())),
+            agent_index: Arc::new(RwLock::new(HashMap::new())),
+            type_index: Arc::new(RwLock::new(HashMap::new())),
         }
     }
     
@@ -69,7 +74,10 @@ impl MemoryManager {
             let mut memories = self.memories.write().unwrap();
             memories.insert(memory.memory_id.clone(), memory.clone());
         }
-        
+
+        // 更新索引
+        self.update_indices(memory);
+
         self.save_to_disk().await?;
         Ok(())
     }
@@ -77,12 +85,18 @@ impl MemoryManager {
     pub async fn get_memories_by_agent(&self, agent_id: u64) -> Result<Vec<Memory>, AgentDbError> {
         let memories = self.memories.read().unwrap();
         
-        let mut agent_memories: Vec<Memory> = memories
-            .values()
-            .filter(|memory| memory.agent_id == agent_id)
-            .cloned()
-            .collect();
-        
+        // 使用索引快速查找
+        let agent_idx = self.agent_index.read().unwrap();
+
+        let mut agent_memories: Vec<Memory> = if let Some(memory_ids) = agent_idx.get(&agent_id) {
+            memory_ids.iter()
+                .filter_map(|id| memories.get(id))
+                .cloned()
+                .collect()
+        } else {
+            Vec::new()
+        };
+
         // 按创建时间排序
         agent_memories.sort_by(|a, b| b.created_at.cmp(&a.created_at));
         
@@ -202,7 +216,7 @@ impl MemoryManager {
 
     pub async fn cleanup_expired_memories(&self) -> Result<usize, AgentDbError> {
         let current_time = chrono::Utc::now().timestamp();
-        let mut removed_count = 0;
+        let removed_count;
         
         {
             let mut memories = self.memories.write().unwrap();
@@ -244,5 +258,62 @@ impl MemoryManager {
         
         self.save_to_disk().await?;
         Ok(())
+    }
+
+    // 批量存储记忆
+    pub async fn store_memories_batch(&self, memories: Vec<Memory>) -> Result<(), AgentDbError> {
+        {
+            let mut mem_map = self.memories.write().unwrap();
+            let mut agent_idx = self.agent_index.write().unwrap();
+            let mut type_idx = self.type_index.write().unwrap();
+
+            for memory in memories {
+                let memory_id = memory.memory_id.clone();
+
+                // 更新索引
+                agent_idx.entry(memory.agent_id)
+                    .or_insert_with(Vec::new)
+                    .push(memory_id.clone());
+
+                type_idx.entry(memory.memory_type.clone())
+                    .or_insert_with(Vec::new)
+                    .push(memory_id.clone());
+
+                mem_map.insert(memory_id, memory);
+            }
+        }
+
+        self.save_to_disk().await?;
+        Ok(())
+    }
+
+    // 根据类型快速查询记忆（所有智能体）
+    pub async fn get_all_memories_by_type(&self, memory_type: MemoryType) -> Result<Vec<Memory>, AgentDbError> {
+        let type_idx = self.type_index.read().unwrap();
+        let memories = self.memories.read().unwrap();
+
+        if let Some(memory_ids) = type_idx.get(&memory_type) {
+            let results = memory_ids.iter()
+                .filter_map(|id| memories.get(id))
+                .cloned()
+                .collect();
+            Ok(results)
+        } else {
+            Ok(Vec::new())
+        }
+    }
+
+    // 更新索引
+    fn update_indices(&self, memory: &Memory) {
+        let mut agent_idx = self.agent_index.write().unwrap();
+        let mut type_idx = self.type_index.write().unwrap();
+
+        agent_idx.entry(memory.agent_id)
+            .or_insert_with(Vec::new)
+            .push(memory.memory_id.clone());
+
+        type_idx.entry(memory.memory_type.clone())
+            .or_insert_with(Vec::new)
+            .push(memory.memory_id.clone());
     }
 }

@@ -5,6 +5,8 @@ use std::path::Path;
 use std::fs;
 use serde::{Deserialize, Serialize};
 use serde_json;
+use std::hash::{Hash, Hasher};
+use std::collections::hash_map::DefaultHasher;
 
 use crate::core::AgentDbError;
 
@@ -53,14 +55,17 @@ pub struct AdvancedVectorEngine {
     db_path: String,
     config: VectorIndexConfig,
     vectors: Arc<RwLock<HashMap<u64, VectorData>>>,
+    // 添加查询缓存
+    search_cache: Arc<RwLock<HashMap<u64, Vec<VectorSearchResult>>>>,
 }
 
 impl AdvancedVectorEngine {
     pub fn new(db_path: &str, config: VectorIndexConfig) -> Self {
-        Self { 
+        Self {
             db_path: db_path.to_string(),
             config,
             vectors: Arc::new(RwLock::new(HashMap::new())),
+            search_cache: Arc::new(RwLock::new(HashMap::new())),
         }
     }
     
@@ -135,11 +140,24 @@ impl AdvancedVectorEngine {
         // 验证查询向量维度
         if query.len() != self.config.dimension {
             return Err(AgentDbError::InvalidArgument(
-                format!("Query vector dimension {} does not match config dimension {}", 
+                format!("Query vector dimension {} does not match config dimension {}",
                         query.len(), self.config.dimension)
             ));
         }
-        
+
+        // 计算查询向量的哈希作为缓存键
+        let cache_key = self.hash_vector(query);
+
+        // 检查缓存
+        {
+            let cache = self.search_cache.read().unwrap();
+            if let Some(cached_results) = cache.get(&cache_key) {
+                let mut results = cached_results.clone();
+                results.truncate(limit);
+                return Ok(results);
+            }
+        }
+
         let vectors = self.vectors.read().unwrap();
         
         let mut results: Vec<VectorSearchResult> = vectors
@@ -160,13 +178,34 @@ impl AdvancedVectorEngine {
         
         // 按相似度排序
         results.sort_by(|a, b| b.similarity.partial_cmp(&a.similarity).unwrap_or(std::cmp::Ordering::Equal));
-        
+
+        // 缓存结果（缓存更多结果以便不同limit的查询）
+        let cache_results = results.clone();
+        {
+            let mut cache = self.search_cache.write().unwrap();
+            cache.insert(cache_key, cache_results);
+
+            // 限制缓存大小
+            if cache.len() > 1000 {
+                cache.clear();
+            }
+        }
+
         // 限制结果数量
         results.truncate(limit);
-        
+
         Ok(results)
     }
-    
+
+    // 计算向量哈希用于缓存
+    fn hash_vector(&self, vector: &[f32]) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        for &val in vector {
+            val.to_bits().hash(&mut hasher);
+        }
+        hasher.finish()
+    }
+
     fn calculate_similarity(&self, a: &[f32], b: &[f32]) -> f32 {
         match self.config.metric.as_str() {
             "cosine" => self.calculate_cosine_similarity(a, b),

@@ -80,7 +80,7 @@ impl StreamQueryProcessor {
         self.queries.insert(query_id, query);
     }
 
-    pub fn execute_query(&self, query_id: &str) -> Result<Vec<StreamDataItem>, AgentDbError> {
+    pub fn execute_query(&self, _query_id: &str) -> Result<Vec<StreamDataItem>, AgentDbError> {
         // 简化实现
         Ok(Vec::new())
     }

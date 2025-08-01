@@ -6,7 +6,7 @@ use std::fs;
 use serde::{Deserialize, Serialize};
 use serde_json;
 
-use crate::core::{AgentDbError, Document, DocumentChunk, SearchResult};
+use crate::core::{AgentDbError, Document, SearchResult};
 
 // RAG 配置
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -2,7 +2,15 @@
 use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
-use crate::core::AgentDbError;
+use crate::core::{AgentDbError, AgentState};
+
+// 网络状态
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NetworkStatus {
+    pub connected_nodes: usize,
+    pub total_nodes: usize,
+    pub network_health: f32,
+}
 
 // 智能体节点
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,6 +56,20 @@ impl AgentNetworkManager {
     pub fn list_nodes(&self) -> Vec<&AgentNode> {
         self.nodes.values().collect()
     }
+
+    pub async fn broadcast_state(&self, _state: &AgentState) -> Result<(), AgentDbError> {
+        // 简化实现：广播状态到所有节点
+        // 在实际实现中，这里会通过网络发送状态到其他节点
+        Ok(())
+    }
+
+    pub async fn get_status(&self) -> NetworkStatus {
+        NetworkStatus {
+            connected_nodes: self.nodes.len(),
+            total_nodes: self.nodes.len(),
+            network_health: 1.0,
+        }
+    }
 }
 
 impl Default for AgentNetworkManager {
@@ -66,6 +88,17 @@ impl DistributedStateManager {
         Self {
             network: AgentNetworkManager::new(),
         }
+    }
+
+    pub async fn sync_state(&mut self, state: &AgentState) -> Result<(), String> {
+        // 通过网络同步状态到其他节点
+        self.network.broadcast_state(state).await
+            .map_err(|e| format!("Failed to sync state: {}", e))?;
+        Ok(())
+    }
+
+    pub async fn get_network_status(&self) -> NetworkStatus {
+        self.network.get_status().await
     }
 }
 

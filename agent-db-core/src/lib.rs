@@ -32,8 +32,7 @@ pub use rag::RAGEngine;
 pub use core::{Document, DocumentChunk, SearchResult, RAGContext};
 
 // 导入必要的依赖
-use std::sync::Arc;
-use lancedb::connect;
+// 移除未使用的导入
 
 // 主要的集成数据库结构
 pub struct AgentDatabase {
@@ -213,5 +212,106 @@ pub async fn create_database(db_path: &str) -> Result<AgentDatabase, AgentDbErro
 
 pub async fn create_database_with_config(config: DatabaseConfig) -> Result<AgentDatabase, AgentDbError> {
     AgentDatabase::new(config).await
+}
+
+// 添加单元测试模块
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+    use tempfile::TempDir;
+
+    async fn create_test_database() -> (AgentDatabase, TempDir) {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().to_str().unwrap();
+        let db = create_database(db_path).await.unwrap();
+        (db, temp_dir)
+    }
+
+    #[tokio::test]
+    async fn test_agent_state_operations() {
+        let (db, _temp_dir) = create_test_database().await;
+
+        let state = AgentState::new(
+            1001,
+            1,
+            StateType::WorkingMemory,
+            b"test data".to_vec(),
+        );
+
+        // 测试保存状态
+        assert!(db.save_agent_state(&state).await.is_ok());
+
+        // 测试加载状态
+        let loaded_state = db.load_agent_state(1001).await.unwrap();
+        assert!(loaded_state.is_some());
+        assert_eq!(loaded_state.unwrap().agent_id, 1001);
+    }
+
+    #[tokio::test]
+    async fn test_memory_operations() {
+        let (db, _temp_dir) = create_test_database().await;
+
+        let memory = Memory::new(
+            1001,
+            MemoryType::Episodic,
+            "Test memory content".to_string(),
+            0.8,
+        );
+
+        // 测试存储记忆
+        assert!(db.store_memory(&memory).await.is_ok());
+
+        // 测试获取记忆
+        let memories = db.get_memories(1001).await.unwrap();
+        assert_eq!(memories.len(), 1);
+        assert_eq!(memories[0].content, "Test memory content");
+    }
+
+    #[tokio::test]
+    async fn test_vector_operations() {
+        let (mut db, _temp_dir) = create_test_database().await;
+
+        // 初始化向量引擎
+        let vector_config = vector::VectorIndexConfig {
+            dimension: 3,
+            metric: "cosine".to_string(),
+            index_type: "flat".to_string(),
+            ef_construction: 200,
+            m: 16,
+        };
+        db = db.with_vector_engine(vector_config).await.unwrap();
+
+        let vector = vec![1.0, 2.0, 3.0];
+        let mut metadata = HashMap::new();
+        metadata.insert("type".to_string(), "test".to_string());
+
+        // 测试添加向量
+        assert!(db.add_vector(1, vector.clone(), metadata).await.is_ok());
+
+        // 测试搜索向量
+        let results = db.search_vectors(&vector, 5).await.unwrap();
+        assert!(!results.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_rag_operations() {
+        let (mut db, _temp_dir) = create_test_database().await;
+
+        // 初始化 RAG 引擎
+        db = db.with_rag_engine().await.unwrap();
+
+        let document = Document::new(
+            "Test Document".to_string(),
+            "This is a test document for RAG functionality.".to_string(),
+        );
+
+        // 测试文档索引
+        assert!(db.index_document(&document).await.is_ok());
+
+        // 测试文档搜索
+        let results = db.search_documents("test", 5).await.unwrap();
+        assert!(!results.is_empty());
+    }
 }
 

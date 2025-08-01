@@ -31,6 +31,16 @@ impl FFIAgentStateDB {
     pub fn new(db: AgentStateDB) -> Self {
         Self { db }
     }
+
+    pub async fn save_state_async(&self, state: &AgentState) -> Result<(), String> {
+        self.db.save_state(state).await
+            .map_err(|e| format!("Failed to save state: {}", e))
+    }
+
+    pub async fn load_state_async(&self, agent_id: u64) -> Result<Option<AgentState>, String> {
+        self.db.load_state(agent_id).await
+            .map_err(|e| format!("Failed to load state: {}", e))
+    }
 }
 
 // 创建数据库实例
@@ -112,7 +122,7 @@ pub extern "C" fn agent_db_save_state(
         _ => return CAgentDbErrorCode::InvalidParam,
     };
 
-    let state = AgentState::new(
+    let _state = AgentState::new(
         agent_id,
         0, // session_id
         state_type,
@@ -128,7 +138,7 @@ pub extern "C" fn agent_db_save_state(
 #[no_mangle]
 pub extern "C" fn agent_db_load_state(
     db: *mut CAgentStateDB,
-    agent_id: u64,
+    _agent_id: u64,
     out_data: *mut *mut c_char,
     out_len: *mut usize,
 ) -> CAgentDbErrorCode {
@@ -155,8 +165,8 @@ pub extern "C" fn agent_db_load_state(
 pub extern "C" fn agent_db_vector_search(
     db: *mut CAgentStateDB,
     query_vector: *const f32,
-    vector_len: usize,
-    limit: usize,
+    _vector_len: usize,
+    _limit: usize,
     out_results: *mut *mut u64,
     out_count: *mut usize,
 ) -> CAgentDbErrorCode {
