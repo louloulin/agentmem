@@ -2,7 +2,7 @@
 name = "agent-db-core"
 version = "0.2.0"
 edition = "2021"
-description = "AgentDB Rust core engine - High-performance AI agent database"
+description = "AgentDB Core - Modular Rust engine for AI agent state management"
 license = "MIT"
 repository = "https://github.com/louloulin/agent-db"
 homepage = "https://github.com/louloulin/agent-db"

@@ -170,8 +170,7 @@ pub const AgentDatabase = struct {
         const result = c.agent_db_save_state(
             handle,
             state.agent_id,
-            state.session_id,
-            @intFromEnum(state.state_type),
+            @as(u32, @intCast(@intFromEnum(state.state_type))),
             state.data.ptr,
             state.data.len,
         );
@@ -193,7 +192,7 @@ pub const AgentDatabase = struct {
             0 => {
                 const data = try self.allocator.alloc(u8, data_len);
                 @memcpy(data, data_ptr[0..data_len]);
-                c.agent_db_free_data(data_ptr, data_len);
+                c.agent_db_free_data(data_ptr);
                 return data;
             },
             1 => return null,

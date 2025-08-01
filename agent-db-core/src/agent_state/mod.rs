@@ -88,7 +88,7 @@ impl AgentStateDB {
         let states_write = tokio::fs::write(&states_file, states_json);
         let vector_states_write = tokio::fs::write(&vector_states_file, vector_states_json);
 
-        tokio::try_join!(states_write, vector_states_write)
+        let (_, _): ((), ()) = tokio::try_join!(states_write, vector_states_write)
             .map_err(|e| AgentDbError::Io(e))?;
         
         Ok(())

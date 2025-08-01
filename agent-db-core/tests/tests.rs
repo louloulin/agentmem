@@ -1,9 +1,11 @@
 // Tests 模块 - 测试代码
 // 从 lib.rs 自动拆分生成
 
-#[cfg(test)]
-use super::*;
+use agent_db_core::*;
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
 
 #[cfg(test)]
 mod tests {

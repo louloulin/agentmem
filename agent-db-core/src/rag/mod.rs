@@ -182,7 +182,7 @@ impl RAGEngine {
             
             // 搜索有嵌入向量的文档块
             for chunk in &document.chunks {
-                if let Some(ref chunk_embedding) = chunk.embedding {
+                if let Some(chunk_embedding) = &chunk.embedding {
                     let similarity = self.calculate_cosine_similarity(&query_embedding, chunk_embedding);
 
                     if similarity >= self.config.similarity_threshold {

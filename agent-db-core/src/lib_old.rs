@@ -1,6 +1,6 @@
 
-// AgentDB Core - Rust 核心引擎
-// 模块化架构的 Rust 核心模块
+// Agent状态数据库 - 基于LanceDB的Rust实现
+// 模块化架构
 
 // 核心模块
 pub mod core;
@@ -14,20 +14,25 @@ pub mod realtime;
 pub mod rag;
 pub mod ffi;
 
+// 测试模块已移动到 tests/ 目录
+
 // 重新导出核心类型
 pub use core::{
     AgentDbError, AgentState, StateType, Memory, MemoryType,
-    Document, DocumentChunk, SearchResult, RAGContext
+    DatabaseConfig
 };
-pub use core::config::DatabaseConfig;
 pub use agent_state::AgentStateDB;
 pub use memory::MemoryManager;
-pub use vector::{AdvancedVectorEngine, VectorSearchResult, VectorIndexConfig};
-pub use security::{SecurityManager, User, Permission, AccessToken};
-pub use performance::{PerformanceMonitor, PerformanceMetrics};
-pub use distributed::{AgentNetworkManager, AgentNode, DistributedStateManager, NetworkStatus};
-pub use realtime::{RealTimeStreamProcessor, StreamDataItem, StreamQueryProcessor};
+pub use vector::{AdvancedVectorEngine, VectorSearchResult};
+pub use security::{SecurityManager, User, Role, Permission, AccessToken};
+pub use performance::{PerformanceMonitor, PerformanceMetrics, PerformanceDiagnostics};
+pub use distributed::{AgentNetworkManager, AgentNode, DistributedStateManager, MessageRouter};
+pub use realtime::{RealTimeStreamProcessor, StreamDataItem, StreamDataType, StreamQueryProcessor};
 pub use rag::RAGEngine;
+pub use core::{Document, DocumentChunk, SearchResult, RAGContext};
+
+// 导入必要的依赖
+// 移除未使用的导入
 
 // 主要的集成数据库结构
 pub struct AgentDatabase {
@@ -42,8 +47,8 @@ pub struct AgentDatabase {
 impl AgentDatabase {
     pub async fn new(config: DatabaseConfig) -> Result<Self, AgentDbError> {
         // 使用简化的实现，不依赖 LanceDB
-        let agent_state_db = AgentStateDB::new(&config.path).await?;
-        let mut memory_manager = MemoryManager::new(&config.path);
+        let agent_state_db = AgentStateDB::new(&config.db_path).await?;
+        let mut memory_manager = MemoryManager::new(&config.db_path);
         memory_manager.init().await?;
 
         Ok(Self {
@@ -57,7 +62,7 @@ impl AgentDatabase {
     }
 
     pub async fn with_vector_engine(mut self, config: vector::VectorIndexConfig) -> Result<Self, AgentDbError> {
-        let mut vector_engine = AdvancedVectorEngine::new(&self.config.path, config);
+        let mut vector_engine = AdvancedVectorEngine::new(&self.config.db_path, config);
         vector_engine.init().await?;
         self.vector_engine = Some(vector_engine);
         Ok(self)
@@ -69,7 +74,7 @@ impl AgentDatabase {
     }
 
     pub async fn with_rag_engine(mut self) -> Result<Self, AgentDbError> {
-        self.rag_engine = Some(RAGEngine::new(&self.config.path).await?);
+        self.rag_engine = Some(RAGEngine::new(&self.config.db_path).await?);
         Ok(self)
     }
 
@@ -196,12 +201,11 @@ impl AgentDatabase {
 // 便利函数
 pub async fn create_database(db_path: &str) -> Result<AgentDatabase, AgentDbError> {
     let config = DatabaseConfig {
-        path: db_path.to_string(),
+        db_path: db_path.to_string(),
         max_connections: 10,
-        connection_timeout_ms: 5000,
-        retry_attempts: 3,
-        backup_enabled: false,
-        backup_interval_hours: 24,
+        cache_size: 1024 * 1024, // 1MB
+        enable_wal: true,
+        sync_mode: "NORMAL".to_string(),
     };
     AgentDatabase::new(config).await
 }
