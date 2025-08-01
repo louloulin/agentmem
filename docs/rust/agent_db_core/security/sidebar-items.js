@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Permission"],"struct":["AccessToken","Role","SecurityManager","User"]};

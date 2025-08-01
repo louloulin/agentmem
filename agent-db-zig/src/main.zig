@@ -132,7 +132,7 @@ test "Zig API Memory Operations" {
     var db = try AgentDatabase.init(allocator, "test_memory_unit.lance");
     defer db.deinit();
 
-    const test_memory = Memory.init(789, MemoryType.semantic, "test memory", 0.9);
+    const test_memory = agent_api.Memory.init(789, agent_api.MemoryType.semantic, "test memory", 0.9);
     try db.storeMemory(test_memory);
 
     const count = try db.retrieveMemories(789, 5);
@@ -147,7 +147,7 @@ test "Zig API Document Operations" {
     var db = try AgentDatabase.init(allocator, "test_doc_unit.lance");
     defer db.deinit();
 
-    const doc = Document.init("Test", "Test content for unit test", 50, 10);
+    const doc = agent_api.Document.init("Test", "Test content for unit test", 50, 10);
     try db.indexDocument(doc);
 
     const results = try db.searchText("test content", 3);

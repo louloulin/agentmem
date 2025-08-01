@@ -7,11 +7,12 @@ async fn create_test_database() -> (AgentDatabase, TempDir) {
     let temp_dir = TempDir::new().unwrap();
     let db_path = temp_dir.path().to_str().unwrap();
     let config = DatabaseConfig {
-        db_path: db_path.to_string(),
+        path: db_path.to_string(),
         max_connections: 10,
-        cache_size: 1024 * 1024,
-        enable_wal: true,
-        sync_mode: "NORMAL".to_string(),
+        connection_timeout_ms: 5000,
+        retry_attempts: 3,
+        backup_enabled: false,
+        backup_interval_hours: 24,
     };
     let db = AgentDatabase::new(config).await.unwrap();
     (db, temp_dir)
