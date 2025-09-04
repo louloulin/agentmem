@@ -49,7 +49,22 @@ pub enum AgentMemError {
     
     #[error("Timeout error: {0}")]
     TimeoutError(String),
-    
+
+    #[error("Template error: {0}")]
+    TemplateError(String),
+
+    #[error("Parsing error: {0}")]
+    ParsingError(String),
+
+    #[error("Unsupported operation: {0}")]
+    UnsupportedOperation(String),
+
+    #[error("Validation error: {0}")]
+    ValidationError(String),
+
+    #[error("Not found: {0}")]
+    NotFound(String),
+
     #[error("Generic error: {0}")]
     Other(#[from] anyhow::Error),
 }
@@ -104,5 +119,25 @@ impl AgentMemError {
     
     pub fn timeout_error(msg: impl Into<String>) -> Self {
         Self::TimeoutError(msg.into())
+    }
+
+    pub fn template_error(msg: impl Into<String>) -> Self {
+        Self::TemplateError(msg.into())
+    }
+
+    pub fn parsing_error(msg: impl Into<String>) -> Self {
+        Self::ParsingError(msg.into())
+    }
+
+    pub fn unsupported_operation(msg: impl Into<String>) -> Self {
+        Self::UnsupportedOperation(msg.into())
+    }
+
+    pub fn validation_error(msg: impl Into<String>) -> Self {
+        Self::ValidationError(msg.into())
+    }
+
+    pub fn not_found(msg: impl Into<String>) -> Self {
+        Self::NotFound(msg.into())
     }
 }

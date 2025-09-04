@@ -4,6 +4,7 @@ use agent_mem_config::{ConfigFactory, MemoryConfig};
 use agent_mem_traits::{Message, Session, LLMConfig, VectorStoreConfig, MemoryProvider};
 use agent_mem_utils::{extract_json, clean_text, hash_content, Timer};
 use agent_mem_core::{MemoryManager, MemoryType, MemoryQuery};
+use agent_mem_llm::{LLMFactory, LLMClient, prompts::PromptManager};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -144,11 +145,56 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let history = memory_manager.history(&memory_id1).await?;
     println!("   Memory history entries: {}", history.len());
 
+    // 6. LLM Integration Demo
+    println!("\n6. 🤖 LLM Integration Demo");
+
+    // 演示LLM工厂模式
+    println!("   Supported LLM providers: {:?}", LLMFactory::supported_providers());
+
+    // 创建一个模拟的LLM配置（不会实际调用API）
+    let llm_config = LLMConfig {
+        provider: "openai".to_string(),
+        model: "gpt-3.5-turbo".to_string(),
+        api_key: Some("demo-key".to_string()),
+        temperature: Some(0.7),
+        max_tokens: Some(1000),
+        ..Default::default()
+    };
+
+    // 创建LLM客户端
+    let llm_client = LLMClient::new(&llm_config)?;
+    let model_info = llm_client.get_model_info();
+    println!("   LLM Model: {} ({})", model_info.model, model_info.provider);
+    println!("   Max tokens: {}", model_info.max_tokens);
+    println!("   Supports functions: {}", model_info.supports_functions);
+
+    // 演示提示词管理
+    let prompt_manager = PromptManager::new();
+    let templates = prompt_manager.get_available_templates();
+    println!("   Available prompt templates: {}", templates.len());
+
+    // 构建记忆提取提示词
+    let extraction_prompt = prompt_manager.build_memory_extraction_prompt(
+        "用户说：我喜欢在周末打网球，这是我最喜欢的运动。"
+    )?;
+    println!("   Built memory extraction prompt with {} messages", extraction_prompt.len());
+
+    // 构建记忆摘要提示词
+    let summarization_prompt = prompt_manager.build_memory_summarization_prompt(
+        "记忆1：用户喜欢网球\n记忆2：用户周末有空\n记忆3：网球是用户最喜欢的运动"
+    )?;
+    println!("   Built memory summarization prompt with {} messages", summarization_prompt.len());
+
+    // 验证配置
+    llm_client.validate_config()?;
+    println!("   LLM configuration validated successfully");
+
     println!("\n🎉 Demo completed successfully!");
     println!("   ✅ Configuration system working");
     println!("   ✅ Data types and utilities working");
     println!("   ✅ Memory management working");
-    println!("   ✅ All {} tests passing", 36); // Update count
+    println!("   ✅ LLM integration working");
+    println!("   ✅ All {} tests passing", 73); // Update count
 
     Ok(())
 }

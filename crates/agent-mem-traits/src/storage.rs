@@ -1,28 +1,53 @@
 //! Storage trait definitions
 
 use async_trait::async_trait;
-use crate::{Result, Vector, SearchResult, Filters, Metadata, Entity, Relation, Session, HistoryEntry};
+use crate::{Result, Vector, SearchResult, Filters, Metadata, Entity, Relation, Session, HistoryEntry, VectorData, VectorSearchResult};
 
-/// Vector store trait
+/// Legacy vector store trait (kept for compatibility)
 #[async_trait]
-pub trait VectorStore: Send + Sync {
+pub trait LegacyVectorStore: Send + Sync {
     /// Insert vectors with metadata
     async fn insert(&self, vectors: &[Vector], metadata: &[Metadata]) -> Result<Vec<String>>;
-    
+
     /// Search for similar vectors
     async fn search(&self, query: &Vector, limit: usize, filters: &Filters) -> Result<Vec<SearchResult>>;
-    
+
     /// Update a vector and its metadata
     async fn update(&self, id: &str, vector: &Vector, metadata: &Metadata) -> Result<()>;
-    
+
     /// Delete a vector
     async fn delete(&self, id: &str) -> Result<()>;
-    
+
     /// Reset the vector store (for testing)
     async fn reset(&self) -> Result<()>;
-    
+
     /// Get store statistics
     async fn stats(&self) -> Result<VectorStoreStats>;
+}
+
+/// Modern vector store trait
+#[async_trait]
+pub trait VectorStore: Send + Sync {
+    /// Add vectors to the store
+    async fn add_vectors(&self, vectors: Vec<VectorData>) -> Result<Vec<String>>;
+
+    /// Search for similar vectors
+    async fn search_vectors(&self, query_vector: Vec<f32>, limit: usize, threshold: Option<f32>) -> Result<Vec<VectorSearchResult>>;
+
+    /// Delete vectors by IDs
+    async fn delete_vectors(&self, ids: Vec<String>) -> Result<()>;
+
+    /// Update existing vectors
+    async fn update_vectors(&self, vectors: Vec<VectorData>) -> Result<()>;
+
+    /// Get a specific vector by ID
+    async fn get_vector(&self, id: &str) -> Result<Option<VectorData>>;
+
+    /// Count total vectors in the store
+    async fn count_vectors(&self) -> Result<usize>;
+
+    /// Clear all vectors from the store
+    async fn clear(&self) -> Result<()>;
 }
 
 /// Graph store trait

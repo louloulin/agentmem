@@ -13,7 +13,7 @@ pub struct Message {
     pub timestamp: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum MessageRole {
     System,
     User,
@@ -209,6 +209,9 @@ pub struct LLMConfig {
     pub base_url: Option<String>,
     pub temperature: Option<f32>,
     pub max_tokens: Option<u32>,
+    pub top_p: Option<f32>,
+    pub frequency_penalty: Option<f32>,
+    pub presence_penalty: Option<f32>,
     pub response_format: Option<String>,
 }
 
@@ -221,6 +224,9 @@ impl Default for LLMConfig {
             base_url: None,
             temperature: Some(0.7),
             max_tokens: Some(1000),
+            top_p: None,
+            frequency_penalty: None,
+            presence_penalty: None,
             response_format: None,
         }
     }
@@ -232,9 +238,11 @@ pub struct VectorStoreConfig {
     pub provider: String,
     pub path: String,
     pub table_name: String,
-    pub dimension: usize,
+    pub dimension: Option<usize>,
     pub api_key: Option<String>,
     pub index_name: Option<String>,
+    pub url: Option<String>,
+    pub collection_name: Option<String>,
 }
 
 impl Default for VectorStoreConfig {
@@ -243,9 +251,29 @@ impl Default for VectorStoreConfig {
             provider: "lancedb".to_string(),
             path: "./data/vectors".to_string(),
             table_name: "memories".to_string(),
-            dimension: 1536,
+            dimension: Some(1536),
             api_key: None,
             index_name: None,
+            url: None,
+            collection_name: None,
         }
     }
+}
+
+/// 向量数据结构
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VectorData {
+    pub id: String,
+    pub vector: Vec<f32>,
+    pub metadata: std::collections::HashMap<String, String>,
+}
+
+/// 向量搜索结果
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VectorSearchResult {
+    pub id: String,
+    pub vector: Vec<f32>,
+    pub metadata: std::collections::HashMap<String, String>,
+    pub similarity: f32,
+    pub distance: f32,
 }
