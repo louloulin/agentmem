@@ -1,0 +1,20 @@
+[package]
+name = "code-quality-analyzer"
+version = "0.1.0"
+edition = "2021"
+description = "AgentMem code quality analysis and technical debt management tool"
+
+[[bin]]
+name = "quality-analyzer"
+path = "src/main.rs"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+regex = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4.0", features = ["derive"] }
+tokio = { version = "1.0", features = ["full"] }
+anyhow = "1.0"
+walkdir = "2.0"
+rayon = "1.7"
