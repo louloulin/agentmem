@@ -107,7 +107,7 @@ impl CohereEmbedder {
             let status = response.status();
             let error_text = response.text().await
                 .unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(AgentMemError::api_error(format!(
+            return Err(AgentMemError::network_error(format!(
                 "Cohere API error {}: {}", status, error_text
             )));
         }
@@ -150,6 +150,10 @@ impl Embedder for CohereEmbedder {
 
     fn provider_name(&self) -> &str {
         "cohere"
+    }
+
+    fn model_name(&self) -> &str {
+        &self.config.model
     }
 
     async fn health_check(&self) -> Result<bool> {

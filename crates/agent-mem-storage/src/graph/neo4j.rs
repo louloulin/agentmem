@@ -362,7 +362,7 @@ mod base64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agent_mem_config::GraphStoreConfig;
+    use agent_mem_config::memory::GraphStoreConfig;
 
     #[test]
     fn test_neo4j_store_creation_no_username() {
@@ -412,7 +412,7 @@ mod tests {
         };
 
         let mut properties = HashMap::new();
-        properties.insert("key1".to_string(), "value1".to_string());
+        properties.insert("key1".to_string(), serde_json::Value::String("value1".to_string()));
 
         let entity = Entity {
             id: "test-id".to_string(),

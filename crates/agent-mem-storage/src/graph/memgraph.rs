@@ -363,7 +363,7 @@ mod base64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agent_mem_config::GraphStoreConfig;
+    use agent_mem_config::memory::GraphStoreConfig;
 
     #[tokio::test]
     async fn test_memgraph_store_creation_no_auth() {
@@ -399,7 +399,7 @@ mod tests {
         };
 
         let mut properties = HashMap::new();
-        properties.insert("key1".to_string(), "value1".to_string());
+        properties.insert("key1".to_string(), serde_json::Value::String("value1".to_string()));
 
         let entity = Entity {
             id: "test-id".to_string(),
@@ -447,6 +447,13 @@ mod tests {
         assert_eq!(params.get("source").unwrap(), &serde_json::Value::String("person1".to_string()));
         assert_eq!(params.get("target").unwrap(), &serde_json::Value::String("person2".to_string()));
         assert_eq!(params.get("relation_type").unwrap(), &serde_json::Value::String("KNOWS".to_string()));
-        assert_eq!(params.get("confidence").unwrap(), &serde_json::Value::Number(serde_json::Number::from_f64(0.9).unwrap()));
+
+        // 检查confidence值（允许浮点数精度误差）
+        if let Some(serde_json::Value::Number(n)) = params.get("confidence") {
+            let confidence = n.as_f64().unwrap();
+            assert!((confidence - 0.9).abs() < 1e-6, "Expected confidence ~0.9, got {}", confidence);
+        } else {
+            panic!("Expected confidence to be a number");
+        }
     }
 }

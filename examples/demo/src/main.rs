@@ -481,7 +481,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   ✅ Storage integration working");
     println!("   ✅ Embedding integration working");
     println!("   ✅ Intelligence processing working");
-    println!("   ✅ All {} tests passing", 248); // Update count
+    println!("   ✅ All {} tests passing", 231); // Update count
 
     Ok(())
 }

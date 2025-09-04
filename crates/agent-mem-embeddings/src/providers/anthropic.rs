@@ -113,6 +113,10 @@ impl Embedder for AnthropicEmbedder {
         "anthropic"
     }
 
+    fn model_name(&self) -> &str {
+        &self.config.model
+    }
+
     async fn health_check(&self) -> Result<bool> {
         self.health_check().await
     }
