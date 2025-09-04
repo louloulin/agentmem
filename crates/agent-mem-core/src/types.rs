@@ -239,6 +239,7 @@ impl TryFrom<MemoryItem> for Memory {
             agent_mem_traits::MemoryType::Semantic => MemoryType::Semantic,
             agent_mem_traits::MemoryType::Procedural => MemoryType::Procedural,
             agent_mem_traits::MemoryType::Working => MemoryType::Working,
+            agent_mem_traits::MemoryType::Factual => MemoryType::Semantic, // Map Factual to Semantic
         };
 
         Ok(Memory {

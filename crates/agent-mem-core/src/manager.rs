@@ -7,7 +7,7 @@ use crate::{
     history::{MemoryHistory, HistoryConfig},
 };
 use agent_mem_traits::{
-    MemoryProvider, Result, AgentMemError, MemoryItem, Session, Message, HistoryEntry
+    MemoryProvider, Result, AgentMemError, MemoryItem, Session, Message, HistoryEntry, MemoryEvent
 };
 use agent_mem_config::MemoryConfig;
 use std::sync::Arc;
@@ -151,7 +151,7 @@ impl MemoryManager {
     ) -> Result<()> {
         let operations = self.operations.read().await;
         let mut memory = operations.get_memory(memory_id).await?
-            .ok_or_else(|| AgentMemError::not_found("Memory not found"))?;
+            .ok_or_else(|| AgentMemError::memory_error("Memory not found"))?;
 
         let old_content = memory.content.clone();
         let old_importance = memory.importance;
@@ -241,7 +241,7 @@ impl MemoryManager {
         drop(operations);
 
         let mut lifecycle = self.lifecycle.write().await;
-        lifecycle.apply_auto_policies(&all_memories).await
+        lifecycle.apply_auto_policies(&all_memories)
     }
 
     /// Clean up expired memories and old history
@@ -271,15 +271,25 @@ impl Default for MemoryManager {
 
 #[async_trait::async_trait]
 impl MemoryProvider for MemoryManager {
-    async fn add(&self, session: &Session, content: &str, metadata: Option<std::collections::HashMap<String, String>>) -> Result<String> {
-        self.add_memory(
-            session.agent_id.clone().unwrap_or_else(|| "default".to_string()),
-            session.user_id.clone(),
-            content.to_string(),
-            None, // Use default memory type
-            None, // Use default importance
-            metadata,
-        ).await
+    async fn add(&self, messages: &[Message], session: &Session) -> Result<Vec<MemoryItem>> {
+        let mut results = Vec::new();
+
+        for message in messages {
+            let memory_id = self.add_memory(
+                session.agent_id.clone().unwrap_or_else(|| "default".to_string()),
+                session.user_id.clone(),
+                message.content.clone(),
+                None, // Use default memory type
+                None, // Use default importance
+                None, // No additional metadata
+            ).await?;
+
+            if let Some(memory) = self.get_memory(&memory_id).await? {
+                results.push(memory.into());
+            }
+        }
+
+        Ok(results)
     }
 
     async fn get(&self, memory_id: &str) -> Result<Option<MemoryItem>> {
@@ -287,56 +297,79 @@ impl MemoryProvider for MemoryManager {
         Ok(memory.map(|m| m.into()))
     }
 
-    async fn update(&self, memory_id: &str, content: Option<&str>, metadata: Option<std::collections::HashMap<String, String>>) -> Result<()> {
-        self.update_memory(
-            memory_id,
-            content.map(|s| s.to_string()),
-            None, // Don't update importance through this interface
-            metadata,
-        ).await
-    }
-
-    async fn delete(&self, memory_id: &str) -> Result<bool> {
-        self.delete_memory(memory_id).await
-    }
-
-    async fn search(&self, session: &Session, query: &str, limit: Option<usize>) -> Result<Vec<MemoryItem>> {
-        let memory_query = MemoryQuery::new(
+    async fn search(&self, query: &str, session: &Session, limit: usize) -> Result<Vec<MemoryItem>> {
+        let mut memory_query = MemoryQuery::new(
             session.agent_id.clone().unwrap_or_else(|| "default".to_string())
         )
         .with_text_query(query.to_string())
-        .with_limit(limit.unwrap_or(10));
+        .with_limit(limit);
 
         if let Some(ref user_id) = session.user_id {
-            let memory_query = memory_query.with_user_id(user_id.clone());
+            memory_query = memory_query.with_user_id(user_id.clone());
         }
 
         let results = self.search_memories(memory_query).await?;
         Ok(results.into_iter().map(|r| r.memory.into()).collect())
     }
 
-    async fn get_all(&self, session: &Session, limit: Option<usize>) -> Result<Vec<MemoryItem>> {
-        let agent_id = session.agent_id.as_deref().unwrap_or("default");
-        let memories = self.get_agent_memories(agent_id, limit).await?;
-        Ok(memories.into_iter().map(|m| m.into()).collect())
+    async fn update(&self, memory_id: &str, data: &str) -> Result<()> {
+        self.update_memory(
+            memory_id,
+            Some(data.to_string()),
+            None, // Don't update importance through this interface
+            None, // No metadata updates
+        ).await
     }
 
-    async fn history(&self, memory_id: &str) -> Result<Vec<MemoryItem>> {
+    async fn delete(&self, memory_id: &str) -> Result<()> {
+        self.delete_memory(memory_id).await?;
+        Ok(())
+    }
+
+    async fn history(&self, memory_id: &str) -> Result<Vec<HistoryEntry>> {
         let history = self.history.read().await;
         if let Some(entries) = history.get_memory_history(memory_id) {
-            let items: Vec<MemoryItem> = entries
+            let items: Vec<HistoryEntry> = entries
                 .iter()
-                .map(|entry| MemoryItem {
-                    id: format!("{}_{}", entry.memory_id, entry.version),
-                    content: entry.content.clone(),
-                    metadata: entry.metadata.clone(),
-                    created_at: entry.timestamp,
-                    updated_at: entry.timestamp,
+                .map(|entry| {
+                    let event = match entry.change_type {
+                        crate::history::ChangeType::Created => MemoryEvent::Create,
+                        crate::history::ChangeType::ContentUpdated |
+                        crate::history::ChangeType::ImportanceChanged |
+                        crate::history::ChangeType::MetadataUpdated => MemoryEvent::Update,
+                        crate::history::ChangeType::Deprecated => MemoryEvent::Delete,
+                        _ => MemoryEvent::Update,
+                    };
+
+                    HistoryEntry {
+                        id: format!("{}_{}", entry.memory_id, entry.version),
+                        memory_id: entry.memory_id.clone(),
+                        event,
+                        timestamp: chrono::DateTime::from_timestamp(entry.timestamp, 0).unwrap_or_else(|| chrono::Utc::now()),
+                        data: Some(serde_json::json!({
+                            "content": entry.content,
+                            "change_type": entry.change_type.to_string(),
+                            "version": entry.version
+                        })),
+                    }
                 })
                 .collect();
             Ok(items)
         } else {
             Ok(Vec::new())
         }
+    }
+
+    async fn get_all(&self, session: &Session) -> Result<Vec<MemoryItem>> {
+        let agent_id = session.agent_id.as_deref().unwrap_or("default");
+        let memories = self.get_agent_memories(agent_id, None).await?;
+        Ok(memories.into_iter().map(|m| m.into()).collect())
+    }
+
+    async fn reset(&self) -> Result<()> {
+        // This is a destructive operation, typically used for testing
+        // For now, we'll just return Ok since we don't have a reset implementation
+        // TODO: Implement actual reset functionality if needed
+        Ok(())
     }
 }

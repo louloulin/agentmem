@@ -98,16 +98,16 @@ impl InMemoryOperations {
         for memory in memories {
             let content_lower = memory.content.to_lowercase();
             
-            let score = if content_lower.contains(&query_lower) {
+            if content_lower.contains(&query_lower) {
                 let match_type = if content_lower == query_lower {
                     MatchType::ExactText
                 } else {
                     MatchType::PartialText
                 };
-                
+
                 // Calculate text similarity score
                 let similarity = jaccard_similarity(&query_lower, &content_lower);
-                
+
                 results.push(MemorySearchResult {
                     memory: (*memory).clone(),
                     score: similarity,
@@ -128,7 +128,7 @@ impl InMemoryOperations {
         for memory in memories {
             if let Some(ref embedding) = memory.embedding {
                 // Calculate cosine similarity
-                let similarity = self.cosine_similarity(&query_vector.data, &embedding.data);
+                let similarity = self.cosine_similarity(&query_vector.values, &embedding.values);
                 
                 if similarity > 0.1 { // Minimum similarity threshold
                     results.push(MemorySearchResult {
@@ -234,17 +234,23 @@ impl MemoryOperations for InMemoryOperations {
     }
 
     async fn update_memory(&mut self, memory: Memory) -> Result<()> {
-        if let Some(existing) = self.memories.get(&memory.id) {
-            // Remove old indices if agent_id or type changed
-            if existing.agent_id != memory.agent_id || existing.memory_type != memory.memory_type {
-                self.remove_from_indices(existing);
+        let memory_id = memory.id.clone();
+
+        if let Some(existing) = self.memories.get(&memory_id) {
+            // Check if indices need updating
+            let needs_reindex = existing.agent_id != memory.agent_id || existing.memory_type != memory.memory_type;
+
+            if needs_reindex {
+                // Clone the existing memory to avoid borrow issues
+                let existing_clone = existing.clone();
+                self.remove_from_indices(&existing_clone);
                 self.update_indices(&memory);
             }
         } else {
             return Err(AgentMemError::memory_error("Memory not found"));
         }
 
-        self.memories.insert(memory.id.clone(), memory);
+        self.memories.insert(memory_id, memory);
         Ok(())
     }
 

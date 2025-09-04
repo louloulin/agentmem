@@ -39,6 +39,21 @@ pub enum ChangeType {
     Deprecated,
 }
 
+impl ChangeType {
+    pub fn to_string(&self) -> String {
+        match self {
+            ChangeType::Created => "created".to_string(),
+            ChangeType::ContentUpdated => "content_updated".to_string(),
+            ChangeType::ImportanceChanged => "importance_changed".to_string(),
+            ChangeType::MetadataUpdated => "metadata_updated".to_string(),
+            ChangeType::Accessed => "accessed".to_string(),
+            ChangeType::Archived => "archived".to_string(),
+            ChangeType::Restored => "restored".to_string(),
+            ChangeType::Deprecated => "deprecated".to_string(),
+        }
+    }
+}
+
 /// Memory history manager
 pub struct MemoryHistory {
     /// History entries indexed by memory ID
