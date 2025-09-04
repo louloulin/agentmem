@@ -7,3 +7,5 @@ edition = "2021"
 agent-mem-traits = { path = "../../crates/agent-mem-traits" }
 agent-mem-utils = { path = "../../crates/agent-mem-utils" }
 agent-mem-config = { path = "../../crates/agent-mem-config" }
+agent-mem-core = { path = "../../crates/agent-mem-core" }
+tokio = { version = "1.0", features = ["full"] }
