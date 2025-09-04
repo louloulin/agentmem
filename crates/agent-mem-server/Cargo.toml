@@ -1,0 +1,73 @@
+[package]
+name = "agent-mem-server"
+version = "0.1.0"
+edition = "2021"
+description = "REST API server for AgentMem - Enterprise-grade memory management"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/agentmem/agentmem"
+keywords = ["memory", "ai", "llm", "server", "api"]
+categories = ["web-programming::http-server", "api-bindings"]
+
+[dependencies]
+# Core AgentMem dependencies
+agent-mem-core = { path = "../agent-mem-core" }
+agent-mem-traits = { path = "../agent-mem-traits" }
+agent-mem-config = { path = "../agent-mem-config" }
+agent-mem-utils = { path = "../agent-mem-utils" }
+
+# Web framework
+axum = { version = "0.7", features = ["macros", "multipart"] }
+tower = { version = "0.4", features = ["full"] }
+tower-http = { version = "0.5", features = ["cors", "trace", "fs", "limit", "timeout"] }
+hyper = { version = "1.0", features = ["full"] }
+
+# Async runtime
+tokio = { version = "1.0", features = ["full"] }
+futures = "0.3"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# HTTP client for health checks
+reqwest = { version = "0.11", features = ["json"] }
+
+# Logging and tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Authentication and security
+jsonwebtoken = "9.0"
+bcrypt = "0.15"
+
+# Configuration
+config = "0.14"
+dotenvy = "0.15"
+
+# Metrics and monitoring
+metrics = "0.22"
+metrics-exporter-prometheus = "0.13"
+
+# OpenAPI documentation
+utoipa = { version = "4.0", features = ["axum_extras"] }
+utoipa-swagger-ui = { version = "6.0", features = ["axum"] }
+
+# UUID generation
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# Validation
+validator = { version = "0.18", features = ["derive"] }
+
+# CLI
+clap = { version = "4.0", features = ["derive"] }
+
+[dev-dependencies]
+tokio-test = "0.4"
+tower-test = "0.4"
