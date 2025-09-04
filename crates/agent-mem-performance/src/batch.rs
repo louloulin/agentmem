@@ -405,7 +405,7 @@ mod tests {
 
         async fn process(&self) -> std::result::Result<Self::Output, Self::Error> {
             if self.should_fail {
-                Err(AgentMemError::processing_error("Test failure"))
+                Err(AgentMemError::memory_error("Test failure"))
             } else {
                 Ok(format!("processed: {}", self.data))
             }

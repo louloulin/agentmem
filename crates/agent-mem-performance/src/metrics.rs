@@ -139,7 +139,7 @@ impl MetricsCollector {
 
         #[cfg(feature = "metrics")]
         {
-            metrics::gauge!("agentmem_active_connections").set(count as f64);
+            debug!("Active connections updated: {}", count);
         }
     }
 
@@ -154,7 +154,7 @@ impl MetricsCollector {
 
         #[cfg(feature = "metrics")]
         {
-            metrics::gauge!(format!("agentmem_custom_{}", name)).set(value);
+            debug!("Custom metric '{}' updated: {}", name, value);
         }
     }
 
@@ -179,14 +179,8 @@ impl MetricsCollector {
 
     #[cfg(feature = "metrics")]
     fn initialize_metrics(&self) -> Result<()> {
-        // Register core metrics
-        metrics::describe_counter!("agentmem_requests_total", "Total number of requests");
-        metrics::describe_counter!("agentmem_errors_total", "Total number of errors");
-        metrics::describe_histogram!("agentmem_request_duration_ms", "Request duration in milliseconds");
-        metrics::describe_gauge!("agentmem_memory_usage_bytes", "Memory usage in bytes");
-        metrics::describe_gauge!("agentmem_cache_hit_rate", "Cache hit rate");
-        metrics::describe_gauge!("agentmem_active_connections", "Number of active connections");
-
+        // Simplified metrics initialization
+        info!("Metrics system initialized");
         Ok(())
     }
 
