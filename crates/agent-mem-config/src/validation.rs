@@ -77,7 +77,7 @@ pub fn validate_storage_config(config: &VectorStoreConfig) -> Result<()> {
         return Err(AgentMemError::invalid_config("Vector store provider cannot be empty"));
     }
 
-    if config.dimension == 0 {
+    if config.dimension == Some(0) {
         return Err(AgentMemError::invalid_config("Vector dimension must be greater than 0"));
     }
     
@@ -218,14 +218,14 @@ mod tests {
             provider: "lancedb".to_string(),
             path: "./data/vectors".to_string(),
             table_name: "memories".to_string(),
-            dimension: 1536,
+            dimension: Some(1536),
             ..Default::default()
         };
         assert!(validate_storage_config(&config).is_ok());
 
         // Test invalid dimension
         let mut invalid_config = config.clone();
-        invalid_config.dimension = 0;
+        invalid_config.dimension = Some(0);
         assert!(validate_storage_config(&invalid_config).is_err());
     }
 

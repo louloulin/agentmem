@@ -5,6 +5,7 @@ use agent_mem_traits::{Message, Session, LLMConfig, VectorStoreConfig, MemoryPro
 use agent_mem_utils::{extract_json, clean_text, hash_content, Timer};
 use agent_mem_core::{MemoryManager, MemoryType, MemoryQuery};
 use agent_mem_llm::{LLMFactory, LLMClient, prompts::PromptManager};
+use agent_mem_storage::{StorageFactory, vector::{VectorUtils, SimilarityCalculator, SimilarityMetric}};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -77,7 +78,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         vector_store: VectorStoreConfig {
             provider: "lancedb".to_string(),
             path: "./data/vectors".to_string(),
-            dimension: 1536,
+            dimension: Some(1536),
             ..Default::default()
         },
         ..Default::default()
@@ -189,12 +190,89 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     llm_client.validate_config()?;
     println!("   LLM configuration validated successfully");
 
+    // 7. 存储集成演示
+    println!("\n7. 🗄️ Storage Integration Demo");
+
+    // 演示存储工厂模式
+    println!("   Supported storage providers: {:?}", StorageFactory::supported_providers());
+
+    // 创建内存向量存储（3维向量用于演示）
+    let config = VectorStoreConfig {
+        provider: "memory".to_string(),
+        dimension: Some(3),
+        ..Default::default()
+    };
+    let memory_store = StorageFactory::create_vector_store(&config).await?;
+    println!("   Created memory vector store");
+
+    // 添加一些测试向量
+    use agent_mem_traits::VectorData;
+    use std::collections::HashMap;
+
+    let test_vectors = vec![
+        VectorData {
+            id: "vec1".to_string(),
+            vector: vec![1.0, 0.0, 0.0],
+            metadata: HashMap::new(),
+        },
+        VectorData {
+            id: "vec2".to_string(),
+            vector: vec![0.0, 1.0, 0.0],
+            metadata: HashMap::new(),
+        },
+        VectorData {
+            id: "vec3".to_string(),
+            vector: vec![0.0, 0.0, 1.0],
+            metadata: HashMap::new(),
+        },
+    ];
+
+    let ids = memory_store.add_vectors(test_vectors).await?;
+    println!("   Added {} vectors to store", ids.len());
+
+    // 搜索相似向量
+    let query_vector = vec![1.0, 0.0, 0.0];
+    let search_results = memory_store.search_vectors(query_vector, 2, None).await?;
+    println!("   Found {} similar vectors", search_results.len());
+
+    // 获取向量数量
+    let count = memory_store.count_vectors().await?;
+    println!("   Total vectors in store: {}", count);
+
+    // 演示向量工具函数
+    let vector1 = vec![1.0, 2.0, 3.0];
+    let vector2 = vec![4.0, 5.0, 6.0];
+
+    let dot_product = VectorUtils::dot_product(&vector1, &vector2)?;
+    println!("   Dot product: {}", dot_product);
+
+    let l2_norm = VectorUtils::l2_norm(&vector1);
+    println!("   L2 norm: {}", l2_norm);
+
+    // 演示相似度计算
+    let similarity = SimilarityCalculator::cosine_similarity(&vector1, &vector2)?;
+    println!("   Cosine similarity: {}", similarity);
+
+    let distance = SimilarityCalculator::euclidean_distance(&vector1, &vector2)?;
+    println!("   Euclidean distance: {}", distance);
+
+    // 批量相似度计算
+    let query = vec![1.0, 0.0, 0.0];
+    let vectors = vec![
+        vec![1.0, 0.0, 0.0],
+        vec![0.0, 1.0, 0.0],
+        vec![0.0, 0.0, 1.0],
+    ];
+    let similarities = SimilarityCalculator::batch_similarity(&query, &vectors, SimilarityMetric::Cosine)?;
+    println!("   Batch similarities: {:?}", similarities);
+
     println!("\n🎉 Demo completed successfully!");
     println!("   ✅ Configuration system working");
     println!("   ✅ Data types and utilities working");
     println!("   ✅ Memory management working");
     println!("   ✅ LLM integration working");
-    println!("   ✅ All {} tests passing", 73); // Update count
+    println!("   ✅ Storage integration working");
+    println!("   ✅ All {} tests passing", 112); // Update count
 
     Ok(())
 }

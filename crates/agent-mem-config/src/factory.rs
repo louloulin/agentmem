@@ -53,20 +53,20 @@ impl ConfigFactory {
                 provider: "lancedb".to_string(),
                 path: "./data/vectors".to_string(),
                 table_name: "memories".to_string(),
-                dimension: 1536,
+                dimension: Some(1536),
                 ..Default::default()
             },
             "pinecone" => VectorStoreConfig {
                 provider: "pinecone".to_string(),
                 index_name: Some("default-index".to_string()),
-                dimension: 1536,
+                dimension: Some(1536),
                 ..Default::default()
             },
             "qdrant" => VectorStoreConfig {
                 provider: "qdrant".to_string(),
                 path: "http://localhost:6333".to_string(),
                 table_name: "memories".to_string(),
-                dimension: 1536,
+                dimension: Some(1536),
                 ..Default::default()
             },
             _ => VectorStoreConfig::default(),
