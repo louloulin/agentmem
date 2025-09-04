@@ -1,0 +1,69 @@
+[package]
+name = "agent-mem-performance"
+version = "2.0.0"
+edition = "2021"
+description = "Performance optimization components for AgentMem"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/agentmem/agentmem"
+keywords = ["memory", "ai", "performance", "cache", "optimization"]
+categories = ["caching", "concurrency", "performance"]
+
+[dependencies]
+# Core dependencies
+agent-mem-traits = { path = "../agent-mem-traits" }
+agent-mem-core = { path = "../agent-mem-core" }
+
+# Async runtime
+tokio = { workspace = true, features = ["full"] }
+async-trait = { workspace = true }
+
+# Serialization
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Time handling
+chrono = { workspace = true, features = ["serde"] }
+
+# UUID generation
+uuid = { workspace = true, features = ["v4", "serde"] }
+
+# Collections and utilities
+dashmap = "5.5"
+lru = "0.12"
+parking_lot = "0.12"
+
+# Metrics and monitoring
+metrics = "0.21"
+metrics-exporter-prometheus = "0.12"
+
+# Memory management
+bytes = "1.5"
+
+# Concurrency
+crossbeam = "0.8"
+rayon = "1.8"
+
+[dev-dependencies]
+tokio-test = "0.4"
+criterion = { version = "0.5", features = ["html_reports"] }
+proptest = "1.4"
+
+[[bench]]
+name = "cache_performance"
+harness = false
+
+[[bench]]
+name = "batch_processing"
+harness = false
+
+[features]
+default = ["metrics"]
+metrics = ["dep:metrics", "dep:metrics-exporter-prometheus"]
+profiling = []
