@@ -13,6 +13,7 @@ pub mod similarity;
 pub mod clustering;
 pub mod importance;
 pub mod reasoning;
+pub mod processing;
 
 // 重新导出常用类型
 pub use agent_mem_traits::{Result, AgentMemError};
@@ -22,3 +23,4 @@ pub use similarity::SemanticSimilarity;
 pub use clustering::MemoryClusterer;
 pub use importance::ImportanceEvaluator;
 pub use reasoning::MemoryReasoner;
+pub use processing::{MemoryProcessor, ProcessingConfig, ProcessingStats};
