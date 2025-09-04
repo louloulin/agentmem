@@ -8,8 +8,21 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
+/// Memory levels following ContextEngine's design
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
+pub enum MemoryLevel {
+    /// Strategic level - long-term planning and goals
+    Strategic,
+    /// Tactical level - medium-term execution plans
+    Tactical,
+    /// Operational level - short-term actions and tasks
+    Operational,
+    /// Contextual level - immediate context and responses
+    Contextual,
+}
+
 /// Memory scope levels following ContextEngine's hierarchy
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
 pub enum MemoryScope {
     /// Global memories accessible across all contexts
     Global,

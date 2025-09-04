@@ -14,6 +14,9 @@ pub mod types;
 pub mod operations;
 pub mod history;
 pub mod hierarchy;
+pub mod hierarchical_service;
+pub mod conflict_resolver;
+pub mod llm_optimizer;
 
 pub use manager::MemoryManager;
 pub use lifecycle::MemoryLifecycle;
@@ -21,6 +24,18 @@ pub use types::*;
 pub use operations::*;
 pub use history::MemoryHistory;
 pub use hierarchy::*;
+pub use hierarchical_service::{
+    HierarchicalMemoryService, HierarchicalMemoryRecord, HierarchicalServiceConfig,
+    ConflictResolutionStrategy, MemoryInheritanceRule, InheritanceType,
+    HierarchicalSearchFilters
+};
+pub use conflict_resolver::{
+    ConflictResolver, ConflictResolverConfig, ConflictResolution, ConflictDetection, ConflictType
+};
+pub use llm_optimizer::{
+    LlmOptimizer, LlmOptimizationConfig, OptimizationStrategy, PromptTemplateType,
+    PromptTemplate, OptimizedLlmResponse, LlmPerformanceMetrics, LlmProvider
+};
 
 #[cfg(test)]
 mod tests {

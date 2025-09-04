@@ -40,7 +40,7 @@ impl MemoryType {
 }
 
 /// Memory importance level
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, PartialOrd, Eq, Ord)]
 pub enum ImportanceLevel {
     Low = 1,
     Medium = 2,
