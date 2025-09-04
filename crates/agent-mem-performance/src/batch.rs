@@ -118,11 +118,12 @@ impl BatchProcessor {
         };
 
         // Start batch processing workers
+        let receiver = Arc::new(tokio::sync::Mutex::new(receiver));
         for worker_id in 0..config.concurrency {
             let worker = BatchWorker::new(
                 worker_id,
                 config.clone(),
-                receiver.clone(),
+                Arc::clone(&receiver),
                 Arc::clone(&stats),
                 Arc::clone(&semaphore),
             );
@@ -151,10 +152,10 @@ impl BatchProcessor {
         };
 
         self.sender.send(request)
-            .map_err(|_| AgentMemError::internal_error("Batch processor channel closed"))?;
+            .map_err(|_| AgentMemError::memory_error("Batch processor channel closed"))?;
 
         let result = response_rx.await
-            .map_err(|_| AgentMemError::internal_error("Batch processing response lost"))?;
+            .map_err(|_| AgentMemError::memory_error("Batch processing response lost"))?;
 
         // Convert back to original type
         match result {
@@ -202,7 +203,7 @@ impl<T: BatchItem> BatchItem for GenericBatchItem<T> {
                 // Serialize the output - simplified for demo
                 Ok(format!("{:?}", std::any::type_name::<T::Output>()).into_bytes())
             }
-            Err(e) => Err(AgentMemError::processing_error(&e.to_string())),
+            Err(e) => Err(AgentMemError::memory_error(&e.to_string())),
         }
     }
 
@@ -219,7 +220,7 @@ impl<T: BatchItem> BatchItem for GenericBatchItem<T> {
 struct BatchWorker {
     id: usize,
     config: BatchConfig,
-    receiver: mpsc::UnboundedReceiver<BatchRequest>,
+    receiver: Arc<tokio::sync::Mutex<mpsc::UnboundedReceiver<BatchRequest>>>,
     stats: Arc<RwLock<BatchResult>>,
     semaphore: Arc<Semaphore>,
     batch_buffer: VecDeque<BatchRequest>,
@@ -230,7 +231,7 @@ impl BatchWorker {
     fn new(
         id: usize,
         config: BatchConfig,
-        receiver: mpsc::UnboundedReceiver<BatchRequest>,
+        receiver: Arc<tokio::sync::Mutex<mpsc::UnboundedReceiver<BatchRequest>>>,
         stats: Arc<RwLock<BatchResult>>,
         semaphore: Arc<Semaphore>,
     ) -> Self {
@@ -253,11 +254,14 @@ impl BatchWorker {
         loop {
             tokio::select! {
                 // Receive new items
-                request = self.receiver.recv() => {
+                request = async {
+                    let mut receiver = self.receiver.lock().await;
+                    receiver.recv().await
+                } => {
                     match request {
                         Some(req) => {
                             self.batch_buffer.push_back(req);
-                            
+
                             // Check if we should flush
                             if self.should_flush() {
                                 self.flush_batch().await;
@@ -347,7 +351,7 @@ impl BatchWorker {
                 Err(e) => {
                     attempts += 1;
                     if attempts >= self.config.retry_attempts {
-                        return Err(AgentMemError::processing_error(&format!(
+                        return Err(AgentMemError::memory_error(&format!(
                             "Failed after {} attempts: {}", attempts, e
                         )));
                     }

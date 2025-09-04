@@ -157,40 +157,12 @@ impl PerformanceManager {
 pub struct PerformanceStats {
     pub cache: CacheStats,
     pub batch: BatchResult,
-    pub pool: PoolStats,
-    pub memory: MemoryStats,
-    pub concurrency: ConcurrencyStats,
+    pub pool: pool::PoolStats,
+    pub memory: pool::MemoryStats,
+    pub concurrency: concurrency::ConcurrencyStats,
 }
 
-/// Pool statistics
-#[derive(Debug, Clone)]
-pub struct PoolStats {
-    pub total_objects: usize,
-    pub available_objects: usize,
-    pub borrowed_objects: usize,
-    pub created_objects: u64,
-    pub recycled_objects: u64,
-}
 
-/// Memory statistics
-#[derive(Debug, Clone)]
-pub struct MemoryStats {
-    pub total_allocated: usize,
-    pub total_used: usize,
-    pub total_free: usize,
-    pub allocation_count: u64,
-    pub deallocation_count: u64,
-}
-
-/// Concurrency statistics
-#[derive(Debug, Clone)]
-pub struct ConcurrencyStats {
-    pub active_tasks: usize,
-    pub queued_tasks: usize,
-    pub completed_tasks: u64,
-    pub failed_tasks: u64,
-    pub average_task_duration_ms: f64,
-}
 
 #[cfg(test)]
 mod tests {

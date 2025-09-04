@@ -40,8 +40,8 @@ lru = "0.12"
 parking_lot = "0.12"
 
 # Metrics and monitoring
-metrics = "0.21"
-metrics-exporter-prometheus = "0.12"
+metrics = { version = "0.21", optional = true }
+metrics-exporter-prometheus = { version = "0.12", optional = true }
 
 # Memory management
 bytes = "1.5"
@@ -55,13 +55,7 @@ tokio-test = "0.4"
 criterion = { version = "0.5", features = ["html_reports"] }
 proptest = "1.4"
 
-[[bench]]
-name = "cache_performance"
-harness = false
 
-[[bench]]
-name = "batch_processing"
-harness = false
 
 [features]
 default = ["metrics"]
