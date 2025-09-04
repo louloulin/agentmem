@@ -1,0 +1,28 @@
+[package]
+name = "agent-mem-utils"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Utility functions and helpers for AgentMem memory platform"
+
+[dependencies]
+agent-mem-traits = { path = "../agent-mem-traits" }
+serde.workspace = true
+serde_json.workspace = true
+regex = "1.0"
+sha2.workspace = true
+hex.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[features]
+default = []

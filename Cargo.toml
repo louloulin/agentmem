@@ -1,0 +1,121 @@
+[workspace]
+resolver = "2"
+members = [
+    # 核心Crates (逐步添加)
+    "crates/agent-mem-traits",
+    "crates/agent-mem-utils",
+    "crates/agent-mem-config",
+    # "crates/agent-mem-core",
+    # "crates/agent-mem-llm",
+    # "crates/agent-mem-storage",
+    # "crates/agent-mem-embeddings",
+    # "crates/agent-mem-session",
+    # "crates/agent-mem-intelligence",
+
+    # 多语言绑定
+    # "bindings/agent-mem-python",
+    # "bindings/agent-mem-node",
+    # "bindings/agent-mem-c",
+
+    # 工具和应用
+    # "tools/agent-mem-cli",
+    # "tools/agent-mem-server",
+    # "tools/agent-mem-bench",
+
+    # 示例
+    "examples/demo",
+    # "examples/basic-usage",
+    # "examples/advanced-features",
+    # "examples/migration-from-agentmen",
+    # "examples/mem0-compatibility",
+]
+
+[workspace.package]
+version = "2.0.0"
+edition = "2021"
+authors = ["AgentMem Team <team@agentmem.dev>"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/agentmem/agentmem"
+homepage = "https://agentmem.dev"
+documentation = "https://docs.rs/agent-mem"
+keywords = ["ai", "memory", "agent", "llm", "vector"]
+categories = ["database", "science", "web-programming"]
+
+[workspace.dependencies]
+# 核心依赖
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+async-trait = "0.1"
+
+# 异步HTTP客户端
+reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+hyper = { version = "0.14", features = ["full"] }
+
+# 数据库和存储
+lancedb = "0.21.2"
+redis = { version = "0.23", features = ["tokio-comp"] }
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "postgres", "chrono", "uuid"] }
+
+# 向量数据库客户端
+# pinecone-sdk = "0.1"
+# qdrant-client = "1.0"
+
+# 图数据库客户端  
+# neo4rs = "0.7"
+
+# LLM客户端
+# openai-api-rs = "4.0"
+# anthropic-sdk = "0.1"
+
+# 嵌入和ML
+# candle-core = "0.3"
+# candle-nn = "0.3"
+# tokenizers = "0.14"
+
+# 配置和CLI
+clap = { version = "4.0", features = ["derive"] }
+config = "0.13"
+toml = "0.8"
+
+# 多语言绑定
+pyo3 = { version = "0.20", features = ["extension-module"] }
+napi = { version = "2.0", features = ["napi4"] }
+napi-derive = "2.0"
+
+# Web服务器
+axum = "0.7"
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+
+# 测试和基准
+criterion = { version = "0.5", features = ["html_reports"] }
+proptest = "1.0"
+
+# 文本处理
+regex = "1.0"
+
+# 现有依赖保持兼容
+arrow = "55.2"
+arrow-array = "55.2"
+arrow-schema = "55.2"
+arrow-buffer = "55.2"
+futures = "0.3"
+libc = "0.2"
+rand = "0.8"
+env_logger = "0.11.8"
+num_cpus = "1.17.0"
+bincode = "2.0.1"
+flate2 = "1.1.2"
+log = "0.4.27"
+sha2 = "0.10"
+aes-gcm = "0.10"
+hex = "0.4"
+cbindgen = "0.26"
+tempfile = "3.20.0"
