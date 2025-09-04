@@ -262,7 +262,8 @@ mod tests {
         assert!(validate_embedder_config(&config).is_ok());
 
         // Test invalid dimension
-        config.dimension = 0;
-        assert!(validate_embedder_config(&config).is_err());
+        let mut invalid_config = config.clone();
+        invalid_config.dimension = 0;
+        assert!(validate_embedder_config(&invalid_config).is_err());
     }
 }
