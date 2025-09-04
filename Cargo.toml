@@ -30,6 +30,7 @@ members = [
 
     # 示例
     "examples/demo",
+    "examples/simple-demo",
     "examples/phase3-demo",
     "examples/phase4-demo",
     "examples/server-demo",
