@@ -114,13 +114,16 @@ impl MemoryManager {
             }
         }
 
-        let operations = self.operations.read().await;
-        let mut memory = operations.get_memory(memory_id).await?;
+        // Get the memory first
+        let mut memory = {
+            let operations = self.operations.read().await;
+            operations.get_memory(memory_id).await?
+        };
 
         if let Some(ref mut mem) = memory {
             // Record access
             mem.access();
-            
+
             // Update lifecycle
             {
                 let mut lifecycle = self.lifecycle.write().await;
@@ -134,8 +137,10 @@ impl MemoryManager {
             }
 
             // Update the memory in storage
-            let mut operations = self.operations.write().await;
-            operations.update_memory(mem.clone()).await?;
+            {
+                let mut operations = self.operations.write().await;
+                operations.update_memory(mem.clone()).await?;
+            }
         }
 
         Ok(memory)
