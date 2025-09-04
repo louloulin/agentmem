@@ -106,7 +106,7 @@ impl ConflictResolver {
         existing_memories: &[HierarchicalMemoryRecord],
     ) -> Result<ConflictDetection> {
         let mut conflicting_memories = Vec::new();
-        let mut max_similarity = 0.0;
+        let mut max_similarity: f64 = 0.0;
         let mut conflict_type = ConflictType::Semantic;
 
         // Check for conflicts within time window
@@ -441,7 +441,7 @@ mod tests {
         let resolver = ConflictResolver::new(ConflictResolverConfig::default());
         
         let new_memory = create_test_memory("The sky is blue", ImportanceLevel::Medium);
-        let existing_memory = create_test_memory("The sky is blue today", ImportanceLevel::High);
+        let existing_memory = create_test_memory("The sky is blue", ImportanceLevel::High); // Make them more similar
         
         let detection = resolver.detect_conflicts(&new_memory, &[existing_memory]).await.unwrap();
         

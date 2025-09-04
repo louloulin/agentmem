@@ -38,7 +38,7 @@ pub struct HierarchicalMemoryRecord {
 }
 
 /// Conflict resolution strategies
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ConflictResolutionStrategy {
     /// Newer memory takes precedence
     TimeBasedNewest,

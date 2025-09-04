@@ -17,6 +17,10 @@ pub mod hierarchy;
 pub mod hierarchical_service;
 pub mod conflict_resolver;
 pub mod llm_optimizer;
+pub mod hierarchy_manager;
+pub mod importance_scorer;
+pub mod adaptive_strategy;
+pub mod context_aware_search;
 
 pub use manager::MemoryManager;
 pub use lifecycle::MemoryLifecycle;
@@ -35,6 +39,21 @@ pub use conflict_resolver::{
 pub use llm_optimizer::{
     LlmOptimizer, LlmOptimizationConfig, OptimizationStrategy, PromptTemplateType,
     PromptTemplate, OptimizedLlmResponse, LlmPerformanceMetrics, LlmProvider
+};
+pub use hierarchy_manager::{
+    HierarchyManager, HierarchyManagerConfig, HierarchyNode, HierarchyStatistics
+};
+pub use importance_scorer::{
+    AdvancedImportanceScorer, ImportanceScorerConfig, ImportanceFactors,
+    MemoryUsageStats, ScoringContext, AccessType
+};
+pub use adaptive_strategy::{
+    AdaptiveStrategyManager, AdaptiveStrategyConfig, MemoryStrategy,
+    StrategyPerformance, StrategyRecommendation, StrategyParameters
+};
+pub use context_aware_search::{
+    ContextAwareSearchEngine, ContextAwareSearchConfig, ContextualSearchQuery,
+    SearchStrategy, ResultPreferences, ContextualSearchResult, SearchAnalytics
 };
 
 #[cfg(test)]
