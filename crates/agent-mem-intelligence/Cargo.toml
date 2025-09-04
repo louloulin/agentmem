@@ -1,0 +1,54 @@
+[package]
+name = "agent-mem-intelligence"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Intelligent memory processing for AgentMem memory platform"
+
+[dependencies]
+agent-mem-traits = { path = "../agent-mem-traits" }
+agent-mem-utils = { path = "../agent-mem-utils" }
+
+# 核心依赖
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+async-trait.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+
+# 数学和统计计算
+nalgebra = { version = "0.32", optional = true }
+ndarray = { version = "0.15", optional = true }
+
+# 机器学习算法（可选）
+linfa = { version = "0.7", optional = true }
+linfa-clustering = { version = "0.7", optional = true }
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio-test = "0.4"
+approx = "0.5"
+
+[features]
+default = ["basic"]
+
+# 基础功能
+basic = []
+
+# 高级数学计算
+advanced-math = ["dep:nalgebra", "dep:ndarray"]
+
+# 机器学习算法
+ml-algorithms = ["dep:linfa", "dep:linfa-clustering", "advanced-math"]
+
+# 所有功能
+all-features = ["basic", "advanced-math", "ml-algorithms"]

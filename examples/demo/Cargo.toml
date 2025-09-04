@@ -10,4 +10,7 @@ agent-mem-config = { path = "../../crates/agent-mem-config" }
 agent-mem-core = { path = "../../crates/agent-mem-core" }
 agent-mem-llm = { path = "../../crates/agent-mem-llm" }
 agent-mem-storage = { path = "../../crates/agent-mem-storage" }
+agent-mem-embeddings = { path = "../../crates/agent-mem-embeddings" }
+agent-mem-intelligence = { path = "../../crates/agent-mem-intelligence" }
 tokio = { version = "1.0", features = ["full"] }
+chrono = { version = "0.4", features = ["serde"] }

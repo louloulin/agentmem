@@ -8,6 +8,8 @@ members = [
     "crates/agent-mem-core",
     "crates/agent-mem-llm",
     "crates/agent-mem-storage",
+    "crates/agent-mem-embeddings",
+    "crates/agent-mem-intelligence",
     # "crates/agent-mem-embeddings",
     # "crates/agent-mem-session",
     # "crates/agent-mem-intelligence",

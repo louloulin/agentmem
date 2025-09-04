@@ -12,8 +12,10 @@
 pub mod factory;
 pub mod backends;
 pub mod vector;
+pub mod graph;
 
 pub use factory::StorageFactory;
+pub use graph::GraphStoreFactory;
 
 // 重新导出常用类型
 pub use agent_mem_traits::{VectorStore, VectorStoreConfig, Result, AgentMemError};

@@ -29,9 +29,11 @@ chrono.workspace = true
 # HTTP客户端（用于多个提供商）
 reqwest = { version = "0.11", features = ["json"] }
 
-# 本地向量存储依赖（暂时注释掉，避免版本问题）
+# 向量存储依赖
 # lancedb = { version = "0.4", optional = true }
 # arrow = { version = "52", optional = true }
+
+# 云端向量存储（使用HTTP客户端实现）
 # qdrant-client = { version = "1.7", optional = true }
 # pinecone-sdk = { version = "0.1", optional = true }
 
@@ -51,9 +53,13 @@ default = ["memory"]
 
 # 向量存储后端
 chroma = []
-# lancedb = ["dep:lancedb", "dep:arrow"]
-# qdrant = ["dep:qdrant-client"]
-# pinecone = ["dep:pinecone-sdk"]
+lancedb = [] # 使用HTTP实现，暂不依赖原生SDK
+qdrant = [] # 使用HTTP实现
+pinecone = [] # 使用HTTP实现
+
+# 图存储后端
+neo4j = [] # 使用HTTP实现
+memgraph = [] # 使用HTTP实现
 
 # 本地存储后端
 sled = ["dep:sled"]
