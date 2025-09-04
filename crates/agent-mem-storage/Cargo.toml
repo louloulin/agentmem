@@ -25,6 +25,7 @@ thiserror.workspace = true
 async-trait.workspace = true
 uuid.workspace = true
 chrono.workspace = true
+tracing.workspace = true
 
 # 向量存储依赖
 # HTTP客户端（用于多个提供商）

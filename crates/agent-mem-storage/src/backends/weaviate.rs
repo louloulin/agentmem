@@ -3,7 +3,7 @@
 //! Provides integration with Weaviate vector database for storing
 //! and retrieving memory embeddings with semantic search capabilities.
 
-use agent_mem_traits::{Result, AgentMemError, VectorStore, SearchResult};
+use agent_mem_traits::{Result, AgentMemError, EmbeddingVectorStore, SearchResult};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -190,7 +190,7 @@ impl WeaviateStore {
 }
 
 #[async_trait]
-impl VectorStore for WeaviateStore {
+impl EmbeddingVectorStore for WeaviateStore {
     async fn store_embedding(
         &self,
         memory_id: &str,
@@ -292,7 +292,7 @@ impl VectorStore for WeaviateStore {
         let search_response: WeaviateSearchResponse = response.json().await
             .map_err(|e| AgentMemError::parsing_error(&format!("Failed to parse search response: {}", e)))?;
         
-        let results = search_response.data.get
+        let results: Vec<SearchResult> = search_response.data.get
             .get(&self.config.class_name)
             .unwrap_or(&Vec::new())
             .iter()
@@ -302,21 +302,24 @@ impl VectorStore for WeaviateStore {
                     .and_then(|a| a.certainty)
                     .unwrap_or(0.0);
                 
-                let mut metadata = HashMap::new();
-                if let Some(content) = &result.content {
-                    metadata.insert("content".to_string(), content.clone());
-                }
-                if let Some(agent_id) = &result.agent_id {
-                    metadata.insert("agent_id".to_string(), agent_id.clone());
-                }
-                if let Some(user_id) = &result.user_id {
-                    metadata.insert("user_id".to_string(), user_id.clone());
-                }
+
                 
                 Some(SearchResult {
-                    memory_id: memory_id.clone(),
+                    id: memory_id.clone(),
                     score,
-                    metadata,
+                    metadata: {
+                        let mut meta = HashMap::new();
+                        if let Some(content) = &result.content {
+                            meta.insert("content".to_string(), serde_json::Value::String(content.clone()));
+                        }
+                        if let Some(agent_id) = &result.agent_id {
+                            meta.insert("agent_id".to_string(), serde_json::Value::String(agent_id.clone()));
+                        }
+                        if let Some(user_id) = &result.user_id {
+                            meta.insert("user_id".to_string(), serde_json::Value::String(user_id.clone()));
+                        }
+                        meta
+                    },
                 })
             })
             .collect();

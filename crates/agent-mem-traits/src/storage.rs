@@ -50,6 +50,43 @@ pub trait VectorStore: Send + Sync {
     async fn clear(&self) -> Result<()>;
 }
 
+/// Embedding-focused vector store trait
+#[async_trait]
+pub trait EmbeddingVectorStore: Send + Sync {
+    /// Store an embedding with metadata
+    async fn store_embedding(
+        &self,
+        memory_id: &str,
+        embedding: &[f32],
+        metadata: &std::collections::HashMap<String, String>,
+    ) -> Result<()>;
+
+    /// Search for similar embeddings
+    async fn search_similar(
+        &self,
+        query_embedding: &[f32],
+        limit: usize,
+        threshold: Option<f32>,
+    ) -> Result<Vec<SearchResult>>;
+
+    /// Delete an embedding
+    async fn delete_embedding(&self, memory_id: &str) -> Result<()>;
+
+    /// Update an embedding
+    async fn update_embedding(
+        &self,
+        memory_id: &str,
+        embedding: &[f32],
+        metadata: &std::collections::HashMap<String, String>,
+    ) -> Result<()>;
+
+    /// Get an embedding by ID
+    async fn get_embedding(&self, memory_id: &str) -> Result<Option<Vec<f32>>>;
+
+    /// List all embedding IDs
+    async fn list_embeddings(&self, prefix: Option<&str>) -> Result<Vec<String>>;
+}
+
 /// Graph store trait
 #[async_trait]
 pub trait GraphStore: Send + Sync {

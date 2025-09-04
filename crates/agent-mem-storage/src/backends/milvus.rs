@@ -3,7 +3,7 @@
 //! Provides integration with Milvus vector database for high-performance
 //! vector similarity search and storage.
 
-use agent_mem_traits::{Result, AgentMemError, VectorStore, SearchResult};
+use agent_mem_traits::{Result, AgentMemError, EmbeddingVectorStore, SearchResult};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -282,7 +282,7 @@ impl MilvusStore {
 }
 
 #[async_trait]
-impl VectorStore for MilvusStore {
+impl EmbeddingVectorStore for MilvusStore {
     async fn store_embedding(
         &self,
         memory_id: &str,
@@ -442,21 +442,20 @@ impl VectorStore for MilvusStore {
                 }
                 
                 let mut metadata = HashMap::new();
-                metadata.insert("memory_id".to_string(), memory_id.clone());
-                
+
                 // Extract field data
                 for field_data in &result.fields_data {
                     if let Some(scalars) = &field_data.scalars {
                         if let Some(string_data) = &scalars.string_data {
                             if let Some(value) = string_data.data.get(i) {
-                                metadata.insert(field_data.field_name.clone(), value.clone());
+                                metadata.insert(field_data.field_name.clone(), serde_json::Value::String(value.clone()));
                             }
                         }
                     }
                 }
-                
+
                 results.push(SearchResult {
-                    memory_id: memory_id.clone(),
+                    id: memory_id.clone(),
                     score,
                     metadata,
                 });

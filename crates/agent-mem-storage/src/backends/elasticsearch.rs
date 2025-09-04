@@ -3,7 +3,7 @@
 //! Provides integration with Elasticsearch for vector similarity search
 //! using dense vector fields and kNN search capabilities.
 
-use agent_mem_traits::{Result, AgentMemError, VectorStore, SearchResult};
+use agent_mem_traits::{Result, AgentMemError, EmbeddingVectorStore, SearchResult};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -151,7 +151,7 @@ impl ElasticsearchStore {
                     "memory_id": {
                         "type": "keyword"
                     },
-                    self.config.vector_field: {
+                    self.config.vector_field.clone(): {
                         "type": "dense_vector",
                         "dims": self.config.dimension,
                         "index": true,
@@ -224,7 +224,7 @@ impl ElasticsearchStore {
 }
 
 #[async_trait]
-impl VectorStore for ElasticsearchStore {
+impl EmbeddingVectorStore for ElasticsearchStore {
     async fn store_embedding(
         &self,
         memory_id: &str,
@@ -328,12 +328,12 @@ impl VectorStore for ElasticsearchStore {
                 }
                 
                 let mut metadata = HashMap::new();
-                metadata.insert("content".to_string(), hit.source.content);
-                metadata.insert("agent_id".to_string(), hit.source.agent_id);
-                metadata.insert("user_id".to_string(), hit.source.user_id);
-                
+                metadata.insert("content".to_string(), serde_json::Value::String(hit.source.content));
+                metadata.insert("agent_id".to_string(), serde_json::Value::String(hit.source.agent_id));
+                metadata.insert("user_id".to_string(), serde_json::Value::String(hit.source.user_id));
+
                 Some(SearchResult {
-                    memory_id: hit.source.memory_id,
+                    id: hit.source.memory_id,
                     score: hit.score,
                     metadata,
                 })
@@ -396,7 +396,7 @@ impl VectorStore for ElasticsearchStore {
             if let Some(source) = doc_response.get("_source") {
                 if let Some(embedding) = source.get(&self.config.vector_field) {
                     if let Some(embedding_array) = embedding.as_array() {
-                        let embedding_vec: Result<Vec<f32>, _> = embedding_array
+                        let embedding_vec: std::result::Result<Vec<f32>, &str> = embedding_array
                             .iter()
                             .map(|v| v.as_f64().map(|f| f as f32).ok_or("Invalid embedding value"))
                             .collect();

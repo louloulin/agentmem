@@ -14,7 +14,7 @@ pub mod types;
 // Re-export main traits
 pub use memory::MemoryProvider;
 pub use llm::{LLMProvider, ModelInfo};
-pub use storage::{VectorStore, LegacyVectorStore, GraphStore, KeyValueStore, HistoryStore, VectorStoreStats, GraphResult};
+pub use storage::{VectorStore, EmbeddingVectorStore, LegacyVectorStore, GraphStore, KeyValueStore, HistoryStore, VectorStoreStats, GraphResult};
 pub use embedder::Embedder;
 pub use session::SessionManager;
 pub use error::{AgentMemError, Result};
