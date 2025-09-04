@@ -7,6 +7,7 @@ use crate::providers::AzureProvider;
 use crate::providers::GeminiProvider;
 #[cfg(feature = "ollama")]
 use crate::providers::OllamaProvider;
+use crate::providers::{ClaudeProvider, CohereProvider, MistralProvider, PerplexityProvider};
 
 use agent_mem_traits::{LLMProvider, LLMConfig, Result, AgentMemError, ModelInfo, Message};
 use async_trait::async_trait;
@@ -24,6 +25,10 @@ pub enum LLMProviderEnum {
     Gemini(GeminiProvider),
     #[cfg(feature = "ollama")]
     Ollama(OllamaProvider),
+    Claude(ClaudeProvider),
+    Cohere(CohereProvider),
+    Mistral(MistralProvider),
+    Perplexity(PerplexityProvider),
 }
 
 #[async_trait]
@@ -40,6 +45,10 @@ impl LLMProvider for LLMProviderEnum {
             LLMProviderEnum::Gemini(provider) => provider.generate(messages).await,
             #[cfg(feature = "ollama")]
             LLMProviderEnum::Ollama(provider) => provider.generate(messages).await,
+            LLMProviderEnum::Claude(provider) => provider.generate(messages).await,
+            LLMProviderEnum::Cohere(provider) => provider.generate(messages).await,
+            LLMProviderEnum::Mistral(provider) => provider.generate(messages).await,
+            LLMProviderEnum::Perplexity(provider) => provider.generate(messages).await,
         }
     }
 
@@ -55,6 +64,10 @@ impl LLMProvider for LLMProviderEnum {
             LLMProviderEnum::Gemini(provider) => provider.generate_stream(messages).await,
             #[cfg(feature = "ollama")]
             LLMProviderEnum::Ollama(provider) => provider.generate_stream(messages).await,
+            LLMProviderEnum::Claude(provider) => provider.generate_stream(messages).await,
+            LLMProviderEnum::Cohere(provider) => provider.generate_stream(messages).await,
+            LLMProviderEnum::Mistral(provider) => provider.generate_stream(messages).await,
+            LLMProviderEnum::Perplexity(provider) => provider.generate_stream(messages).await,
         }
     }
 
@@ -70,6 +83,10 @@ impl LLMProvider for LLMProviderEnum {
             LLMProviderEnum::Gemini(provider) => provider.get_model_info(),
             #[cfg(feature = "ollama")]
             LLMProviderEnum::Ollama(provider) => provider.get_model_info(),
+            LLMProviderEnum::Claude(provider) => provider.get_model_info(),
+            LLMProviderEnum::Cohere(provider) => provider.get_model_info(),
+            LLMProviderEnum::Mistral(provider) => provider.get_model_info(),
+            LLMProviderEnum::Perplexity(provider) => provider.get_model_info(),
         }
     }
 
@@ -85,6 +102,10 @@ impl LLMProvider for LLMProviderEnum {
             LLMProviderEnum::Gemini(provider) => provider.validate_config(),
             #[cfg(feature = "ollama")]
             LLMProviderEnum::Ollama(provider) => provider.validate_config(),
+            LLMProviderEnum::Claude(provider) => provider.validate_config(),
+            LLMProviderEnum::Cohere(provider) => provider.validate_config(),
+            LLMProviderEnum::Mistral(provider) => provider.validate_config(),
+            LLMProviderEnum::Perplexity(provider) => provider.validate_config(),
         }
     }
 }
@@ -151,6 +172,22 @@ impl LLMFactory {
                     return Err(AgentMemError::unsupported_provider("Ollama feature not enabled"));
                 }
             }
+            "claude" => {
+                let provider = ClaudeProvider::new(config.clone())?;
+                LLMProviderEnum::Claude(provider)
+            }
+            "cohere" => {
+                let provider = CohereProvider::new(config.clone())?;
+                LLMProviderEnum::Cohere(provider)
+            }
+            "mistral" => {
+                let provider = MistralProvider::new(config.clone())?;
+                LLMProviderEnum::Mistral(provider)
+            }
+            "perplexity" => {
+                let provider = PerplexityProvider::new(config.clone())?;
+                LLMProviderEnum::Perplexity(provider)
+            }
             _ => return Err(AgentMemError::unsupported_provider(&config.provider)),
         };
 
@@ -160,22 +197,28 @@ impl LLMFactory {
     /// 获取支持的提供商列表
     pub fn supported_providers() -> Vec<&'static str> {
         let mut providers = Vec::new();
-        
+
         #[cfg(feature = "openai")]
         providers.push("openai");
-        
+
         #[cfg(feature = "anthropic")]
         providers.push("anthropic");
-        
+
         #[cfg(feature = "azure")]
         providers.push("azure");
-        
+
         #[cfg(feature = "gemini")]
         providers.push("gemini");
-        
+
         #[cfg(feature = "ollama")]
         providers.push("ollama");
-        
+
+        // New providers (always available)
+        providers.push("claude");
+        providers.push("cohere");
+        providers.push("mistral");
+        providers.push("perplexity");
+
         providers
     }
 
@@ -215,6 +258,50 @@ impl LLMFactory {
             provider: "ollama".to_string(),
             model: model.to_string(),
             base_url: Some(base_url.unwrap_or("http://localhost:11434").to_string()),
+            ..Default::default()
+        };
+        Self::create_provider(&config)
+    }
+
+    /// 创建Claude提供商
+    pub fn create_claude_provider(api_key: &str, model: Option<&str>) -> Result<Arc<dyn LLMProvider + Send + Sync>> {
+        let config = LLMConfig {
+            provider: "claude".to_string(),
+            model: model.unwrap_or("claude-3-haiku-20240307").to_string(),
+            api_key: Some(api_key.to_string()),
+            ..Default::default()
+        };
+        Self::create_provider(&config)
+    }
+
+    /// 创建Cohere提供商
+    pub fn create_cohere_provider(api_key: &str, model: Option<&str>) -> Result<Arc<dyn LLMProvider + Send + Sync>> {
+        let config = LLMConfig {
+            provider: "cohere".to_string(),
+            model: model.unwrap_or("command-r").to_string(),
+            api_key: Some(api_key.to_string()),
+            ..Default::default()
+        };
+        Self::create_provider(&config)
+    }
+
+    /// 创建Mistral提供商
+    pub fn create_mistral_provider(api_key: &str, model: Option<&str>) -> Result<Arc<dyn LLMProvider + Send + Sync>> {
+        let config = LLMConfig {
+            provider: "mistral".to_string(),
+            model: model.unwrap_or("mistral-small-latest").to_string(),
+            api_key: Some(api_key.to_string()),
+            ..Default::default()
+        };
+        Self::create_provider(&config)
+    }
+
+    /// 创建Perplexity提供商
+    pub fn create_perplexity_provider(api_key: &str, model: Option<&str>) -> Result<Arc<dyn LLMProvider + Send + Sync>> {
+        let config = LLMConfig {
+            provider: "perplexity".to_string(),
+            model: model.unwrap_or("llama-3.1-sonar-small-128k-chat").to_string(),
+            api_key: Some(api_key.to_string()),
             ..Default::default()
         };
         Self::create_provider(&config)
@@ -272,5 +359,38 @@ mod tests {
     fn test_create_anthropic_provider() {
         let result = LLMFactory::create_anthropic_provider("test-key");
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_claude_provider() {
+        let result = LLMFactory::create_claude_provider("test-key", None);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_cohere_provider() {
+        let result = LLMFactory::create_cohere_provider("test-key", None);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_mistral_provider() {
+        let result = LLMFactory::create_mistral_provider("test-key", None);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_perplexity_provider() {
+        let result = LLMFactory::create_perplexity_provider("test-key", None);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_new_providers_supported() {
+        let providers = LLMFactory::supported_providers();
+        assert!(providers.contains(&"claude"));
+        assert!(providers.contains(&"cohere"));
+        assert!(providers.contains(&"mistral"));
+        assert!(providers.contains(&"perplexity"));
     }
 }
