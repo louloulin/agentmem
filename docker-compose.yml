@@ -1,0 +1,267 @@
+# Docker Compose configuration for AgentMem production deployment
+# Includes all necessary services: AgentMem server, databases, monitoring
+
+version: '3.8'
+
+services:
+  # AgentMem main application
+  agentmem:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agentmem-server
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - RUST_LOG=info
+      - AGENT_MEM_PORT=8080
+      - AGENT_MEM_HOST=0.0.0.0
+      - AGENT_MEM_ENABLE_CORS=true
+      - AGENT_MEM_ENABLE_AUTH=true
+      - AGENT_MEM_DATABASE_URL=postgresql://agentmem:password@postgres:5432/agentmem
+      - AGENT_MEM_REDIS_URL=redis://redis:6379
+      - AGENT_MEM_VECTOR_STORE=qdrant
+      - AGENT_MEM_QDRANT_URL=http://qdrant:6333
+      - AGENT_MEM_NEO4J_URL=bolt://neo4j:7687
+      - AGENT_MEM_NEO4J_USER=neo4j
+      - AGENT_MEM_NEO4J_PASSWORD=password
+    volumes:
+      - agentmem_data:/app/data
+      - agentmem_logs:/app/logs
+      - ./docker/config:/app/config:ro
+    depends_on:
+      - postgres
+      - redis
+      - qdrant
+      - neo4j
+    networks:
+      - agentmem-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # PostgreSQL database for metadata and audit logs
+  postgres:
+    image: postgres:15-alpine
+    container_name: agentmem-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=agentmem
+      - POSTGRES_USER=agentmem
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - agentmem-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentmem -d agentmem"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and session storage
+  redis:
+    image: redis:7-alpine
+    container_name: agentmem-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass password
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - agentmem-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Qdrant vector database
+  qdrant:
+    image: qdrant/qdrant:v1.7.0
+    container_name: agentmem-qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__HTTP_PORT=6333
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    networks:
+      - agentmem-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Neo4j graph database
+  neo4j:
+    image: neo4j:5.15-community
+    container_name: agentmem-neo4j
+    restart: unless-stopped
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      - NEO4J_AUTH=neo4j/password
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*
+      - NEO4J_dbms_memory_heap_initial__size=512m
+      - NEO4J_dbms_memory_heap_max__size=2G
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    networks:
+      - agentmem-network
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "password", "RETURN 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: agentmem-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - agentmem-network
+
+  # Grafana for monitoring dashboards
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: agentmem-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - agentmem-network
+    depends_on:
+      - prometheus
+
+  # Nginx reverse proxy and load balancer
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: agentmem-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      - agentmem
+    networks:
+      - agentmem-network
+
+  # Elasticsearch for log aggregation
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: agentmem-elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    networks:
+      - agentmem-network
+
+  # Kibana for log visualization
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: agentmem-kibana
+    restart: unless-stopped
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      - elasticsearch
+    networks:
+      - agentmem-network
+
+  # Filebeat for log shipping
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.11.0
+    container_name: agentmem-filebeat
+    restart: unless-stopped
+    user: root
+    volumes:
+      - ./docker/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - agentmem_logs:/var/log/agentmem:ro
+      - nginx_logs:/var/log/nginx:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - elasticsearch
+    networks:
+      - agentmem-network
+
+volumes:
+  agentmem_data:
+    driver: local
+  agentmem_logs:
+    driver: local
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  qdrant_data:
+    driver: local
+  neo4j_data:
+    driver: local
+  neo4j_logs:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  nginx_logs:
+    driver: local
+  elasticsearch_data:
+    driver: local
+
+networks:
+  agentmem-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

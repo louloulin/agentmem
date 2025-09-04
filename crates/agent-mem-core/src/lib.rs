@@ -21,6 +21,9 @@ pub mod hierarchy_manager;
 pub mod importance_scorer;
 pub mod adaptive_strategy;
 pub mod context_aware_search;
+pub mod monitoring;
+pub mod logging;
+pub mod security;
 
 pub use manager::MemoryManager;
 pub use lifecycle::MemoryLifecycle;
@@ -54,6 +57,18 @@ pub use adaptive_strategy::{
 pub use context_aware_search::{
     ContextAwareSearchEngine, ContextAwareSearchConfig, ContextualSearchQuery,
     SearchStrategy, ResultPreferences, ContextualSearchResult, SearchAnalytics
+};
+pub use monitoring::{
+    MonitoringSystem, MonitoringConfig, MetricPoint, MetricType, HealthStatus,
+    ComponentStatus, AlertRule, AlertCondition, AlertSeverity, Alert, PerformanceProfile, SystemInfo
+};
+pub use logging::{
+    LoggingSystem, LoggingConfig, LogLevel, LogEntry, AuditEntry, AuditEventType,
+    AuditResult, SecurityEntry, SecurityEventType, SecuritySeverity, ComplianceExport
+};
+pub use security::{
+    SecuritySystem, SecurityConfig, Permission, Role, UserAccount, Session as SecuritySession,
+    AccessControlEntry, ThreatRule, ThreatRuleType, ThreatSeverity, ThreatAction, ThreatIncident
 };
 
 #[cfg(test)]
