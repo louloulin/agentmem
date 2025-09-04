@@ -1,15 +1,15 @@
 //! Core memory manager implementation
 
 use crate::{
+    history::{HistoryConfig, MemoryHistory},
+    lifecycle::{LifecycleConfig, MemoryLifecycle},
+    operations::{InMemoryOperations, MemoryOperations},
     types::{Memory, MemoryQuery, MemorySearchResult, MemoryStats, MemoryType},
-    operations::{MemoryOperations, InMemoryOperations},
-    lifecycle::{MemoryLifecycle, LifecycleConfig},
-    history::{MemoryHistory, HistoryConfig},
-};
-use agent_mem_traits::{
-    MemoryProvider, Result, AgentMemError, MemoryItem, Session, Message, HistoryEntry, MemoryEvent
 };
 use agent_mem_config::MemoryConfig;
+use agent_mem_traits::{
+    AgentMemError, HistoryEntry, MemoryEvent, MemoryItem, MemoryProvider, Message, Result, Session,
+};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -33,7 +33,8 @@ impl MemoryManager {
 
     /// Create a new memory manager with custom configuration
     pub fn with_config(config: MemoryConfig) -> Self {
-        let operations: Box<dyn MemoryOperations + Send + Sync> = Box::new(InMemoryOperations::new());
+        let operations: Box<dyn MemoryOperations + Send + Sync> =
+            Box::new(InMemoryOperations::new());
         let lifecycle = MemoryLifecycle::with_default_config();
         let history = MemoryHistory::with_default_config();
 
@@ -51,7 +52,8 @@ impl MemoryManager {
         lifecycle_config: LifecycleConfig,
         history_config: HistoryConfig,
     ) -> Self {
-        let operations: Box<dyn MemoryOperations + Send + Sync> = Box::new(InMemoryOperations::new());
+        let operations: Box<dyn MemoryOperations + Send + Sync> =
+            Box::new(InMemoryOperations::new());
         let lifecycle = MemoryLifecycle::new(lifecycle_config);
         let history = MemoryHistory::new(history_config);
 
@@ -155,7 +157,9 @@ impl MemoryManager {
         new_metadata: Option<std::collections::HashMap<String, String>>,
     ) -> Result<()> {
         let operations = self.operations.read().await;
-        let mut memory = operations.get_memory(memory_id).await?
+        let mut memory = operations
+            .get_memory(memory_id)
+            .await?
             .ok_or_else(|| AgentMemError::memory_error("Memory not found"))?;
 
         let old_content = memory.content.clone();
@@ -180,11 +184,11 @@ impl MemoryManager {
         // Record changes in history
         {
             let mut history = self.history.write().await;
-            
+
             if memory.content != old_content {
                 history.record_content_update(&memory, &old_content, None)?;
             }
-            
+
             if memory.importance != old_importance {
                 history.record_importance_change(&memory, old_importance)?;
             }
@@ -222,13 +226,21 @@ impl MemoryManager {
     }
 
     /// Get all memories for an agent
-    pub async fn get_agent_memories(&self, agent_id: &str, limit: Option<usize>) -> Result<Vec<Memory>> {
+    pub async fn get_agent_memories(
+        &self,
+        agent_id: &str,
+        limit: Option<usize>,
+    ) -> Result<Vec<Memory>> {
         let operations = self.operations.read().await;
         operations.get_agent_memories(agent_id, limit).await
     }
 
     /// Get memories by type
-    pub async fn get_memories_by_type(&self, agent_id: &str, memory_type: MemoryType) -> Result<Vec<Memory>> {
+    pub async fn get_memories_by_type(
+        &self,
+        agent_id: &str,
+        memory_type: MemoryType,
+    ) -> Result<Vec<Memory>> {
         let operations = self.operations.read().await;
         operations.get_memories_by_type(agent_id, memory_type).await
     }
@@ -280,14 +292,19 @@ impl MemoryProvider for MemoryManager {
         let mut results = Vec::new();
 
         for message in messages {
-            let memory_id = self.add_memory(
-                session.agent_id.clone().unwrap_or_else(|| "default".to_string()),
-                session.user_id.clone(),
-                message.content.clone(),
-                None, // Use default memory type
-                None, // Use default importance
-                None, // No additional metadata
-            ).await?;
+            let memory_id = self
+                .add_memory(
+                    session
+                        .agent_id
+                        .clone()
+                        .unwrap_or_else(|| "default".to_string()),
+                    session.user_id.clone(),
+                    message.content.clone(),
+                    None, // Use default memory type
+                    None, // Use default importance
+                    None, // No additional metadata
+                )
+                .await?;
 
             if let Some(memory) = self.get_memory(&memory_id).await? {
                 results.push(memory.into());
@@ -302,9 +319,17 @@ impl MemoryProvider for MemoryManager {
         Ok(memory.map(|m| m.into()))
     }
 
-    async fn search(&self, query: &str, session: &Session, limit: usize) -> Result<Vec<MemoryItem>> {
+    async fn search(
+        &self,
+        query: &str,
+        session: &Session,
+        limit: usize,
+    ) -> Result<Vec<MemoryItem>> {
         let mut memory_query = MemoryQuery::new(
-            session.agent_id.clone().unwrap_or_else(|| "default".to_string())
+            session
+                .agent_id
+                .clone()
+                .unwrap_or_else(|| "default".to_string()),
         )
         .with_text_query(query.to_string())
         .with_limit(limit);
@@ -323,7 +348,8 @@ impl MemoryProvider for MemoryManager {
             Some(data.to_string()),
             None, // Don't update importance through this interface
             None, // No metadata updates
-        ).await
+        )
+        .await
     }
 
     async fn delete(&self, memory_id: &str) -> Result<()> {
@@ -339,9 +365,9 @@ impl MemoryProvider for MemoryManager {
                 .map(|entry| {
                     let event = match entry.change_type {
                         crate::history::ChangeType::Created => MemoryEvent::Create,
-                        crate::history::ChangeType::ContentUpdated |
-                        crate::history::ChangeType::ImportanceChanged |
-                        crate::history::ChangeType::MetadataUpdated => MemoryEvent::Update,
+                        crate::history::ChangeType::ContentUpdated
+                        | crate::history::ChangeType::ImportanceChanged
+                        | crate::history::ChangeType::MetadataUpdated => MemoryEvent::Update,
                         crate::history::ChangeType::Deprecated => MemoryEvent::Delete,
                         _ => MemoryEvent::Update,
                     };
@@ -350,7 +376,8 @@ impl MemoryProvider for MemoryManager {
                         id: format!("{}_{}", entry.memory_id, entry.version),
                         memory_id: entry.memory_id.clone(),
                         event,
-                        timestamp: chrono::DateTime::from_timestamp(entry.timestamp, 0).unwrap_or_else(|| chrono::Utc::now()),
+                        timestamp: chrono::DateTime::from_timestamp(entry.timestamp, 0)
+                            .unwrap_or_else(|| chrono::Utc::now()),
                         data: Some(serde_json::json!({
                             "content": entry.content,
                             "change_type": entry.change_type.to_string(),

@@ -1,5 +1,5 @@
 //! AgentMem Performance Optimization Module
-//! 
+//!
 //! This module provides performance optimization components including:
 //! - Async batch processing
 //! - Memory pools and object pools
@@ -9,20 +9,20 @@
 
 pub mod batch;
 pub mod cache;
-pub mod pool;
-pub mod metrics;
 pub mod concurrency;
+pub mod metrics;
+pub mod pool;
 pub mod query;
 
 // Re-export main types
-pub use batch::{BatchProcessor, BatchConfig, BatchResult};
-pub use cache::{CacheManager, CacheConfig, CacheStats};
-pub use pool::{ObjectPool, MemoryPool, PoolConfig};
-pub use metrics::{PerformanceMetrics, MetricsCollector};
-pub use concurrency::{ConcurrencyManager, ConcurrencyConfig};
-pub use query::{QueryOptimizer, QueryPlan, OptimizationHint};
+pub use batch::{BatchConfig, BatchProcessor, BatchResult};
+pub use cache::{CacheConfig, CacheManager, CacheStats};
+pub use concurrency::{ConcurrencyConfig, ConcurrencyManager};
+pub use metrics::{MetricsCollector, PerformanceMetrics};
+pub use pool::{MemoryPool, ObjectPool, PoolConfig};
+pub use query::{OptimizationHint, QueryOptimizer, QueryPlan};
 
-use agent_mem_traits::{Result, AgentMemError};
+use agent_mem_traits::{AgentMemError, Result};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -161,8 +161,6 @@ pub struct PerformanceStats {
     pub memory: pool::MemoryStats,
     pub concurrency: concurrency::ConcurrencyStats,
 }
-
-
 
 #[cfg(test)]
 mod tests {

@@ -1,7 +1,7 @@
 //! Memory history tracking and versioning
 
 use crate::types::Memory;
-use agent_mem_traits::{Result, AgentMemError};
+use agent_mem_traits::{AgentMemError, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -80,7 +80,7 @@ impl Default for HistoryConfig {
         Self {
             max_versions_per_memory: 50,
             max_history_age_seconds: 365 * 24 * 3600, // 1 year
-            track_access_events: false, // Usually too noisy
+            track_access_events: false,               // Usually too noisy
             compress_old_entries: true,
         }
     }
@@ -133,7 +133,8 @@ impl MemoryHistory {
             timestamp: chrono::Utc::now().timestamp(),
             change_type: ChangeType::ContentUpdated,
             change_description: change_description.or_else(|| {
-                Some(format!("Content updated from '{}' to '{}'", 
+                Some(format!(
+                    "Content updated from '{}' to '{}'",
                     self.truncate_text(old_content, 50),
                     self.truncate_text(&memory.content, 50)
                 ))
@@ -145,11 +146,7 @@ impl MemoryHistory {
     }
 
     /// Record importance change
-    pub fn record_importance_change(
-        &mut self,
-        memory: &Memory,
-        old_importance: f32,
-    ) -> Result<()> {
+    pub fn record_importance_change(&mut self, memory: &Memory, old_importance: f32) -> Result<()> {
         let entry = MemoryHistoryEntry {
             memory_id: memory.id.clone(),
             version: memory.version,
@@ -182,10 +179,7 @@ impl MemoryHistory {
             metadata: memory.metadata.clone(),
             timestamp: chrono::Utc::now().timestamp(),
             change_type: ChangeType::MetadataUpdated,
-            change_description: Some(format!(
-                "Metadata updated: {}",
-                changed_keys.join(", ")
-            )),
+            change_description: Some(format!("Metadata updated: {}", changed_keys.join(", "))),
         };
 
         self.add_history_entry(entry);
@@ -269,15 +263,24 @@ impl MemoryHistory {
     }
 
     /// Get changes between two versions
-    pub fn get_version_diff(&self, memory_id: &str, from_version: u32, to_version: u32) -> Result<VersionDiff> {
-        let history = self.history.get(memory_id)
+    pub fn get_version_diff(
+        &self,
+        memory_id: &str,
+        from_version: u32,
+        to_version: u32,
+    ) -> Result<VersionDiff> {
+        let history = self
+            .history
+            .get(memory_id)
             .ok_or_else(|| AgentMemError::memory_error("Memory history not found"))?;
 
-        let from_entry = history.iter()
+        let from_entry = history
+            .iter()
             .find(|entry| entry.version == from_version)
             .ok_or_else(|| AgentMemError::memory_error("From version not found"))?;
 
-        let to_entry = history.iter()
+        let to_entry = history
+            .iter()
             .find(|entry| entry.version == to_version)
             .ok_or_else(|| AgentMemError::memory_error("To version not found"))?;
 
@@ -322,19 +325,23 @@ impl MemoryHistory {
     /// Get history statistics
     pub fn get_history_stats(&self) -> HistoryStats {
         let mut stats = HistoryStats::default();
-        
+
         stats.total_memories_tracked = self.history.len();
-        
+
         for entries in self.history.values() {
             stats.total_history_entries += entries.len();
-            
+
             for entry in entries {
-                *stats.changes_by_type.entry(entry.change_type.clone()).or_insert(0) += 1;
+                *stats
+                    .changes_by_type
+                    .entry(entry.change_type.clone())
+                    .or_insert(0) += 1;
             }
         }
 
         if !self.history.is_empty() {
-            stats.average_versions_per_memory = stats.total_history_entries as f32 / stats.total_memories_tracked as f32;
+            stats.average_versions_per_memory =
+                stats.total_history_entries as f32 / stats.total_memories_tracked as f32;
         }
 
         stats

@@ -1,8 +1,10 @@
 //! 嵌入模型工厂模式实现
 
 use crate::config::EmbeddingConfig;
-use crate::providers::{OpenAIEmbedder, HuggingFaceEmbedder, LocalEmbedder, AnthropicEmbedder, CohereEmbedder};
-use agent_mem_traits::{Embedder, Result, AgentMemError};
+use crate::providers::{
+    AnthropicEmbedder, CohereEmbedder, HuggingFaceEmbedder, LocalEmbedder, OpenAIEmbedder,
+};
+use agent_mem_traits::{AgentMemError, Embedder, Result};
 use async_trait::async_trait;
 use std::sync::Arc;
 
@@ -107,7 +109,9 @@ pub struct EmbeddingFactory;
 
 impl EmbeddingFactory {
     /// 根据配置创建嵌入器实例
-    pub async fn create_embedder(config: &EmbeddingConfig) -> Result<Arc<dyn Embedder + Send + Sync>> {
+    pub async fn create_embedder(
+        config: &EmbeddingConfig,
+    ) -> Result<Arc<dyn Embedder + Send + Sync>> {
         // 验证配置
         config.validate()?;
 
@@ -124,7 +128,9 @@ impl EmbeddingFactory {
                 }
                 #[cfg(not(feature = "huggingface"))]
                 {
-                    return Err(AgentMemError::unsupported_provider("HuggingFace feature not enabled"));
+                    return Err(AgentMemError::unsupported_provider(
+                        "HuggingFace feature not enabled",
+                    ));
                 }
             }
             "local" => {
@@ -135,7 +141,9 @@ impl EmbeddingFactory {
                 }
                 #[cfg(not(feature = "local"))]
                 {
-                    return Err(AgentMemError::unsupported_provider("Local feature not enabled"));
+                    return Err(AgentMemError::unsupported_provider(
+                        "Local feature not enabled",
+                    ));
                 }
             }
             "anthropic" => {
@@ -146,7 +154,9 @@ impl EmbeddingFactory {
                 }
                 #[cfg(not(feature = "anthropic"))]
                 {
-                    return Err(AgentMemError::unsupported_provider("Anthropic feature not enabled"));
+                    return Err(AgentMemError::unsupported_provider(
+                        "Anthropic feature not enabled",
+                    ));
                 }
             }
             "cohere" => {
@@ -157,7 +167,9 @@ impl EmbeddingFactory {
                 }
                 #[cfg(not(feature = "cohere"))]
                 {
-                    return Err(AgentMemError::unsupported_provider("Cohere feature not enabled"));
+                    return Err(AgentMemError::unsupported_provider(
+                        "Cohere feature not enabled",
+                    ));
                 }
             }
             _ => return Err(AgentMemError::unsupported_provider(&config.provider)),
@@ -193,7 +205,9 @@ impl EmbeddingFactory {
     }
 
     /// 创建默认的OpenAI嵌入器
-    pub async fn create_openai_embedder(api_key: String) -> Result<Arc<dyn Embedder + Send + Sync>> {
+    pub async fn create_openai_embedder(
+        api_key: String,
+    ) -> Result<Arc<dyn Embedder + Send + Sync>> {
         let config = EmbeddingConfig::openai(Some(api_key));
         Self::create_embedder(&config).await
     }
@@ -212,21 +226,28 @@ impl EmbeddingFactory {
 
     /// 创建HuggingFace嵌入器
     #[cfg(feature = "huggingface")]
-    pub async fn create_huggingface_embedder(model: &str) -> Result<Arc<dyn Embedder + Send + Sync>> {
+    pub async fn create_huggingface_embedder(
+        model: &str,
+    ) -> Result<Arc<dyn Embedder + Send + Sync>> {
         let config = EmbeddingConfig::huggingface(model);
         Self::create_embedder(&config).await
     }
 
     /// 创建本地嵌入器
     #[cfg(feature = "local")]
-    pub async fn create_local_embedder(model_path: &str, dimension: usize) -> Result<Arc<dyn Embedder + Send + Sync>> {
+    pub async fn create_local_embedder(
+        model_path: &str,
+        dimension: usize,
+    ) -> Result<Arc<dyn Embedder + Send + Sync>> {
         let config = EmbeddingConfig::local(model_path, dimension);
         Self::create_embedder(&config).await
     }
 
     /// 创建Anthropic嵌入器
     #[cfg(feature = "anthropic")]
-    pub async fn create_anthropic_embedder(api_key: String) -> Result<Arc<dyn Embedder + Send + Sync>> {
+    pub async fn create_anthropic_embedder(
+        api_key: String,
+    ) -> Result<Arc<dyn Embedder + Send + Sync>> {
         let config = EmbeddingConfig {
             provider: "anthropic".to_string(),
             model: "claude-embedding".to_string(),
@@ -239,7 +260,10 @@ impl EmbeddingFactory {
 
     /// 创建Cohere嵌入器
     #[cfg(feature = "cohere")]
-    pub async fn create_cohere_embedder(api_key: String, model: Option<&str>) -> Result<Arc<dyn Embedder + Send + Sync>> {
+    pub async fn create_cohere_embedder(
+        api_key: String,
+        model: Option<&str>,
+    ) -> Result<Arc<dyn Embedder + Send + Sync>> {
         let config = EmbeddingConfig {
             provider: "cohere".to_string(),
             model: model.unwrap_or("embed-english-v3.0").to_string(),
@@ -254,11 +278,12 @@ impl EmbeddingFactory {
     /// 从环境变量创建嵌入器
     pub async fn from_env() -> Result<Arc<dyn Embedder + Send + Sync>> {
         let provider = std::env::var("EMBEDDING_PROVIDER").unwrap_or_else(|_| "openai".to_string());
-        
+
         match provider.as_str() {
             "openai" => {
-                let api_key = std::env::var("OPENAI_API_KEY")
-                    .map_err(|_| AgentMemError::config_error("OPENAI_API_KEY environment variable not set"))?;
+                let api_key = std::env::var("OPENAI_API_KEY").map_err(|_| {
+                    AgentMemError::config_error("OPENAI_API_KEY environment variable not set")
+                })?;
                 Self::create_openai_embedder(api_key).await
             }
             "huggingface" => {
@@ -270,48 +295,63 @@ impl EmbeddingFactory {
                 }
                 #[cfg(not(feature = "huggingface"))]
                 {
-                    Err(AgentMemError::unsupported_provider("HuggingFace feature not enabled"))
+                    Err(AgentMemError::unsupported_provider(
+                        "HuggingFace feature not enabled",
+                    ))
                 }
             }
             "local" => {
                 #[cfg(feature = "local")]
                 {
-                    let model_path = std::env::var("LOCAL_MODEL_PATH")
-                        .map_err(|_| AgentMemError::config_error("LOCAL_MODEL_PATH environment variable not set"))?;
+                    let model_path = std::env::var("LOCAL_MODEL_PATH").map_err(|_| {
+                        AgentMemError::config_error("LOCAL_MODEL_PATH environment variable not set")
+                    })?;
                     let dimension = std::env::var("LOCAL_MODEL_DIMENSION")
                         .unwrap_or_else(|_| "768".to_string())
                         .parse::<usize>()
-                        .map_err(|_| AgentMemError::config_error("Invalid LOCAL_MODEL_DIMENSION"))?;
+                        .map_err(|_| {
+                            AgentMemError::config_error("Invalid LOCAL_MODEL_DIMENSION")
+                        })?;
                     Self::create_local_embedder(&model_path, dimension).await
                 }
                 #[cfg(not(feature = "local"))]
                 {
-                    Err(AgentMemError::unsupported_provider("Local feature not enabled"))
+                    Err(AgentMemError::unsupported_provider(
+                        "Local feature not enabled",
+                    ))
                 }
             }
             "anthropic" => {
                 #[cfg(feature = "anthropic")]
                 {
-                    let api_key = std::env::var("ANTHROPIC_API_KEY")
-                        .map_err(|_| AgentMemError::config_error("ANTHROPIC_API_KEY environment variable not set"))?;
+                    let api_key = std::env::var("ANTHROPIC_API_KEY").map_err(|_| {
+                        AgentMemError::config_error(
+                            "ANTHROPIC_API_KEY environment variable not set",
+                        )
+                    })?;
                     Self::create_anthropic_embedder(api_key).await
                 }
                 #[cfg(not(feature = "anthropic"))]
                 {
-                    Err(AgentMemError::unsupported_provider("Anthropic feature not enabled"))
+                    Err(AgentMemError::unsupported_provider(
+                        "Anthropic feature not enabled",
+                    ))
                 }
             }
             "cohere" => {
                 #[cfg(feature = "cohere")]
                 {
-                    let api_key = std::env::var("COHERE_API_KEY")
-                        .map_err(|_| AgentMemError::config_error("COHERE_API_KEY environment variable not set"))?;
+                    let api_key = std::env::var("COHERE_API_KEY").map_err(|_| {
+                        AgentMemError::config_error("COHERE_API_KEY environment variable not set")
+                    })?;
                     let model = std::env::var("COHERE_MODEL").ok();
                     Self::create_cohere_embedder(api_key, model.as_deref()).await
                 }
                 #[cfg(not(feature = "cohere"))]
                 {
-                    Err(AgentMemError::unsupported_provider("Cohere feature not enabled"))
+                    Err(AgentMemError::unsupported_provider(
+                        "Cohere feature not enabled",
+                    ))
                 }
             }
             _ => Err(AgentMemError::unsupported_provider(&provider)),
@@ -333,7 +373,9 @@ mod tests {
     #[test]
     fn test_is_provider_supported() {
         assert!(EmbeddingFactory::is_provider_supported("openai"));
-        assert!(!EmbeddingFactory::is_provider_supported("unsupported_provider"));
+        assert!(!EmbeddingFactory::is_provider_supported(
+            "unsupported_provider"
+        ));
     }
 
     #[test]
@@ -342,7 +384,7 @@ mod tests {
             provider: "unsupported".to_string(),
             ..Default::default()
         };
-        
+
         let rt = tokio::runtime::Runtime::new().unwrap();
         let result = rt.block_on(EmbeddingFactory::create_embedder(&config));
         assert!(result.is_err());

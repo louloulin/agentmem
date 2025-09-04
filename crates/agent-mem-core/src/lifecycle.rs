@@ -1,7 +1,7 @@
 //! Memory lifecycle management
 
-use crate::types::{Memory, MemoryType, ImportanceLevel};
-use agent_mem_traits::{Result, AgentMemError};
+use crate::types::{ImportanceLevel, Memory, MemoryType};
+use agent_mem_traits::{AgentMemError, Result};
 use std::collections::HashMap;
 
 /// Memory lifecycle states
@@ -99,23 +99,24 @@ impl MemoryLifecycle {
 
     /// Register a new memory
     pub fn register_memory(&mut self, memory: &Memory) -> Result<()> {
-        self.memory_states.insert(memory.id.clone(), MemoryState::Created);
-        
+        self.memory_states
+            .insert(memory.id.clone(), MemoryState::Created);
+
         let event = LifecycleEvent {
             memory_id: memory.id.clone(),
             event_type: LifecycleEventType::Created,
             timestamp: chrono::Utc::now().timestamp(),
             metadata: HashMap::new(),
         };
-        
+
         self.add_event(event);
-        
+
         // Set expiration for working memories
         if memory.memory_type == MemoryType::Working && memory.expires_at.is_none() {
             let expiration = chrono::Utc::now().timestamp() + self.config.working_memory_ttl;
             self.set_expiration(&memory.id, expiration)?;
         }
-        
+
         Ok(())
     }
 
@@ -131,7 +132,7 @@ impl MemoryLifecycle {
         if let Some(state) = self.memory_states.get_mut(memory_id) {
             if *state == MemoryState::Archived {
                 *state = MemoryState::Active;
-                
+
                 let event = LifecycleEvent {
                     memory_id: memory_id.to_string(),
                     event_type: LifecycleEventType::Restored,
@@ -148,13 +149,18 @@ impl MemoryLifecycle {
             timestamp: chrono::Utc::now().timestamp(),
             metadata: HashMap::new(),
         };
-        
+
         self.add_event(event);
         Ok(())
     }
 
     /// Record memory update
-    pub fn record_update(&mut self, memory_id: &str, old_version: u32, new_version: u32) -> Result<()> {
+    pub fn record_update(
+        &mut self,
+        memory_id: &str,
+        old_version: u32,
+        new_version: u32,
+    ) -> Result<()> {
         let mut metadata = HashMap::new();
         metadata.insert("old_version".to_string(), old_version.to_string());
         metadata.insert("new_version".to_string(), new_version.to_string());
@@ -165,7 +171,7 @@ impl MemoryLifecycle {
             timestamp: chrono::Utc::now().timestamp(),
             metadata,
         };
-        
+
         self.add_event(event);
         Ok(())
     }
@@ -187,7 +193,7 @@ impl MemoryLifecycle {
             timestamp: chrono::Utc::now().timestamp(),
             metadata: HashMap::new(),
         };
-        
+
         self.add_event(event);
         Ok(())
     }
@@ -209,7 +215,7 @@ impl MemoryLifecycle {
             timestamp: chrono::Utc::now().timestamp(),
             metadata: HashMap::new(),
         };
-        
+
         self.add_event(event);
         Ok(())
     }
@@ -231,7 +237,7 @@ impl MemoryLifecycle {
             timestamp: chrono::Utc::now().timestamp(),
             metadata: HashMap::new(),
         };
-        
+
         self.add_event(event);
         Ok(())
     }
@@ -250,7 +256,7 @@ impl MemoryLifecycle {
             timestamp: chrono::Utc::now().timestamp(),
             metadata: HashMap::new(),
         };
-        
+
         self.add_event(event);
         Ok(())
     }
@@ -266,7 +272,7 @@ impl MemoryLifecycle {
             timestamp: chrono::Utc::now().timestamp(),
             metadata,
         };
-        
+
         self.add_event(event);
         Ok(())
     }
@@ -287,7 +293,8 @@ impl MemoryLifecycle {
 
     /// Get lifecycle events for a memory
     pub fn get_memory_events(&self, memory_id: &str) -> Vec<&LifecycleEvent> {
-        self.events.iter()
+        self.events
+            .iter()
             .filter(|event| event.memory_id == memory_id)
             .collect()
     }
@@ -308,7 +315,8 @@ impl MemoryLifecycle {
 
             // Auto-delete policy
             if let Some(delete_age) = self.config.auto_delete_age {
-                if age > delete_age && current_importance < self.config.delete_importance_threshold {
+                if age > delete_age && current_importance < self.config.delete_importance_threshold
+                {
                     self.delete_memory(&memory.id)?;
                     affected_memories.push(memory.id.clone());
                     continue;
@@ -317,7 +325,9 @@ impl MemoryLifecycle {
 
             // Auto-archive policy
             if let Some(archive_age) = self.config.auto_archive_age {
-                if age > archive_age && current_importance < self.config.archive_importance_threshold {
+                if age > archive_age
+                    && current_importance < self.config.archive_importance_threshold
+                {
                     if let Some(state) = self.memory_states.get(&memory.id) {
                         if *state == MemoryState::Active || *state == MemoryState::Created {
                             self.archive_memory(&memory.id)?;
@@ -334,7 +344,7 @@ impl MemoryLifecycle {
     /// Add an event to the history
     fn add_event(&mut self, event: LifecycleEvent) {
         self.events.push(event);
-        
+
         // Trim events if we exceed the maximum
         if self.events.len() > self.config.max_events_history {
             let excess = self.events.len() - self.config.max_events_history;
@@ -345,11 +355,11 @@ impl MemoryLifecycle {
     /// Get statistics about lifecycle events
     pub fn get_lifecycle_stats(&self) -> HashMap<LifecycleEventType, usize> {
         let mut stats = HashMap::new();
-        
+
         for event in &self.events {
             *stats.entry(event.event_type.clone()).or_insert(0) += 1;
         }
-        
+
         stats
     }
 

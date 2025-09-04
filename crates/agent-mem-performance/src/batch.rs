@@ -1,9 +1,9 @@
 //! Async batch processing for improved performance
-//! 
+//!
 //! This module provides efficient batch processing capabilities for memory operations,
 //! reducing overhead and improving throughput.
 
-use agent_mem_traits::{Result, AgentMemError};
+use agent_mem_traits::{AgentMemError, Result};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
@@ -77,12 +77,12 @@ pub trait BatchItem: Send + Sync + 'static {
 
     /// Process a single item
     async fn process(&self) -> std::result::Result<Self::Output, Self::Error>;
-    
+
     /// Get item size for batching decisions
     fn size(&self) -> usize {
         1
     }
-    
+
     /// Get item priority (higher = more priority)
     fn priority(&self) -> u8 {
         0
@@ -132,7 +132,10 @@ impl BatchProcessor {
             });
         }
 
-        info!("Batch processor started with {} workers", config.concurrency);
+        info!(
+            "Batch processor started with {} workers",
+            config.concurrency
+        );
         Ok(processor)
     }
 
@@ -142,19 +145,21 @@ impl BatchProcessor {
         T: BatchItem,
     {
         let (response_tx, response_rx) = tokio::sync::oneshot::channel();
-        
+
         // Convert to boxed trait object
         let boxed_item = Box::new(GenericBatchItem::new(item));
-        
+
         let request = BatchRequest {
             item: boxed_item,
             response_tx,
         };
 
-        self.sender.send(request)
+        self.sender
+            .send(request)
             .map_err(|_| AgentMemError::memory_error("Batch processor channel closed"))?;
 
-        let result = response_rx.await
+        let result = response_rx
+            .await
             .map_err(|_| AgentMemError::memory_error("Batch processing response lost"))?;
 
         // Convert back to original type
@@ -248,9 +253,9 @@ impl BatchWorker {
 
     async fn run(mut self) {
         debug!("Batch worker {} started", self.id);
-        
+
         let mut flush_interval = interval(Duration::from_millis(self.config.max_wait_time_ms));
-        
+
         loop {
             tokio::select! {
                 // Receive new items
@@ -276,7 +281,7 @@ impl BatchWorker {
                         }
                     }
                 }
-                
+
                 // Periodic flush
                 _ = flush_interval.tick() => {
                     if !self.batch_buffer.is_empty() && self.should_flush_by_time() {
@@ -285,7 +290,7 @@ impl BatchWorker {
                 }
             }
         }
-        
+
         debug!("Batch worker {} stopped", self.id);
     }
 
@@ -306,7 +311,10 @@ impl BatchWorker {
         let batch_size = self.batch_buffer.len();
         let start_time = Instant::now();
 
-        debug!("Worker {} processing batch of {} items", self.id, batch_size);
+        debug!(
+            "Worker {} processing batch of {} items",
+            self.id, batch_size
+        );
 
         // Process all items in the batch
         let mut processed = 0;
@@ -314,7 +322,7 @@ impl BatchWorker {
 
         while let Some(request) = self.batch_buffer.pop_front() {
             let result = self.process_item(request.item).await;
-            
+
             match result {
                 Ok(output) => {
                     processed += 1;
@@ -331,7 +339,8 @@ impl BatchWorker {
         self.last_flush = Instant::now();
 
         // Update statistics
-        self.update_stats(batch_size, processed, failed, processing_time).await;
+        self.update_stats(batch_size, processed, failed, processing_time)
+            .await;
 
         debug!(
             "Worker {} completed batch: {} processed, {} failed, took {:?}",
@@ -344,7 +353,7 @@ impl BatchWorker {
         item: Box<dyn BatchItem<Output = Vec<u8>, Error = AgentMemError>>,
     ) -> Result<Vec<u8>> {
         let mut attempts = 0;
-        
+
         loop {
             match item.process().await {
                 Ok(result) => return Ok(result),
@@ -352,36 +361,43 @@ impl BatchWorker {
                     attempts += 1;
                     if attempts >= self.config.retry_attempts {
                         return Err(AgentMemError::memory_error(&format!(
-                            "Failed after {} attempts: {}", attempts, e
+                            "Failed after {} attempts: {}",
+                            attempts, e
                         )));
                     }
-                    
+
                     tokio::time::sleep(Duration::from_millis(self.config.retry_delay_ms)).await;
                 }
             }
         }
     }
 
-    async fn update_stats(&self, batch_size: usize, processed: u64, failed: u64, duration: Duration) {
+    async fn update_stats(
+        &self,
+        batch_size: usize,
+        processed: u64,
+        failed: u64,
+        duration: Duration,
+    ) {
         let mut stats = self.stats.write().await;
-        
+
         stats.processed_items += processed;
         stats.failed_items += failed;
         stats.total_batches += 1;
-        
+
         // Update averages
         let total_items = stats.processed_items + stats.failed_items;
         if total_items > 0 {
             stats.average_batch_size = total_items as f64 / stats.total_batches as f64;
         }
-        
+
         let duration_ms = duration.as_millis() as f64;
         if stats.total_batches > 0 {
-            stats.average_processing_time_ms = 
-                (stats.average_processing_time_ms * (stats.total_batches - 1) as f64 + duration_ms) 
-                / stats.total_batches as f64;
+            stats.average_processing_time_ms =
+                (stats.average_processing_time_ms * (stats.total_batches - 1) as f64 + duration_ms)
+                    / stats.total_batches as f64;
         }
-        
+
         // Calculate throughput (items per second)
         if duration_ms > 0.0 {
             stats.throughput_items_per_second = batch_size as f64 / (duration_ms / 1000.0);
@@ -426,14 +442,14 @@ mod tests {
             max_wait_time_ms: 100,
             ..Default::default()
         };
-        
+
         let processor = BatchProcessor::new(config).await.unwrap();
-        
+
         let item = TestBatchItem {
             data: "test".to_string(),
             should_fail: false,
         };
-        
+
         let result = processor.submit(item).await;
         assert!(result.is_ok());
     }
@@ -442,7 +458,7 @@ mod tests {
     async fn test_batch_stats() {
         let config = BatchConfig::default();
         let processor = BatchProcessor::new(config).await.unwrap();
-        
+
         let stats = processor.get_stats().await.unwrap();
         assert_eq!(stats.processed_items, 0);
         assert_eq!(stats.failed_items, 0);

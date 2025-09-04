@@ -1,7 +1,7 @@
 //! HuggingFace嵌入提供商实现
 
 use crate::config::EmbeddingConfig;
-use agent_mem_traits::{Embedder, Result, AgentMemError};
+use agent_mem_traits::{AgentMemError, Embedder, Result};
 use async_trait::async_trait;
 
 /// HuggingFace嵌入提供商
@@ -15,7 +15,9 @@ impl HuggingFaceEmbedder {
     pub async fn new(config: EmbeddingConfig) -> Result<Self> {
         // 验证模型名称
         if config.model.is_empty() {
-            return Err(AgentMemError::config_error("HuggingFace model name is required"));
+            return Err(AgentMemError::config_error(
+                "HuggingFace model name is required",
+            ));
         }
 
         Ok(Self { config })
@@ -39,13 +41,13 @@ impl Embedder for HuggingFaceEmbedder {
 
     async fn embed_batch(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
         let mut embeddings = Vec::new();
-        
+
         // 简单的顺序处理，实际实现应该支持批量处理
         for text in texts {
             let embedding = self.embed(text).await?;
             embeddings.push(embedding);
         }
-        
+
         Ok(embeddings)
     }
 
@@ -76,10 +78,13 @@ mod tests {
         let config = EmbeddingConfig::huggingface("sentence-transformers/all-MiniLM-L6-v2");
         let result = HuggingFaceEmbedder::new(config).await;
         assert!(result.is_ok());
-        
+
         let embedder = result.unwrap();
         assert_eq!(embedder.provider_name(), "huggingface");
-        assert_eq!(embedder.model_name(), "sentence-transformers/all-MiniLM-L6-v2");
+        assert_eq!(
+            embedder.model_name(),
+            "sentence-transformers/all-MiniLM-L6-v2"
+        );
         assert_eq!(embedder.dimension(), 768);
     }
 
@@ -90,7 +95,7 @@ mod tests {
             model: "".to_string(),
             ..Default::default()
         };
-        
+
         let result = HuggingFaceEmbedder::new(config).await;
         assert!(result.is_err());
     }
@@ -99,10 +104,10 @@ mod tests {
     async fn test_embed_single_text() {
         let config = EmbeddingConfig::huggingface("sentence-transformers/all-MiniLM-L6-v2");
         let embedder = HuggingFaceEmbedder::new(config).await.unwrap();
-        
+
         let result = embedder.embed("test text").await;
         assert!(result.is_ok());
-        
+
         let embedding = result.unwrap();
         assert_eq!(embedding.len(), 768);
     }
@@ -111,16 +116,16 @@ mod tests {
     async fn test_embed_batch() {
         let config = EmbeddingConfig::huggingface("sentence-transformers/all-MiniLM-L6-v2");
         let embedder = HuggingFaceEmbedder::new(config).await.unwrap();
-        
+
         let texts = vec![
             "first text".to_string(),
             "second text".to_string(),
             "third text".to_string(),
         ];
-        
+
         let result = embedder.embed_batch(&texts).await;
         assert!(result.is_ok());
-        
+
         let embeddings = result.unwrap();
         assert_eq!(embeddings.len(), 3);
         assert_eq!(embeddings[0].len(), 768);
@@ -132,7 +137,7 @@ mod tests {
     async fn test_health_check() {
         let config = EmbeddingConfig::huggingface("sentence-transformers/all-MiniLM-L6-v2");
         let embedder = HuggingFaceEmbedder::new(config).await.unwrap();
-        
+
         let result = embedder.health_check().await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), true);

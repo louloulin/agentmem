@@ -1,80 +1,80 @@
 //! # Agent Memory Core
-//! 
+//!
 //! Core memory management for the AgentMem memory platform.
-//! 
+//!
 //! This crate provides the core memory management functionality including:
 //! - Memory lifecycle management
 //! - Memory types and operations
 //! - CRUD operations for memories
 //! - History tracking and versioning
 
-pub mod manager;
-pub mod lifecycle;
-pub mod types;
-pub mod operations;
-pub mod history;
-pub mod hierarchy;
-pub mod hierarchical_service;
-pub mod conflict_resolver;
-pub mod llm_optimizer;
-pub mod hierarchy_manager;
-pub mod importance_scorer;
 pub mod adaptive_strategy;
+pub mod conflict_resolver;
 pub mod context_aware_search;
-pub mod monitoring;
+pub mod hierarchical_service;
+pub mod hierarchy;
+pub mod hierarchy_manager;
+pub mod history;
+pub mod importance_scorer;
+pub mod lifecycle;
+pub mod llm_optimizer;
 pub mod logging;
+pub mod manager;
+pub mod monitoring;
+pub mod operations;
 pub mod security;
+pub mod types;
 
-pub use manager::MemoryManager;
-pub use lifecycle::MemoryLifecycle;
-pub use types::*;
-pub use operations::*;
-pub use history::MemoryHistory;
-pub use hierarchy::*;
-pub use hierarchical_service::{
-    HierarchicalMemoryService, HierarchicalMemoryRecord, HierarchicalServiceConfig,
-    ConflictResolutionStrategy, MemoryInheritanceRule, InheritanceType,
-    HierarchicalSearchFilters
+pub use adaptive_strategy::{
+    AdaptiveStrategyConfig, AdaptiveStrategyManager, MemoryStrategy, StrategyParameters,
+    StrategyPerformance, StrategyRecommendation,
 };
 pub use conflict_resolver::{
-    ConflictResolver, ConflictResolverConfig, ConflictResolution, ConflictDetection, ConflictType
-};
-pub use llm_optimizer::{
-    LlmOptimizer, LlmOptimizationConfig, OptimizationStrategy, PromptTemplateType,
-    PromptTemplate, OptimizedLlmResponse, LlmPerformanceMetrics, LlmProvider
-};
-pub use hierarchy_manager::{
-    HierarchyManager, HierarchyManagerConfig, HierarchyNode, HierarchyStatistics
-};
-pub use importance_scorer::{
-    AdvancedImportanceScorer, ImportanceScorerConfig, ImportanceFactors,
-    MemoryUsageStats, ScoringContext, AccessType
-};
-pub use adaptive_strategy::{
-    AdaptiveStrategyManager, AdaptiveStrategyConfig, MemoryStrategy,
-    StrategyPerformance, StrategyRecommendation, StrategyParameters
+    ConflictDetection, ConflictResolution, ConflictResolver, ConflictResolverConfig, ConflictType,
 };
 pub use context_aware_search::{
-    ContextAwareSearchEngine, ContextAwareSearchConfig, ContextualSearchQuery,
-    SearchStrategy, ResultPreferences, ContextualSearchResult, SearchAnalytics
+    ContextAwareSearchConfig, ContextAwareSearchEngine, ContextualSearchQuery,
+    ContextualSearchResult, ResultPreferences, SearchAnalytics, SearchStrategy,
 };
-pub use monitoring::{
-    MonitoringSystem, MonitoringConfig, MetricPoint, MetricType, HealthStatus,
-    ComponentStatus, AlertRule, AlertCondition, AlertSeverity, Alert, PerformanceProfile, SystemInfo
+pub use hierarchical_service::{
+    ConflictResolutionStrategy, HierarchicalMemoryRecord, HierarchicalMemoryService,
+    HierarchicalSearchFilters, HierarchicalServiceConfig, InheritanceType, MemoryInheritanceRule,
+};
+pub use hierarchy::*;
+pub use hierarchy_manager::{
+    HierarchyManager, HierarchyManagerConfig, HierarchyNode, HierarchyStatistics,
+};
+pub use history::MemoryHistory;
+pub use importance_scorer::{
+    AccessType, AdvancedImportanceScorer, ImportanceFactors, ImportanceScorerConfig,
+    MemoryUsageStats, ScoringContext,
+};
+pub use lifecycle::MemoryLifecycle;
+pub use llm_optimizer::{
+    LlmOptimizationConfig, LlmOptimizer, LlmPerformanceMetrics, LlmProvider, OptimizationStrategy,
+    OptimizedLlmResponse, PromptTemplate, PromptTemplateType,
 };
 pub use logging::{
-    LoggingSystem, LoggingConfig, LogLevel, LogEntry, AuditEntry, AuditEventType,
-    AuditResult, SecurityEntry, SecurityEventType, SecuritySeverity, ComplianceExport
+    AuditEntry, AuditEventType, AuditResult, ComplianceExport, LogEntry, LogLevel, LoggingConfig,
+    LoggingSystem, SecurityEntry, SecurityEventType, SecuritySeverity,
 };
+pub use manager::MemoryManager;
+pub use monitoring::{
+    Alert, AlertCondition, AlertRule, AlertSeverity, ComponentStatus, HealthStatus, MetricPoint,
+    MetricType, MonitoringConfig, MonitoringSystem, PerformanceProfile, SystemInfo,
+};
+pub use operations::*;
 pub use security::{
-    SecuritySystem, SecurityConfig, Permission, Role, UserAccount, Session as SecuritySession,
-    AccessControlEntry, ThreatRule, ThreatRuleType, ThreatSeverity, ThreatAction, ThreatIncident
+    AccessControlEntry, Permission, Role, SecurityConfig, SecuritySystem,
+    Session as SecuritySession, ThreatAction, ThreatIncident, ThreatRule, ThreatRuleType,
+    ThreatSeverity, UserAccount,
 };
+pub use types::*;
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agent_mem_traits::{Session, Message, MemoryProvider};
+    use agent_mem_traits::{MemoryProvider, Message, Session};
     use tokio_test;
 
     #[tokio::test]
@@ -91,14 +91,17 @@ mod tests {
             .with_user_id(Some("test-user".to_string()));
 
         // Test direct memory addition instead of using MemoryProvider trait
-        let memory_id = manager.add_memory(
-            "test-agent".to_string(),
-            Some("test-user".to_string()),
-            "I love playing tennis".to_string(),
-            None,
-            None,
-            None,
-        ).await.unwrap();
+        let memory_id = manager
+            .add_memory(
+                "test-agent".to_string(),
+                Some("test-user".to_string()),
+                "I love playing tennis".to_string(),
+                None,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
 
         let retrieved = manager.get_memory(&memory_id).await.unwrap();
         assert!(retrieved.is_some());
@@ -110,32 +113,41 @@ mod tests {
         let manager = MemoryManager::new();
 
         // Add some memories directly
-        let _id1 = manager.add_memory(
-            "test-agent".to_string(),
-            None,
-            "I love playing tennis".to_string(),
-            None,
-            None,
-            None,
-        ).await.unwrap();
+        let _id1 = manager
+            .add_memory(
+                "test-agent".to_string(),
+                None,
+                "I love playing tennis".to_string(),
+                None,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
 
-        let _id2 = manager.add_memory(
-            "test-agent".to_string(),
-            None,
-            "I enjoy reading books".to_string(),
-            None,
-            None,
-            None,
-        ).await.unwrap();
+        let _id2 = manager
+            .add_memory(
+                "test-agent".to_string(),
+                None,
+                "I enjoy reading books".to_string(),
+                None,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
 
-        let _id3 = manager.add_memory(
-            "test-agent".to_string(),
-            None,
-            "Tennis is my favorite sport".to_string(),
-            None,
-            None,
-            None,
-        ).await.unwrap();
+        let _id3 = manager
+            .add_memory(
+                "test-agent".to_string(),
+                None,
+                "Tennis is my favorite sport".to_string(),
+                None,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
 
         // Search for tennis-related memories
         let query = crate::types::MemoryQuery::new("test-agent".to_string())
@@ -149,22 +161,23 @@ mod tests {
     async fn test_update_memory() {
         let manager = MemoryManager::new();
 
-        let memory_id = manager.add_memory(
-            "test-agent".to_string(),
-            None,
-            "Original content".to_string(),
-            None,
-            None,
-            None,
-        ).await.unwrap();
+        let memory_id = manager
+            .add_memory(
+                "test-agent".to_string(),
+                None,
+                "Original content".to_string(),
+                None,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
 
         // Update the memory
-        manager.update_memory(
-            &memory_id,
-            Some("Updated content".to_string()),
-            None,
-            None,
-        ).await.unwrap();
+        manager
+            .update_memory(&memory_id, Some("Updated content".to_string()), None, None)
+            .await
+            .unwrap();
 
         // Verify the update
         let retrieved = manager.get_memory(&memory_id).await.unwrap();
@@ -176,14 +189,17 @@ mod tests {
     async fn test_delete_memory() {
         let manager = MemoryManager::new();
 
-        let memory_id = manager.add_memory(
-            "test-agent".to_string(),
-            None,
-            "To be deleted".to_string(),
-            None,
-            None,
-            None,
-        ).await.unwrap();
+        let memory_id = manager
+            .add_memory(
+                "test-agent".to_string(),
+                None,
+                "To be deleted".to_string(),
+                None,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
 
         // Delete the memory
         manager.delete_memory(&memory_id).await.unwrap();

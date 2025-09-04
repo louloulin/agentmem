@@ -1,6 +1,6 @@
 //! Data replication for distributed AgentMem
 
-use agent_mem_traits::{Result, AgentMemError};
+use agent_mem_traits::{AgentMemError, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -70,9 +70,11 @@ mod tests {
     async fn test_replication_manager() {
         let config = ReplicationConfig::default();
         let manager = ReplicationManager::new(config).await.unwrap();
-        
+
         let nodes = vec![Uuid::new_v4(), Uuid::new_v4()];
-        let result = manager.replicate_data("test_key", b"test_data", &nodes).await;
+        let result = manager
+            .replicate_data("test_key", b"test_data", &nodes)
+            .await;
         assert!(result.is_ok());
     }
 }

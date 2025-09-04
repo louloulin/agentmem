@@ -1,7 +1,7 @@
 //! DBSCAN聚类算法实现
 
-use super::{MemoryCluster, MemoryClusterer, ClusteringConfig, ClusteringMetrics, ClusteringUtils};
-use agent_mem_traits::{Result, AgentMemError};
+use super::{ClusteringConfig, ClusteringMetrics, ClusteringUtils, MemoryCluster, MemoryClusterer};
+use agent_mem_traits::{AgentMemError, Result};
 
 /// DBSCAN聚类器
 pub struct DBSCANClusterer;

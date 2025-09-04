@@ -1,6 +1,8 @@
 //! Chroma向量存储实现
 
-use agent_mem_traits::{VectorStore, VectorStoreConfig, VectorData, VectorSearchResult, Result, AgentMemError};
+use agent_mem_traits::{
+    AgentMemError, Result, VectorData, VectorSearchResult, VectorStore, VectorStoreConfig,
+};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -46,12 +48,18 @@ impl ChromaStore {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
             .build()
-            .map_err(|e| AgentMemError::network_error(format!("Failed to create HTTP client: {}", e)))?;
+            .map_err(|e| {
+                AgentMemError::network_error(format!("Failed to create HTTP client: {}", e))
+            })?;
 
-        let base_url = config.url.clone()
+        let base_url = config
+            .url
+            .clone()
             .unwrap_or_else(|| "http://localhost:8000".to_string());
 
-        let collection_name = config.collection_name.clone()
+        let collection_name = config
+            .collection_name
+            .clone()
             .unwrap_or_else(|| "default".to_string());
 
         Ok(Self {
@@ -64,7 +72,10 @@ impl ChromaStore {
 
     /// 获取集合URL
     fn get_collection_url(&self) -> String {
-        format!("{}/api/v1/collections/{}", self.base_url, self.collection_name)
+        format!(
+            "{}/api/v1/collections/{}",
+            self.base_url, self.collection_name
+        )
     }
 }
 
@@ -85,7 +96,8 @@ impl VectorStore for ChromaStore {
         };
 
         let url = format!("{}/add", self.get_collection_url());
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .header("Content-Type", "application/json")
             .json(&request)
@@ -95,17 +107,25 @@ impl VectorStore for ChromaStore {
 
         if !response.status().is_success() {
             let status = response.status();
-            let error_text = response.text().await
+            let error_text = response
+                .text()
+                .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(AgentMemError::storage_error(format!(
-                "Chroma API error {}: {}", status, error_text
+                "Chroma API error {}: {}",
+                status, error_text
             )));
         }
 
         Ok(ids)
     }
 
-    async fn search_vectors(&self, query_vector: Vec<f32>, limit: usize, _threshold: Option<f32>) -> Result<Vec<VectorSearchResult>> {
+    async fn search_vectors(
+        &self,
+        query_vector: Vec<f32>,
+        limit: usize,
+        _threshold: Option<f32>,
+    ) -> Result<Vec<VectorSearchResult>> {
         let request = ChromaQueryRequest {
             query_embeddings: vec![query_vector],
             n_results: limit,
@@ -113,7 +133,8 @@ impl VectorStore for ChromaStore {
         };
 
         let url = format!("{}/query", self.get_collection_url());
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .header("Content-Type", "application/json")
             .json(&request)
@@ -123,28 +144,36 @@ impl VectorStore for ChromaStore {
 
         if !response.status().is_success() {
             let status = response.status();
-            let error_text = response.text().await
+            let error_text = response
+                .text()
+                .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(AgentMemError::storage_error(format!(
-                "Chroma API error {}: {}", status, error_text
+                "Chroma API error {}: {}",
+                status, error_text
             )));
         }
 
-        let chroma_response: ChromaQueryResponse = response.json().await
-            .map_err(|e| AgentMemError::parsing_error(format!("Failed to parse response: {}", e)))?;
+        let chroma_response: ChromaQueryResponse = response.json().await.map_err(|e| {
+            AgentMemError::parsing_error(format!("Failed to parse response: {}", e))
+        })?;
 
         let mut results = Vec::new();
-        
-        if let (Some(ids), Some(distances)) = (chroma_response.ids.get(0), chroma_response.distances.get(0)) {
+
+        if let (Some(ids), Some(distances)) =
+            (chroma_response.ids.get(0), chroma_response.distances.get(0))
+        {
             for (i, (id, distance)) in ids.iter().zip(distances.iter()).enumerate() {
-                let vector = chroma_response.embeddings
+                let vector = chroma_response
+                    .embeddings
                     .as_ref()
                     .and_then(|embs| embs.get(0))
                     .and_then(|emb| emb.get(i))
                     .cloned()
                     .unwrap_or_default();
 
-                let metadata = chroma_response.metadatas
+                let metadata = chroma_response
+                    .metadatas
                     .as_ref()
                     .and_then(|metas| metas.get(0))
                     .and_then(|meta| meta.get(i))
@@ -174,7 +203,8 @@ impl VectorStore for ChromaStore {
             "ids": ids
         });
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .header("Content-Type", "application/json")
             .json(&request)
@@ -184,10 +214,13 @@ impl VectorStore for ChromaStore {
 
         if !response.status().is_success() {
             let status = response.status();
-            let error_text = response.text().await
+            let error_text = response
+                .text()
+                .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(AgentMemError::storage_error(format!(
-                "Chroma API error {}: {}", status, error_text
+                "Chroma API error {}: {}",
+                status, error_text
             )));
         }
 
@@ -209,7 +242,8 @@ impl VectorStore for ChromaStore {
         });
 
         let url = format!("{}/update", self.get_collection_url());
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .header("Content-Type", "application/json")
             .json(&request)
@@ -219,10 +253,13 @@ impl VectorStore for ChromaStore {
 
         if !response.status().is_success() {
             let status = response.status();
-            let error_text = response.text().await
+            let error_text = response
+                .text()
+                .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(AgentMemError::storage_error(format!(
-                "Chroma API error {}: {}", status, error_text
+                "Chroma API error {}: {}",
+                status, error_text
             )));
         }
 
@@ -236,7 +273,8 @@ impl VectorStore for ChromaStore {
             "include": ["embeddings", "metadatas"]
         });
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .header("Content-Type", "application/json")
             .json(&request)
@@ -246,29 +284,35 @@ impl VectorStore for ChromaStore {
 
         if !response.status().is_success() {
             let status = response.status();
-            let error_text = response.text().await
+            let error_text = response
+                .text()
+                .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(AgentMemError::storage_error(format!(
-                "Chroma API error {}: {}", status, error_text
+                "Chroma API error {}: {}",
+                status, error_text
             )));
         }
 
-        let response_data: serde_json::Value = response.json().await
-            .map_err(|e| AgentMemError::parsing_error(format!("Failed to parse response: {}", e)))?;
+        let response_data: serde_json::Value = response.json().await.map_err(|e| {
+            AgentMemError::parsing_error(format!("Failed to parse response: {}", e))
+        })?;
 
         // 解析响应并构建VectorData
         if let (Some(ids), Some(embeddings)) = (
             response_data["ids"].as_array(),
-            response_data["embeddings"].as_array()
+            response_data["embeddings"].as_array(),
         ) {
             if !ids.is_empty() && !embeddings.is_empty() {
-                let vector: Vec<f32> = embeddings[0].as_array()
+                let vector: Vec<f32> = embeddings[0]
+                    .as_array()
                     .unwrap_or(&Vec::new())
                     .iter()
                     .filter_map(|v| v.as_f64().map(|f| f as f32))
                     .collect();
 
-                let metadata = response_data["metadatas"].as_array()
+                let metadata = response_data["metadatas"]
+                    .as_array()
                     .and_then(|metas| metas.get(0))
                     .and_then(|meta| serde_json::from_value(meta.clone()).ok())
                     .unwrap_or_default();
@@ -286,7 +330,8 @@ impl VectorStore for ChromaStore {
 
     async fn count_vectors(&self) -> Result<usize> {
         let url = format!("{}/count", self.get_collection_url());
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
             .send()
             .await
@@ -294,22 +339,28 @@ impl VectorStore for ChromaStore {
 
         if !response.status().is_success() {
             let status = response.status();
-            let error_text = response.text().await
+            let error_text = response
+                .text()
+                .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(AgentMemError::storage_error(format!(
-                "Chroma API error {}: {}", status, error_text
+                "Chroma API error {}: {}",
+                status, error_text
             )));
         }
 
-        let count: usize = response.json().await
-            .map_err(|e| AgentMemError::parsing_error(format!("Failed to parse response: {}", e)))?;
+        let count: usize = response.json().await.map_err(|e| {
+            AgentMemError::parsing_error(format!("Failed to parse response: {}", e))
+        })?;
 
         Ok(count)
     }
 
     async fn clear(&self) -> Result<()> {
         // Chroma没有直接的清空API，我们需要删除整个集合然后重新创建
-        Err(AgentMemError::llm_error("Clear operation not supported for Chroma"))
+        Err(AgentMemError::llm_error(
+            "Clear operation not supported for Chroma",
+        ))
     }
 }
 
@@ -341,7 +392,10 @@ mod tests {
 
         let rt = tokio::runtime::Runtime::new().unwrap();
         let store = rt.block_on(ChromaStore::new(config)).unwrap();
-        
-        assert_eq!(store.get_collection_url(), "http://localhost:8000/api/v1/collections/test");
+
+        assert_eq!(
+            store.get_collection_url(),
+            "http://localhost:8000/api/v1/collections/test"
+        );
     }
 }

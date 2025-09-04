@@ -7,46 +7,46 @@ use thiserror::Error;
 pub enum AgentMemError {
     #[error("Memory operation failed: {0}")]
     MemoryError(String),
-    
+
     #[error("LLM provider error: {0}")]
     LLMError(String),
-    
+
     #[error("Storage error: {0}")]
     StorageError(String),
-    
+
     #[error("Embedding error: {0}")]
     EmbeddingError(String),
-    
+
     #[error("Session error: {0}")]
     SessionError(String),
-    
+
     #[error("Configuration error: {0}")]
     ConfigError(String),
-    
+
     #[error("Serialization error: {0}")]
     SerializationError(#[from] serde_json::Error),
-    
+
     #[error("UUID error: {0}")]
     UuidError(#[from] uuid::Error),
-    
+
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
-    
+
     #[error("Unsupported provider: {0}")]
     UnsupportedProvider(String),
-    
+
     #[error("Invalid configuration: {0}")]
     InvalidConfig(String),
-    
+
     #[error("Network error: {0}")]
     NetworkError(String),
-    
+
     #[error("Authentication error: {0}")]
     AuthError(String),
-    
+
     #[error("Rate limit exceeded: {0}")]
     RateLimitError(String),
-    
+
     #[error("Timeout error: {0}")]
     TimeoutError(String),
 
@@ -76,47 +76,47 @@ impl AgentMemError {
     pub fn memory_error(msg: impl Into<String>) -> Self {
         Self::MemoryError(msg.into())
     }
-    
+
     pub fn llm_error(msg: impl Into<String>) -> Self {
         Self::LLMError(msg.into())
     }
-    
+
     pub fn storage_error(msg: impl Into<String>) -> Self {
         Self::StorageError(msg.into())
     }
-    
+
     pub fn embedding_error(msg: impl Into<String>) -> Self {
         Self::EmbeddingError(msg.into())
     }
-    
+
     pub fn session_error(msg: impl Into<String>) -> Self {
         Self::SessionError(msg.into())
     }
-    
+
     pub fn config_error(msg: impl Into<String>) -> Self {
         Self::ConfigError(msg.into())
     }
-    
+
     pub fn unsupported_provider(provider: impl Into<String>) -> Self {
         Self::UnsupportedProvider(provider.into())
     }
-    
+
     pub fn invalid_config(msg: impl Into<String>) -> Self {
         Self::InvalidConfig(msg.into())
     }
-    
+
     pub fn network_error(msg: impl Into<String>) -> Self {
         Self::NetworkError(msg.into())
     }
-    
+
     pub fn auth_error(msg: impl Into<String>) -> Self {
         Self::AuthError(msg.into())
     }
-    
+
     pub fn rate_limit_error(msg: impl Into<String>) -> Self {
         Self::RateLimitError(msg.into())
     }
-    
+
     pub fn timeout_error(msg: impl Into<String>) -> Self {
         Self::TimeoutError(msg.into())
     }

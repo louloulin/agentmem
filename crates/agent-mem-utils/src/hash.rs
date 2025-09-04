@@ -1,6 +1,6 @@
 //! Hashing utilities
 
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 
 /// Generate SHA256 hash of text content
 pub fn hash_content(content: &str) -> String {
@@ -44,7 +44,7 @@ mod tests {
         let content = "test content";
         let hash = hash_content(content);
         assert_eq!(hash.len(), 64); // SHA256 produces 64 character hex string
-        
+
         // Same content should produce same hash
         let hash2 = hash_content(content);
         assert_eq!(hash, hash2);
@@ -61,10 +61,10 @@ mod tests {
     fn test_memory_hash() {
         let content1 = "  Test Content  ";
         let content2 = "  test content  ";
-        
+
         let hash1 = memory_hash(content1);
         let hash2 = memory_hash(content2);
-        
+
         // Should be the same after normalization
         assert_eq!(hash1, hash2);
     }
@@ -74,7 +74,7 @@ mod tests {
         let content1 = "identical content";
         let content2 = "identical content";
         let content3 = "different content";
-        
+
         assert!(same_content_hash(content1, content2));
         assert!(!same_content_hash(content1, content3));
     }
@@ -85,7 +85,7 @@ mod tests {
         let timestamp = Utc::now();
         let id = generate_content_id(content, &timestamp);
         assert_eq!(id.len(), 8);
-        
+
         // Different timestamps should produce different IDs
         let timestamp2 = timestamp + chrono::Duration::seconds(1);
         let id2 = generate_content_id(content, &timestamp2);

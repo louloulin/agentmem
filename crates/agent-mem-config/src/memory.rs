@@ -1,42 +1,31 @@
 //! Memory configuration
 
-use serde::{Deserialize, Serialize};
 use agent_mem_traits::{LLMConfig, VectorStoreConfig};
+use serde::{Deserialize, Serialize};
 
 /// Main configuration for memory management
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MemoryConfig {
     /// LLM provider configuration
     pub llm: LLMConfig,
-    
+
     /// Vector store configuration
     pub vector_store: VectorStoreConfig,
-    
+
     /// Graph store configuration (optional)
     pub graph_store: Option<GraphStoreConfig>,
-    
+
     /// Embedder configuration
     pub embedder: EmbedderConfig,
-    
+
     /// Session configuration
     pub session: SessionConfig,
-    
+
     /// Intelligence configuration
     pub intelligence: IntelligenceConfig,
 }
 
-impl Default for MemoryConfig {
-    fn default() -> Self {
-        Self {
-            llm: LLMConfig::default(),
-            vector_store: VectorStoreConfig::default(),
-            graph_store: None,
-            embedder: EmbedderConfig::default(),
-            session: SessionConfig::default(),
-            intelligence: IntelligenceConfig::default(),
-        }
-    }
-}
+
 
 /// Graph store configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]

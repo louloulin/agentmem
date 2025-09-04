@@ -1,6 +1,6 @@
 //! Anthropic Claude LLM提供商实现
 
-use agent_mem_traits::{LLMProvider, LLMConfig, Message, Result, AgentMemError, ModelInfo};
+use agent_mem_traits::{AgentMemError, LLMConfig, LLMProvider, Message, ModelInfo, Result};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -74,9 +74,13 @@ impl AnthropicProvider {
         let client = Client::builder()
             .timeout(Duration::from_secs(60)) // Anthropic可能需要更长时间
             .build()
-            .map_err(|e| AgentMemError::network_error(format!("Failed to create HTTP client: {}", e)))?;
+            .map_err(|e| {
+                AgentMemError::network_error(format!("Failed to create HTTP client: {}", e))
+            })?;
 
-        let base_url = config.base_url.clone()
+        let base_url = config
+            .base_url
+            .clone()
             .unwrap_or_else(|| "https://api.anthropic.com".to_string());
 
         Ok(Self {
@@ -118,7 +122,7 @@ impl AnthropicProvider {
     /// 构建API请求
     fn build_request(&self, messages: &[Message]) -> AnthropicRequest {
         let (system, anthropic_messages) = self.convert_messages(messages);
-        
+
         AnthropicRequest {
             model: self.config.model.clone(),
             max_tokens: self.config.max_tokens.unwrap_or(4096),
@@ -133,13 +137,17 @@ impl AnthropicProvider {
 #[async_trait]
 impl LLMProvider for AnthropicProvider {
     async fn generate(&self, messages: &[Message]) -> Result<String> {
-        let api_key = self.config.api_key.as_ref()
+        let api_key = self
+            .config
+            .api_key
+            .as_ref()
             .ok_or_else(|| AgentMemError::config_error("Anthropic API key not configured"))?;
 
         let request = self.build_request(messages);
         let url = format!("{}/v1/messages", self.base_url);
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .header("x-api-key", api_key)
             .header("Content-Type", "application/json")
@@ -151,22 +159,27 @@ impl LLMProvider for AnthropicProvider {
 
         if !response.status().is_success() {
             let status = response.status();
-            let error_text = response.text().await
+            let error_text = response
+                .text()
+                .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(AgentMemError::llm_error(format!(
-                "Anthropic API error {}: {}", status, error_text
+                "Anthropic API error {}: {}",
+                status, error_text
             )));
         }
 
-        let anthropic_response: AnthropicResponse = response.json().await
-            .map_err(|e| AgentMemError::parsing_error(format!("Failed to parse response: {}", e)))?;
+        let anthropic_response: AnthropicResponse = response.json().await.map_err(|e| {
+            AgentMemError::parsing_error(format!("Failed to parse response: {}", e))
+        })?;
 
         if anthropic_response.content.is_empty() {
             return Err(AgentMemError::llm_error("No content in Anthropic response"));
         }
 
         // 合并所有文本内容
-        let content = anthropic_response.content
+        let content = anthropic_response
+            .content
             .iter()
             .filter(|c| c.content_type == "text")
             .map(|c| c.text.clone())
@@ -174,15 +187,22 @@ impl LLMProvider for AnthropicProvider {
             .join("");
 
         if content.is_empty() {
-            return Err(AgentMemError::llm_error("No text content in Anthropic response"));
+            return Err(AgentMemError::llm_error(
+                "No text content in Anthropic response",
+            ));
         }
 
         Ok(content)
     }
 
-    async fn generate_stream(&self, _messages: &[Message]) -> Result<Box<dyn futures::Stream<Item = Result<String>> + Send + Unpin>> {
+    async fn generate_stream(
+        &self,
+        _messages: &[Message],
+    ) -> Result<Box<dyn futures::Stream<Item = Result<String>> + Send + Unpin>> {
         // 流式生成的实现（简化版本）
-        Err(AgentMemError::llm_error("Streaming not implemented for Anthropic provider"))
+        Err(AgentMemError::llm_error(
+            "Streaming not implemented for Anthropic provider",
+        ))
     }
 
     fn get_model_info(&self) -> ModelInfo {
@@ -207,11 +227,11 @@ impl LLMProvider for AnthropicProvider {
         // 验证模型名称是否为已知的Anthropic模型
         let known_models = [
             "claude-3-opus-20240229",
-            "claude-3-sonnet-20240229", 
+            "claude-3-sonnet-20240229",
             "claude-3-haiku-20240307",
             "claude-2.1",
             "claude-2.0",
-            "claude-instant-1.2"
+            "claude-instant-1.2",
         ];
 
         if !known_models.contains(&self.config.model.as_str()) {
@@ -264,7 +284,7 @@ mod tests {
         };
 
         let provider = AnthropicProvider::new(config).unwrap();
-        
+
         let messages = vec![
             Message {
                 role: MessageRole::System,

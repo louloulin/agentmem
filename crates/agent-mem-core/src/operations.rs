@@ -1,41 +1,46 @@
 //! Memory CRUD operations
 
-use crate::types::{Memory, MemoryQuery, MemorySearchResult, MemoryStats, MemoryType, MatchType};
-use agent_mem_traits::{Result, AgentMemError, Vector};
+use crate::types::{MatchType, Memory, MemoryQuery, MemorySearchResult, MemoryStats, MemoryType};
+use agent_mem_traits::{AgentMemError, Result, Vector};
 use agent_mem_utils::jaccard_similarity;
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Memory operations interface
 #[async_trait::async_trait]
 pub trait MemoryOperations {
     /// Create a new memory
     async fn create_memory(&mut self, memory: Memory) -> Result<String>;
-    
+
     /// Get a memory by ID
     async fn get_memory(&self, memory_id: &str) -> Result<Option<Memory>>;
-    
+
     /// Update an existing memory
     async fn update_memory(&mut self, memory: Memory) -> Result<()>;
-    
+
     /// Delete a memory
     async fn delete_memory(&mut self, memory_id: &str) -> Result<bool>;
-    
+
     /// Search memories
     async fn search_memories(&self, query: MemoryQuery) -> Result<Vec<MemorySearchResult>>;
-    
+
     /// Get all memories for an agent
-    async fn get_agent_memories(&self, agent_id: &str, limit: Option<usize>) -> Result<Vec<Memory>>;
-    
+    async fn get_agent_memories(&self, agent_id: &str, limit: Option<usize>)
+        -> Result<Vec<Memory>>;
+
     /// Get memories by type
-    async fn get_memories_by_type(&self, agent_id: &str, memory_type: MemoryType) -> Result<Vec<Memory>>;
-    
+    async fn get_memories_by_type(
+        &self,
+        agent_id: &str,
+        memory_type: MemoryType,
+    ) -> Result<Vec<Memory>>;
+
     /// Get memory statistics
     async fn get_memory_stats(&self, agent_id: Option<&str>) -> Result<MemoryStats>;
-    
+
     /// Batch create memories
     async fn batch_create_memories(&mut self, memories: Vec<Memory>) -> Result<Vec<String>>;
-    
+
     /// Batch delete memories
     async fn batch_delete_memories(&mut self, memory_ids: Vec<String>) -> Result<usize>;
 }
@@ -97,7 +102,7 @@ impl InMemoryOperations {
 
         for memory in memories {
             let content_lower = memory.content.to_lowercase();
-            
+
             if content_lower.contains(&query_lower) {
                 let match_type = if content_lower == query_lower {
                     MatchType::ExactText
@@ -117,20 +122,29 @@ impl InMemoryOperations {
         }
 
         // Sort by score descending
-        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         results
     }
 
     /// Perform vector-based semantic search
-    fn search_by_vector(&self, memories: &[&Memory], query_vector: &Vector) -> Vec<MemorySearchResult> {
+    fn search_by_vector(
+        &self,
+        memories: &[&Memory],
+        query_vector: &Vector,
+    ) -> Vec<MemorySearchResult> {
         let mut results = Vec::new();
 
         for memory in memories {
             if let Some(ref embedding) = memory.embedding {
                 // Calculate cosine similarity
                 let similarity = self.cosine_similarity(&query_vector.values, &embedding.values);
-                
-                if similarity > 0.1 { // Minimum similarity threshold
+
+                if similarity > 0.1 {
+                    // Minimum similarity threshold
                     results.push(MemorySearchResult {
                         memory: (*memory).clone(),
                         score: similarity,
@@ -141,7 +155,11 @@ impl InMemoryOperations {
         }
 
         // Sort by similarity descending
-        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         results
     }
 
@@ -165,7 +183,7 @@ impl InMemoryOperations {
     /// Filter memories based on query criteria
     fn filter_memories(&self, query: &MemoryQuery) -> Vec<&Memory> {
         let current_time = chrono::Utc::now().timestamp();
-        
+
         self.memories
             .values()
             .filter(|memory| {
@@ -218,14 +236,14 @@ impl InMemoryOperations {
 impl MemoryOperations for InMemoryOperations {
     async fn create_memory(&mut self, memory: Memory) -> Result<String> {
         let memory_id = memory.id.clone();
-        
+
         if self.memories.contains_key(&memory_id) {
             return Err(AgentMemError::memory_error("Memory already exists"));
         }
 
         self.update_indices(&memory);
         self.memories.insert(memory_id.clone(), memory);
-        
+
         Ok(memory_id)
     }
 
@@ -238,7 +256,8 @@ impl MemoryOperations for InMemoryOperations {
 
         if let Some(existing) = self.memories.get(&memory_id) {
             // Check if indices need updating
-            let needs_reindex = existing.agent_id != memory.agent_id || existing.memory_type != memory.memory_type;
+            let needs_reindex =
+                existing.agent_id != memory.agent_id || existing.memory_type != memory.memory_type;
 
             if needs_reindex {
                 // Clone the existing memory to avoid borrow issues
@@ -265,7 +284,7 @@ impl MemoryOperations for InMemoryOperations {
 
     async fn search_memories(&self, query: MemoryQuery) -> Result<Vec<MemorySearchResult>> {
         let filtered_memories = self.filter_memories(&query);
-        
+
         let mut results = if let Some(ref text_query) = query.text_query {
             self.search_by_text(&filtered_memories, text_query)
         } else if let Some(ref vector_query) = query.vector_query {
@@ -287,7 +306,11 @@ impl MemoryOperations for InMemoryOperations {
         Ok(results)
     }
 
-    async fn get_agent_memories(&self, agent_id: &str, limit: Option<usize>) -> Result<Vec<Memory>> {
+    async fn get_agent_memories(
+        &self,
+        agent_id: &str,
+        limit: Option<usize>,
+    ) -> Result<Vec<Memory>> {
         let memory_ids = self.agent_index.get(agent_id).cloned().unwrap_or_default();
         let mut memories: Vec<Memory> = memory_ids
             .iter()
@@ -305,8 +328,16 @@ impl MemoryOperations for InMemoryOperations {
         Ok(memories)
     }
 
-    async fn get_memories_by_type(&self, agent_id: &str, memory_type: MemoryType) -> Result<Vec<Memory>> {
-        let memory_ids = self.type_index.get(&memory_type).cloned().unwrap_or_default();
+    async fn get_memories_by_type(
+        &self,
+        agent_id: &str,
+        memory_type: MemoryType,
+    ) -> Result<Vec<Memory>> {
+        let memory_ids = self
+            .type_index
+            .get(&memory_type)
+            .cloned()
+            .unwrap_or_default();
         let memories: Vec<Memory> = memory_ids
             .iter()
             .filter_map(|id| self.memories.get(id))
@@ -343,20 +374,26 @@ impl MemoryOperations for InMemoryOperations {
 
         for memory in &memories {
             // Type distribution
-            *stats.memories_by_type.entry(memory.memory_type).or_insert(0) += 1;
-            
+            *stats
+                .memories_by_type
+                .entry(memory.memory_type)
+                .or_insert(0) += 1;
+
             // Agent distribution
-            *stats.memories_by_agent.entry(memory.agent_id.clone()).or_insert(0) += 1;
-            
+            *stats
+                .memories_by_agent
+                .entry(memory.agent_id.clone())
+                .or_insert(0) += 1;
+
             // Importance and access stats
             total_importance += memory.importance;
             total_access_count += memory.access_count as u64;
-            
+
             if memory.access_count > most_accessed_count {
                 most_accessed_count = memory.access_count;
                 stats.most_accessed_memory_id = Some(memory.id.clone());
             }
-            
+
             if memory.created_at < oldest_timestamp {
                 oldest_timestamp = memory.created_at;
             }
@@ -371,32 +408,35 @@ impl MemoryOperations for InMemoryOperations {
 
     async fn batch_create_memories(&mut self, memories: Vec<Memory>) -> Result<Vec<String>> {
         let mut created_ids = Vec::new();
-        
+
         for memory in memories {
             let memory_id = memory.id.clone();
-            
+
             if self.memories.contains_key(&memory_id) {
-                return Err(AgentMemError::memory_error(&format!("Memory {} already exists", memory_id)));
+                return Err(AgentMemError::memory_error(&format!(
+                    "Memory {} already exists",
+                    memory_id
+                )));
             }
-            
+
             self.update_indices(&memory);
             self.memories.insert(memory_id.clone(), memory);
             created_ids.push(memory_id);
         }
-        
+
         Ok(created_ids)
     }
 
     async fn batch_delete_memories(&mut self, memory_ids: Vec<String>) -> Result<usize> {
         let mut deleted_count = 0;
-        
+
         for memory_id in memory_ids {
             if let Some(memory) = self.memories.remove(&memory_id) {
                 self.remove_from_indices(&memory);
                 deleted_count += 1;
             }
         }
-        
+
         Ok(deleted_count)
     }
 }

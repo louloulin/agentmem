@@ -1,16 +1,10 @@
 //! Health check routes
 
-use crate::{
-    error::ServerResult,
-    models::HealthResponse,
-};
+use crate::{error::ServerResult, models::HealthResponse};
 use agent_mem_core::MemoryManager;
-use axum::{
-    extract::Extension,
-    response::Json,
-};
-use std::sync::Arc;
+use axum::{extract::Extension, response::Json};
 use chrono::Utc;
+use std::sync::Arc;
 use utoipa;
 
 /// Health check endpoint
@@ -28,21 +22,21 @@ pub async fn health_check(
 ) -> ServerResult<Json<HealthResponse>> {
     // Perform basic health checks
     let mut checks = std::collections::HashMap::new();
-    
+
     // Check memory manager
     checks.insert("memory_manager".to_string(), "healthy".to_string());
-    
+
     // Check database connectivity (if applicable)
     // This would be expanded based on actual storage backends
     checks.insert("storage".to_string(), "healthy".to_string());
-    
+
     let response = HealthResponse {
         status: "healthy".to_string(),
         timestamp: Utc::now(),
         version: env!("CARGO_PKG_VERSION").to_string(),
         checks,
     };
-    
+
     Ok(Json(response))
 }
 
@@ -56,7 +50,7 @@ mod tests {
         let memory_manager = Arc::new(MemoryManager::new());
         let result = health_check(Extension(memory_manager)).await;
         assert!(result.is_ok());
-        
+
         let response = result.unwrap().0;
         assert_eq!(response.status, "healthy");
     }

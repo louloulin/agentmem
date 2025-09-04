@@ -1,9 +1,9 @@
 //! Core data types for AgentMem
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
 
 /// A message in a conversation
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,7 +28,7 @@ impl Message {
             timestamp: Some(Utc::now()),
         }
     }
-    
+
     pub fn user(content: &str) -> Self {
         Self {
             role: MessageRole::User,
@@ -36,7 +36,7 @@ impl Message {
             timestamp: Some(Utc::now()),
         }
     }
-    
+
     pub fn assistant(content: &str) -> Self {
         Self {
             role: MessageRole::Assistant,
@@ -82,17 +82,17 @@ impl Session {
             ..Default::default()
         }
     }
-    
+
     pub fn with_user_id(mut self, user_id: Option<String>) -> Self {
         self.user_id = user_id;
         self
     }
-    
+
     pub fn with_agent_id(mut self, agent_id: Option<String>) -> Self {
         self.agent_id = agent_id;
         self
     }
-    
+
     pub fn with_run_id(mut self, run_id: Option<String>) -> Self {
         self.run_id = run_id;
         self
@@ -102,11 +102,11 @@ impl Session {
 /// Types of memory
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MemoryType {
-    Factual,      // 事实性记忆
-    Episodic,     // 情节性记忆
-    Procedural,   // 程序性记忆
-    Semantic,     // 语义记忆
-    Working,      // 工作记忆
+    Factual,    // 事实性记忆
+    Episodic,   // 情节性记忆
+    Procedural, // 程序性记忆
+    Semantic,   // 语义记忆
+    Working,    // 工作记忆
 }
 
 /// An extracted fact from content
@@ -173,7 +173,7 @@ impl Filters {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     pub fn add(&mut self, key: &str, value: serde_json::Value) {
         self.filters.insert(key.to_string(), value);
     }

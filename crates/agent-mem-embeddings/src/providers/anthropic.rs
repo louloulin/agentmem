@@ -1,8 +1,8 @@
 //! Anthropic嵌入模型实现（模拟）
 //! 注意：Anthropic目前主要专注于文本生成，这里提供一个模拟实现
 
-use agent_mem_traits::{Embedder, Result, AgentMemError};
 use crate::config::EmbeddingConfig;
+use agent_mem_traits::{AgentMemError, Embedder, Result};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -47,13 +47,17 @@ pub struct AnthropicEmbedder {
 impl AnthropicEmbedder {
     /// 创建新的Anthropic嵌入器实例
     pub async fn new(config: EmbeddingConfig) -> Result<Self> {
-        let api_key = config.api_key.clone()
+        let api_key = config
+            .api_key
+            .clone()
             .ok_or_else(|| AgentMemError::config_error("Anthropic API key is required"))?;
 
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
             .build()
-            .map_err(|e| AgentMemError::network_error(format!("Failed to create HTTP client: {}", e)))?;
+            .map_err(|e| {
+                AgentMemError::network_error(format!("Failed to create HTTP client: {}", e))
+            })?;
 
         Ok(Self {
             config,
@@ -76,7 +80,7 @@ impl Embedder for AnthropicEmbedder {
         // 模拟实现：返回基于文本内容的确定性向量
         // 在实际实现中，这里应该调用Anthropic的嵌入API
         let mut embedding = vec![0.0; self.dimension()];
-        
+
         // 基于文本内容生成确定性向量
         let bytes = text.as_bytes();
         for (i, &byte) in bytes.iter().enumerate() {
@@ -84,7 +88,7 @@ impl Embedder for AnthropicEmbedder {
                 embedding[i] = (byte as f32) / 255.0;
             }
         }
-        
+
         // 标准化向量
         let norm: f32 = embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
         if norm > 0.0 {
@@ -92,7 +96,7 @@ impl Embedder for AnthropicEmbedder {
                 *x /= norm;
             }
         }
-        
+
         Ok(embedding)
     }
 
@@ -171,11 +175,11 @@ mod tests {
 
         let embedder = AnthropicEmbedder::new(config).await.unwrap();
         let result = embedder.embed("Hello, world!").await;
-        
+
         assert!(result.is_ok());
         let embedding = result.unwrap();
         assert_eq!(embedding.len(), 768);
-        
+
         // 检查向量是否已标准化
         let norm: f32 = embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
         assert!((norm - 1.0).abs() < 1e-6);
@@ -192,14 +196,11 @@ mod tests {
         };
 
         let embedder = AnthropicEmbedder::new(config).await.unwrap();
-        let texts = vec![
-            "First text".to_string(),
-            "Second text".to_string(),
-        ];
-        
+        let texts = vec!["First text".to_string(), "Second text".to_string()];
+
         let result = embedder.embed_batch(&texts).await;
         assert!(result.is_ok());
-        
+
         let embeddings = result.unwrap();
         assert_eq!(embeddings.len(), 2);
         assert_eq!(embeddings[0].len(), 384);
@@ -233,13 +234,13 @@ mod tests {
         };
 
         let embedder = AnthropicEmbedder::new(config).await.unwrap();
-        
+
         // 相同的文本应该产生相同的嵌入
         let embedding1 = embedder.embed("test text").await.unwrap();
         let embedding2 = embedder.embed("test text").await.unwrap();
-        
+
         assert_eq!(embedding1, embedding2);
-        
+
         // 不同的文本应该产生不同的嵌入
         let embedding3 = embedder.embed("different text").await.unwrap();
         assert_ne!(embedding1, embedding3);

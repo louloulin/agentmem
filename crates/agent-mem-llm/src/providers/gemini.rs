@@ -1,6 +1,6 @@
 //! Google Gemini LLM提供商实现
 
-use agent_mem_traits::{LLMProvider, LLMConfig, Message, Result, AgentMemError, ModelInfo};
+use agent_mem_traits::{AgentMemError, LLMConfig, LLMProvider, Message, ModelInfo, Result};
 use async_trait::async_trait;
 use reqwest::Client;
 use std::time::Duration;
@@ -23,9 +23,13 @@ impl GeminiProvider {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
             .build()
-            .map_err(|e| AgentMemError::network_error(format!("Failed to create HTTP client: {}", e)))?;
+            .map_err(|e| {
+                AgentMemError::network_error(format!("Failed to create HTTP client: {}", e))
+            })?;
 
-        let base_url = config.base_url.clone()
+        let base_url = config
+            .base_url
+            .clone()
             .unwrap_or_else(|| "https://generativelanguage.googleapis.com/v1beta".to_string());
 
         Ok(Self {
@@ -41,11 +45,18 @@ impl LLMProvider for GeminiProvider {
     async fn generate(&self, _messages: &[Message]) -> Result<String> {
         // Google Gemini的实现
         // 这里提供一个基础框架，实际实现需要根据Gemini API的规范
-        Err(AgentMemError::llm_error("Gemini provider not fully implemented yet"))
+        Err(AgentMemError::llm_error(
+            "Gemini provider not fully implemented yet",
+        ))
     }
 
-    async fn generate_stream(&self, _messages: &[Message]) -> Result<Box<dyn futures::Stream<Item = Result<String>> + Send + Unpin>> {
-        Err(AgentMemError::llm_error("Streaming not implemented for Gemini provider"))
+    async fn generate_stream(
+        &self,
+        _messages: &[Message],
+    ) -> Result<Box<dyn futures::Stream<Item = Result<String>> + Send + Unpin>> {
+        Err(AgentMemError::llm_error(
+            "Streaming not implemented for Gemini provider",
+        ))
     }
 
     fn get_model_info(&self) -> ModelInfo {
@@ -72,7 +83,7 @@ impl LLMProvider for GeminiProvider {
             "gemini-pro",
             "gemini-pro-vision",
             "gemini-1.5-pro",
-            "gemini-1.5-flash"
+            "gemini-1.5-flash",
         ];
 
         if !known_models.contains(&self.config.model.as_str()) {

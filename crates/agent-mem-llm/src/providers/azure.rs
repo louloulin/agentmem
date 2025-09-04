@@ -1,6 +1,6 @@
 //! Azure OpenAI LLM提供商实现
 
-use agent_mem_traits::{LLMProvider, LLMConfig, Message, Result, AgentMemError, ModelInfo};
+use agent_mem_traits::{AgentMemError, LLMConfig, LLMProvider, Message, ModelInfo, Result};
 use async_trait::async_trait;
 use reqwest::Client;
 use std::time::Duration;
@@ -18,17 +18,23 @@ impl AzureProvider {
     pub fn new(config: LLMConfig) -> Result<Self> {
         // 验证必需的配置
         if config.api_key.is_none() {
-            return Err(AgentMemError::config_error("Azure OpenAI API key is required"));
+            return Err(AgentMemError::config_error(
+                "Azure OpenAI API key is required",
+            ));
         }
 
         if config.base_url.is_none() {
-            return Err(AgentMemError::config_error("Azure OpenAI endpoint URL is required"));
+            return Err(AgentMemError::config_error(
+                "Azure OpenAI endpoint URL is required",
+            ));
         }
 
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
             .build()
-            .map_err(|e| AgentMemError::network_error(format!("Failed to create HTTP client: {}", e)))?;
+            .map_err(|e| {
+                AgentMemError::network_error(format!("Failed to create HTTP client: {}", e))
+            })?;
 
         let base_url = config.base_url.clone().unwrap();
         let api_version = "2023-12-01-preview".to_string(); // 默认API版本
@@ -53,11 +59,18 @@ impl LLMProvider for AzureProvider {
     async fn generate(&self, _messages: &[Message]) -> Result<String> {
         // Azure OpenAI的实现与OpenAI类似，但使用不同的认证和端点
         // 这里提供一个基础框架，实际实现需要根据Azure OpenAI的API规范
-        Err(AgentMemError::llm_error("Azure OpenAI provider not fully implemented yet"))
+        Err(AgentMemError::llm_error(
+            "Azure OpenAI provider not fully implemented yet",
+        ))
     }
 
-    async fn generate_stream(&self, _messages: &[Message]) -> Result<Box<dyn futures::Stream<Item = Result<String>> + Send + Unpin>> {
-        Err(AgentMemError::llm_error("Streaming not implemented for Azure provider"))
+    async fn generate_stream(
+        &self,
+        _messages: &[Message],
+    ) -> Result<Box<dyn futures::Stream<Item = Result<String>> + Send + Unpin>> {
+        Err(AgentMemError::llm_error(
+            "Streaming not implemented for Azure provider",
+        ))
     }
 
     fn get_model_info(&self) -> ModelInfo {
@@ -72,11 +85,15 @@ impl LLMProvider for AzureProvider {
 
     fn validate_config(&self) -> Result<()> {
         if self.config.api_key.is_none() {
-            return Err(AgentMemError::config_error("Azure OpenAI API key is required"));
+            return Err(AgentMemError::config_error(
+                "Azure OpenAI API key is required",
+            ));
         }
 
         if self.config.base_url.is_none() {
-            return Err(AgentMemError::config_error("Azure OpenAI endpoint URL is required"));
+            return Err(AgentMemError::config_error(
+                "Azure OpenAI endpoint URL is required",
+            ));
         }
 
         if self.config.model.is_empty() {

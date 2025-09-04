@@ -1,21 +1,18 @@
 //! HTTP routes for the AgentMem API
 
-pub mod memory;
-pub mod health;
-pub mod metrics;
 pub mod docs;
+pub mod health;
+pub mod memory;
+pub mod metrics;
 
 use crate::error::ServerResult;
 use agent_mem_core::MemoryManager;
 use axum::{
-    routing::{get, post, put, delete},
-    Router, Extension,
+    routing::{delete, get, post, put},
+    Extension, Router,
 };
 use std::sync::Arc;
-use tower_http::{
-    cors::CorsLayer,
-    trace::TraceLayer,
-};
+use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -28,22 +25,23 @@ pub async fn create_router(memory_manager: Arc<MemoryManager>) -> ServerResult<R
         .route("/api/v1/memories/:id", put(memory::update_memory))
         .route("/api/v1/memories/:id", delete(memory::delete_memory))
         .route("/api/v1/memories/search", post(memory::search_memories))
-        .route("/api/v1/memories/:id/history", get(memory::get_memory_history))
-        
+        .route(
+            "/api/v1/memories/:id/history",
+            get(memory::get_memory_history),
+        )
         // Batch operations
         .route("/api/v1/memories/batch", post(memory::batch_add_memories))
-        .route("/api/v1/memories/batch/delete", post(memory::batch_delete_memories))
-        
+        .route(
+            "/api/v1/memories/batch/delete",
+            post(memory::batch_delete_memories),
+        )
         // Health and monitoring
         .route("/health", get(health::health_check))
         .route("/metrics", get(metrics::get_metrics))
-        
         // OpenAPI documentation
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
-        
         // Add shared state
         .layer(Extension(memory_manager))
-        
         // Add middleware
         .layer(TraceLayer::new_for_http())
         .layer(CorsLayer::permissive());

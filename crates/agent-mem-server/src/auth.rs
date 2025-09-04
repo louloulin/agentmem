@@ -1,9 +1,9 @@
 //! Authentication and authorization
 
 use crate::error::{ServerError, ServerResult};
+use chrono::{Duration, Utc};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
-use chrono::{Duration, Utc};
 
 /// JWT claims
 #[derive(Debug, Serialize, Deserialize)]
@@ -34,7 +34,7 @@ impl AuthService {
             decoding_key: DecodingKey::from_secret(secret.as_ref()),
         }
     }
-    
+
     /// Generate a JWT token
     pub fn generate_token(
         &self,
@@ -44,7 +44,7 @@ impl AuthService {
     ) -> ServerResult<String> {
         let now = Utc::now();
         let exp = now + Duration::hours(24); // Token expires in 24 hours
-        
+
         let claims = Claims {
             sub: user_id.to_string(),
             org_id,
@@ -52,24 +52,26 @@ impl AuthService {
             exp: exp.timestamp(),
             iat: now.timestamp(),
         };
-        
+
         encode(&Header::default(), &claims, &self.encoding_key)
             .map_err(|e| ServerError::Unauthorized(format!("Token generation failed: {}", e)))
     }
-    
+
     /// Validate a JWT token
     pub fn validate_token(&self, token: &str) -> ServerResult<Claims> {
         decode::<Claims>(token, &self.decoding_key, &Validation::default())
             .map(|data| data.claims)
             .map_err(|e| ServerError::Unauthorized(format!("Token validation failed: {}", e)))
     }
-    
+
     /// Extract token from Authorization header
     pub fn extract_token_from_header(auth_header: &str) -> ServerResult<&str> {
         if auth_header.starts_with("Bearer ") {
             Ok(&auth_header[7..])
         } else {
-            Err(ServerError::Unauthorized("Invalid authorization header format".to_string()))
+            Err(ServerError::Unauthorized(
+                "Invalid authorization header format".to_string(),
+            ))
         }
     }
 }
@@ -99,23 +101,23 @@ mod tests {
     #[test]
     fn test_token_generation_and_validation() {
         let auth_service = AuthService::new("test-secret-key-that-is-long-enough");
-        
+
         let token = auth_service
             .generate_token("user123", Some("org456".to_string()), None)
             .unwrap();
-        
+
         let claims = auth_service.validate_token(&token).unwrap();
         assert_eq!(claims.sub, "user123");
         assert_eq!(claims.org_id, Some("org456".to_string()));
     }
-    
+
     #[test]
     fn test_extract_token_from_header() {
         let header = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9";
         let token = AuthService::extract_token_from_header(header).unwrap();
         assert_eq!(token, "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9");
     }
-    
+
     #[test]
     fn test_invalid_header_format() {
         let header = "Invalid header";

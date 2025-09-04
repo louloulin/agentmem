@@ -1,26 +1,26 @@
 //! AgentMem REST API Server
-//! 
+//!
 //! Enterprise-grade REST API server for AgentMem memory management platform.
 //! Provides HTTP endpoints for all memory operations with authentication,
 //! multi-tenancy, and comprehensive monitoring.
 
-pub mod server;
-pub mod routes;
-pub mod middleware;
 pub mod auth;
-pub mod models;
-pub mod error;
 pub mod config;
+pub mod error;
+pub mod middleware;
+pub mod models;
+pub mod routes;
+pub mod server;
 pub mod telemetry;
 
-pub use server::MemoryServer;
 pub use config::ServerConfig;
 pub use error::{ServerError, ServerResult};
+pub use server::MemoryServer;
 
 /// Re-export commonly used types
 pub use models::{
-    MemoryRequest, MemoryResponse, SearchRequest, SearchResponse,
-    BatchRequest, BatchResponse, HealthResponse, MetricsResponse
+    BatchRequest, BatchResponse, HealthResponse, MemoryRequest, MemoryResponse, MetricsResponse,
+    SearchRequest, SearchResponse,
 };
 
 #[cfg(test)]

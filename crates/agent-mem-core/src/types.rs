@@ -1,9 +1,9 @@
 //! Core memory types and data structures
 
+use agent_mem_traits::{AgentMemError, MemoryItem, Result, Vector};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
-use agent_mem_traits::{MemoryItem, Vector, Result, AgentMemError};
 
 /// Memory type classification
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -140,7 +140,7 @@ impl Memory {
         let current_time = chrono::Utc::now().timestamp();
         let time_decay = (current_time - self.created_at) as f32 / (24.0 * 3600.0); // days
         let access_factor = (self.access_count as f32 + 1.0).ln();
-        
+
         // Apply time decay and access boost
         self.importance * (-time_decay * 0.01).exp() * (1.0 + access_factor * 0.1)
     }
@@ -179,11 +179,12 @@ impl Memory {
 
 impl From<Memory> for MemoryItem {
     fn from(memory: Memory) -> Self {
-        use agent_mem_traits::{Session, MemoryType as TraitMemoryType, Entity, Relation};
+        use agent_mem_traits::{Entity, MemoryType as TraitMemoryType, Relation, Session};
         use chrono::{DateTime, Utc};
 
         // Convert metadata from String to serde_json::Value
-        let metadata: std::collections::HashMap<String, serde_json::Value> = memory.metadata
+        let metadata: std::collections::HashMap<String, serde_json::Value> = memory
+            .metadata
             .into_iter()
             .map(|(k, v)| (k, serde_json::Value::String(v)))
             .collect();
@@ -201,8 +202,11 @@ impl From<Memory> for MemoryItem {
             hash: None, // TODO: Calculate hash if needed
             metadata,
             score: Some(memory.importance),
-            created_at: DateTime::from_timestamp(memory.created_at, 0).unwrap_or_else(|| Utc::now()),
-            updated_at: Some(DateTime::from_timestamp(memory.last_accessed_at, 0).unwrap_or_else(|| Utc::now())),
+            created_at: DateTime::from_timestamp(memory.created_at, 0)
+                .unwrap_or_else(|| Utc::now()),
+            updated_at: Some(
+                DateTime::from_timestamp(memory.last_accessed_at, 0).unwrap_or_else(|| Utc::now()),
+            ),
             session,
             memory_type: match memory.memory_type {
                 MemoryType::Episodic => TraitMemoryType::Episodic,
@@ -210,7 +214,7 @@ impl From<Memory> for MemoryItem {
                 MemoryType::Procedural => TraitMemoryType::Procedural,
                 MemoryType::Working => TraitMemoryType::Working,
             },
-            entities: Vec::new(), // TODO: Extract entities if needed
+            entities: Vec::new(),  // TODO: Extract entities if needed
             relations: Vec::new(), // TODO: Extract relations if needed
         }
     }
@@ -221,17 +225,18 @@ impl TryFrom<MemoryItem> for Memory {
 
     fn try_from(item: MemoryItem) -> Result<Self> {
         // Convert metadata from serde_json::Value to String
-        let metadata: std::collections::HashMap<String, String> = item.metadata
+        let metadata: std::collections::HashMap<String, String> = item
+            .metadata
             .into_iter()
-            .filter_map(|(k, v)| {
-                match v {
-                    serde_json::Value::String(s) => Some((k, s)),
-                    _ => Some((k, v.to_string())),
-                }
+            .filter_map(|(k, v)| match v {
+                serde_json::Value::String(s) => Some((k, s)),
+                _ => Some((k, v.to_string())),
             })
             .collect();
 
-        let agent_id = item.session.agent_id
+        let agent_id = item
+            .session
+            .agent_id
             .ok_or_else(|| AgentMemError::memory_error("Missing agent_id in session"))?;
 
         let memory_type = match item.memory_type {
@@ -251,8 +256,11 @@ impl TryFrom<MemoryItem> for Memory {
             importance: item.score.unwrap_or(0.5),
             embedding: None,
             created_at: item.created_at.timestamp(),
-            last_accessed_at: item.updated_at.map(|dt| dt.timestamp()).unwrap_or_else(|| chrono::Utc::now().timestamp()),
-            access_count: 0, // Default value
+            last_accessed_at: item
+                .updated_at
+                .map(|dt| dt.timestamp())
+                .unwrap_or_else(|| chrono::Utc::now().timestamp()),
+            access_count: 0,  // Default value
             expires_at: None, // Default value
             metadata,
             version: 1,

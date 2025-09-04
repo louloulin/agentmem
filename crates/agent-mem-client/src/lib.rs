@@ -1,5 +1,5 @@
 //! AgentMem HTTP Client SDK
-//! 
+//!
 //! Enterprise-grade HTTP client for AgentMem memory management platform.
 //! Provides both synchronous and asynchronous interfaces with connection pooling,
 //! retry logic, and comprehensive error handling.

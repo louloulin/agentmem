@@ -1,9 +1,9 @@
 //! Object and memory pools for efficient resource management
-//! 
+//!
 //! This module provides object pooling and memory pooling capabilities
 //! to reduce allocation overhead and improve performance.
 
-use agent_mem_traits::{Result, AgentMemError};
+use agent_mem_traits::{AgentMemError, Result};
 use bytes::{Bytes, BytesMut};
 use crossbeam::queue::SegQueue;
 use parking_lot::{Mutex, RwLock};
@@ -42,9 +42,9 @@ impl Default for PoolConfig {
             max_size: 1000,
             min_size: 10,
             enable_stats: true,
-            cleanup_interval_seconds: 300, // 5 minutes
-            object_lifetime_seconds: 3600, // 1 hour
-            memory_block_size: 4096, // 4KB blocks
+            cleanup_interval_seconds: 300,           // 5 minutes
+            object_lifetime_seconds: 3600,           // 1 hour
+            memory_block_size: 4096,                 // 4KB blocks
             max_memory_pool_size: 100 * 1024 * 1024, // 100MB
         }
     }
@@ -54,14 +54,17 @@ impl Default for PoolConfig {
 pub trait Poolable: Send + Sync + 'static {
     /// Reset the object to its initial state
     fn reset(&mut self);
-    
+
     /// Check if the object is valid for reuse
     fn is_valid(&self) -> bool {
         true
     }
-    
+
     /// Get the size of the object in bytes
-    fn size(&self) -> usize where Self: Sized {
+    fn size(&self) -> usize
+    where
+        Self: Sized,
+    {
         std::mem::size_of::<Self>()
     }
 }
@@ -131,7 +134,10 @@ impl ObjectPool {
             borrowed_count: AtomicUsize::new(0),
         };
 
-        info!("Object pool created with max size: {}", object_pool.config.max_size);
+        info!(
+            "Object pool created with max size: {}",
+            object_pool.config.max_size
+        );
         Ok(object_pool)
     }
 
@@ -140,10 +146,12 @@ impl ObjectPool {
         // Try to get from pool first
         while let Some(boxed_obj) = self.pool.pop() {
             if let Ok(mut pooled_obj) = boxed_obj.downcast::<PooledObject<T>>() {
-                if pooled_obj.object.is_valid() && !pooled_obj.is_expired(self.config.object_lifetime_seconds) {
+                if pooled_obj.object.is_valid()
+                    && !pooled_obj.is_expired(self.config.object_lifetime_seconds)
+                {
                     pooled_obj.object.reset();
                     self.borrowed_count.fetch_add(1, Ordering::Relaxed);
-                    
+
                     return Ok(PooledObjectGuard {
                         object: Some(pooled_obj),
                         pool: Arc::clone(&self.pool),
@@ -157,7 +165,7 @@ impl ObjectPool {
         // Create new object if pool is empty or objects are invalid
         let new_object = T::default();
         let pooled_obj = Box::new(PooledObject::new(new_object));
-        
+
         self.created_count.fetch_add(1, Ordering::Relaxed);
         self.borrowed_count.fetch_add(1, Ordering::Relaxed);
 
@@ -176,18 +184,18 @@ impl ObjectPool {
         stats.available_objects = self.pool.len();
         stats.borrowed_objects = self.borrowed_count.load(Ordering::Relaxed);
         stats.created_objects = self.created_count.load(Ordering::Relaxed);
-        
+
         Ok(stats)
     }
 
     /// Clear the pool
     pub fn clear(&self) -> Result<()> {
         while self.pool.pop().is_some() {}
-        
+
         let mut stats = self.stats.write();
         stats.total_objects = 0;
         stats.available_objects = 0;
-        
+
         info!("Object pool cleared");
         Ok(())
     }
@@ -218,15 +226,15 @@ impl<'a, T: Poolable> Drop for PooledObjectGuard<'a, T> {
         if let Some(mut pooled_obj) = self.object.take() {
             // Reset the object before returning to pool
             pooled_obj.object.reset();
-            
+
             // Return to pool if it's still valid
             if pooled_obj.object.is_valid() {
                 self.pool.push(pooled_obj);
-                
+
                 let mut stats = self.stats.write();
                 stats.recycled_objects += 1;
             }
-            
+
             self.borrowed_count.fetch_sub(1, Ordering::Relaxed);
         }
     }
@@ -279,7 +287,10 @@ impl MemoryPool {
             total_allocated: AtomicUsize::new(0),
         };
 
-        info!("Memory pool created with max size: {} bytes", memory_pool.config.max_memory_pool_size);
+        info!(
+            "Memory pool created with max size: {} bytes",
+            memory_pool.config.max_memory_pool_size
+        );
         Ok(memory_pool)
     }
 
@@ -293,8 +304,9 @@ impl MemoryPool {
             self.get_or_create_buffer(&self.large_blocks, size)
         };
 
-        self.total_allocated.fetch_add(buffer.capacity(), Ordering::Relaxed);
-        
+        self.total_allocated
+            .fetch_add(buffer.capacity(), Ordering::Relaxed);
+
         let mut stats = self.stats.write();
         stats.allocation_count += 1;
         stats.total_allocated = self.total_allocated.load(Ordering::Relaxed);
@@ -313,7 +325,7 @@ impl MemoryPool {
         stats.medium_blocks_count = self.medium_blocks.len();
         stats.large_blocks_count = self.large_blocks.len();
         stats.total_allocated = self.total_allocated.load(Ordering::Relaxed);
-        
+
         Ok(stats)
     }
 
@@ -324,13 +336,13 @@ impl MemoryPool {
                 return buffer;
             }
         }
-        
+
         BytesMut::with_capacity(capacity)
     }
 
     fn return_buffer(&self, mut buffer: BytesMut) {
         buffer.clear();
-        
+
         let capacity = buffer.capacity();
         if capacity <= 1024 {
             self.small_blocks.push(buffer);
@@ -375,7 +387,9 @@ impl<'a> Drop for MemoryBlock<'a> {
     fn drop(&mut self) {
         let buffer = std::mem::replace(&mut self.buffer, BytesMut::new());
         self.pool.return_buffer(buffer);
-        self.pool.total_allocated.fetch_sub(self.size, Ordering::Relaxed);
+        self.pool
+            .total_allocated
+            .fetch_sub(self.size, Ordering::Relaxed);
     }
 }
 
@@ -445,7 +459,7 @@ mod tests {
     fn test_object_pool_get() {
         let config = PoolConfig::default();
         let pool = ObjectPool::new(config).unwrap();
-        
+
         let guard = pool.get::<StringBuffer>();
         assert!(guard.is_ok());
     }
@@ -461,7 +475,7 @@ mod tests {
     fn test_memory_pool_allocate() {
         let config = PoolConfig::default();
         let pool = MemoryPool::new(config).unwrap();
-        
+
         let block = pool.allocate(1024);
         assert!(block.is_ok());
     }
@@ -470,7 +484,7 @@ mod tests {
     fn test_pool_stats() {
         let config = PoolConfig::default();
         let pool = ObjectPool::new(config).unwrap();
-        
+
         let stats = pool.get_stats().unwrap();
         assert_eq!(stats.created_objects, 0);
     }

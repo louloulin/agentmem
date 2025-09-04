@@ -1,7 +1,7 @@
 //! 本地嵌入提供商实现
 
 use crate::config::EmbeddingConfig;
-use agent_mem_traits::{Embedder, Result, AgentMemError};
+use agent_mem_traits::{AgentMemError, Embedder, Result};
 use async_trait::async_trait;
 use std::path::Path;
 
@@ -15,21 +15,20 @@ pub struct LocalEmbedder {
 impl LocalEmbedder {
     /// 创建新的本地嵌入器实例
     pub async fn new(config: EmbeddingConfig) -> Result<Self> {
-        let model_path = config.get_model_path()
+        let model_path = config
+            .get_model_path()
             .ok_or_else(|| AgentMemError::config_error("Local model path is required"))?
             .to_string();
 
         // 验证模型路径是否存在
         if !Path::new(&model_path).exists() {
             return Err(AgentMemError::config_error(format!(
-                "Model path does not exist: {}", model_path
+                "Model path does not exist: {}",
+                model_path
             )));
         }
 
-        Ok(Self {
-            config,
-            model_path,
-        })
+        Ok(Self { config, model_path })
     }
 
     /// 加载本地模型（模拟实现）
@@ -53,13 +52,13 @@ impl LocalEmbedder {
     /// 批量处理文本（优化版本）
     async fn process_batch(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
         let mut embeddings = Vec::new();
-        
+
         // 实际实现应该支持真正的批量推理以提高效率
         for text in texts {
             let embedding = self.generate_embedding_with_model(text).await?;
             embeddings.push(embedding);
         }
-        
+
         Ok(embeddings)
     }
 }
@@ -116,8 +115,8 @@ impl Embedder for LocalEmbedder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
     use std::fs::File;
+    use tempfile::tempdir;
 
     #[tokio::test]
     async fn test_local_embedder_creation_missing_path() {
@@ -136,7 +135,7 @@ mod tests {
         let config = EmbeddingConfig::local(model_path.to_str().unwrap(), 384);
         let result = LocalEmbedder::new(config).await;
         assert!(result.is_ok());
-        
+
         let embedder = result.unwrap();
         assert_eq!(embedder.provider_name(), "local");
         assert_eq!(embedder.model_name(), "local");
@@ -151,10 +150,10 @@ mod tests {
 
         let config = EmbeddingConfig::local(model_path.to_str().unwrap(), 384);
         let embedder = LocalEmbedder::new(config).await.unwrap();
-        
+
         let result = embedder.embed("test text").await;
         assert!(result.is_ok());
-        
+
         let embedding = result.unwrap();
         assert_eq!(embedding.len(), 384);
     }
@@ -167,16 +166,16 @@ mod tests {
 
         let config = EmbeddingConfig::local(model_path.to_str().unwrap(), 256);
         let embedder = LocalEmbedder::new(config).await.unwrap();
-        
+
         let texts = vec![
             "first text".to_string(),
             "second text".to_string(),
             "third text".to_string(),
         ];
-        
+
         let result = embedder.embed_batch(&texts).await;
         assert!(result.is_ok());
-        
+
         let embeddings = result.unwrap();
         assert_eq!(embeddings.len(), 3);
         assert_eq!(embeddings[0].len(), 256);
@@ -192,10 +191,10 @@ mod tests {
 
         let config = EmbeddingConfig::local(model_path.to_str().unwrap(), 128);
         let embedder = LocalEmbedder::new(config).await.unwrap();
-        
+
         let result = embedder.embed_batch(&[]).await;
         assert!(result.is_ok());
-        
+
         let embeddings = result.unwrap();
         assert_eq!(embeddings.len(), 0);
     }
@@ -208,7 +207,7 @@ mod tests {
 
         let config = EmbeddingConfig::local(model_path.to_str().unwrap(), 128);
         let embedder = LocalEmbedder::new(config).await.unwrap();
-        
+
         let result = embedder.health_check().await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), true);
@@ -222,10 +221,10 @@ mod tests {
 
         let config = EmbeddingConfig::local(model_path.to_str().unwrap(), 128);
         let embedder = LocalEmbedder::new(config).await.unwrap();
-        
+
         // 删除模型文件
         std::fs::remove_file(&model_path).unwrap();
-        
+
         let result = embedder.health_check().await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), false);

@@ -1,6 +1,6 @@
 //! Ollama本地LLM提供商实现
 
-use agent_mem_traits::{LLMProvider, LLMConfig, Message, Result, AgentMemError, ModelInfo};
+use agent_mem_traits::{AgentMemError, LLMConfig, LLMProvider, Message, ModelInfo, Result};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -64,9 +64,13 @@ impl OllamaProvider {
         let client = Client::builder()
             .timeout(Duration::from_secs(120)) // Ollama可能需要更长时间
             .build()
-            .map_err(|e| AgentMemError::network_error(format!("Failed to create HTTP client: {}", e)))?;
+            .map_err(|e| {
+                AgentMemError::network_error(format!("Failed to create HTTP client: {}", e))
+            })?;
 
-        let base_url = config.base_url.clone()
+        let base_url = config
+            .base_url
+            .clone()
             .unwrap_or_else(|| "http://localhost:11434".to_string());
 
         Ok(Self {
@@ -78,25 +82,29 @@ impl OllamaProvider {
 
     /// 将Message转换为Ollama格式
     fn convert_messages(&self, messages: &[Message]) -> Vec<OllamaMessage> {
-        messages.iter().map(|msg| {
-            let role = match msg.role {
-                agent_mem_traits::MessageRole::System => "system",
-                agent_mem_traits::MessageRole::User => "user",
-                agent_mem_traits::MessageRole::Assistant => "assistant",
-            };
-            
-            OllamaMessage {
-                role: role.to_string(),
-                content: msg.content.clone(),
-            }
-        }).collect()
+        messages
+            .iter()
+            .map(|msg| {
+                let role = match msg.role {
+                    agent_mem_traits::MessageRole::System => "system",
+                    agent_mem_traits::MessageRole::User => "user",
+                    agent_mem_traits::MessageRole::Assistant => "assistant",
+                };
+
+                OllamaMessage {
+                    role: role.to_string(),
+                    content: msg.content.clone(),
+                }
+            })
+            .collect()
     }
 
     /// 构建API请求
     fn build_request(&self, messages: &[Message]) -> OllamaRequest {
-        let options = if self.config.temperature.is_some() || 
-                        self.config.top_p.is_some() || 
-                        self.config.max_tokens.is_some() {
+        let options = if self.config.temperature.is_some()
+            || self.config.top_p.is_some()
+            || self.config.max_tokens.is_some()
+        {
             Some(OllamaOptions {
                 temperature: self.config.temperature,
                 top_p: self.config.top_p,
@@ -121,7 +129,8 @@ impl LLMProvider for OllamaProvider {
         let request = self.build_request(messages);
         let url = format!("{}/api/chat", self.base_url);
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .header("Content-Type", "application/json")
             .json(&request)
@@ -131,22 +140,32 @@ impl LLMProvider for OllamaProvider {
 
         if !response.status().is_success() {
             let status = response.status();
-            let error_text = response.text().await
+            let error_text = response
+                .text()
+                .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(AgentMemError::llm_error(format!(
-                "Ollama API error {}: {}", status, error_text
+                "Ollama API error {}: {}",
+                status, error_text
             )));
         }
 
-        let ollama_response: OllamaResponse = response.json().await
+        let ollama_response: OllamaResponse = response
+            .json()
+            .await
             .map_err(|e| AgentMemError::llm_error(format!("Failed to parse response: {}", e)))?;
 
         Ok(ollama_response.message.content)
     }
 
-    async fn generate_stream(&self, _messages: &[Message]) -> Result<Box<dyn futures::Stream<Item = Result<String>> + Send + Unpin>> {
+    async fn generate_stream(
+        &self,
+        _messages: &[Message],
+    ) -> Result<Box<dyn futures::Stream<Item = Result<String>> + Send + Unpin>> {
         // 流式生成的实现（简化版本）
-        Err(AgentMemError::llm_error("Streaming not implemented for Ollama provider"))
+        Err(AgentMemError::llm_error(
+            "Streaming not implemented for Ollama provider",
+        ))
     }
 
     fn get_model_info(&self) -> ModelInfo {
@@ -167,7 +186,9 @@ impl LLMProvider for OllamaProvider {
         // 验证base_url格式
         if let Some(ref url) = self.config.base_url {
             if !url.starts_with("http://") && !url.starts_with("https://") {
-                return Err(AgentMemError::config_error("Base URL must start with http:// or https://"));
+                return Err(AgentMemError::config_error(
+                    "Base URL must start with http:// or https://",
+                ));
             }
         }
 
@@ -202,7 +223,7 @@ mod tests {
         };
 
         let provider = OllamaProvider::new(config).unwrap();
-        
+
         let messages = vec![
             Message {
                 role: MessageRole::System,

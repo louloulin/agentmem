@@ -1,7 +1,7 @@
 //! LLM provider trait definitions
 
+use crate::{Message, Result};
 use async_trait::async_trait;
-use crate::{Result, Message};
 
 /// Model information structure
 #[derive(Debug, Clone)]
@@ -20,7 +20,10 @@ pub trait LLMProvider: Send + Sync {
     async fn generate(&self, messages: &[Message]) -> Result<String>;
 
     /// Generate a streaming response (optional)
-    async fn generate_stream(&self, messages: &[Message]) -> Result<Box<dyn futures::Stream<Item = Result<String>> + Send + Unpin>>;
+    async fn generate_stream(
+        &self,
+        messages: &[Message],
+    ) -> Result<Box<dyn futures::Stream<Item = Result<String>> + Send + Unpin>>;
 
     /// Get model information
     fn get_model_info(&self) -> ModelInfo;

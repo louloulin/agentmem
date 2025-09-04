@@ -1,7 +1,7 @@
 //! 存储工厂模式实现
 
-use crate::backends::{MemoryVectorStore, ChromaStore, QdrantStore, PineconeStore};
-use agent_mem_traits::{VectorStore, VectorStoreConfig, Result, AgentMemError};
+use crate::backends::{ChromaStore, MemoryVectorStore, PineconeStore, QdrantStore};
+use agent_mem_traits::{AgentMemError, Result, VectorStore, VectorStoreConfig};
 use async_trait::async_trait;
 use std::sync::Arc;
 
@@ -28,14 +28,27 @@ impl VectorStore for VectorStoreEnum {
         }
     }
 
-    async fn search_vectors(&self, query_vector: Vec<f32>, limit: usize, threshold: Option<f32>) -> Result<Vec<agent_mem_traits::VectorSearchResult>> {
+    async fn search_vectors(
+        &self,
+        query_vector: Vec<f32>,
+        limit: usize,
+        threshold: Option<f32>,
+    ) -> Result<Vec<agent_mem_traits::VectorSearchResult>> {
         match self {
-            VectorStoreEnum::Memory(store) => store.search_vectors(query_vector, limit, threshold).await,
-            VectorStoreEnum::Chroma(store) => store.search_vectors(query_vector, limit, threshold).await,
+            VectorStoreEnum::Memory(store) => {
+                store.search_vectors(query_vector, limit, threshold).await
+            }
+            VectorStoreEnum::Chroma(store) => {
+                store.search_vectors(query_vector, limit, threshold).await
+            }
             #[cfg(feature = "qdrant")]
-            VectorStoreEnum::Qdrant(store) => store.search_vectors(query_vector, limit, threshold).await,
+            VectorStoreEnum::Qdrant(store) => {
+                store.search_vectors(query_vector, limit, threshold).await
+            }
             #[cfg(feature = "pinecone")]
-            VectorStoreEnum::Pinecone(store) => store.search_vectors(query_vector, limit, threshold).await,
+            VectorStoreEnum::Pinecone(store) => {
+                store.search_vectors(query_vector, limit, threshold).await
+            }
         }
     }
 
@@ -100,7 +113,9 @@ pub struct StorageFactory;
 
 impl StorageFactory {
     /// 根据配置创建向量存储实例
-    pub async fn create_vector_store(config: &VectorStoreConfig) -> Result<Arc<dyn VectorStore + Send + Sync>> {
+    pub async fn create_vector_store(
+        config: &VectorStoreConfig,
+    ) -> Result<Arc<dyn VectorStore + Send + Sync>> {
         let store_enum = match config.provider.as_str() {
             "memory" => {
                 let store = MemoryVectorStore::new(config.clone()).await?;
@@ -118,7 +133,9 @@ impl StorageFactory {
                 }
                 #[cfg(not(feature = "qdrant"))]
                 {
-                    return Err(AgentMemError::unsupported_provider("Qdrant feature not enabled"));
+                    return Err(AgentMemError::unsupported_provider(
+                        "Qdrant feature not enabled",
+                    ));
                 }
             }
             "pinecone" => {
@@ -129,7 +146,9 @@ impl StorageFactory {
                 }
                 #[cfg(not(feature = "pinecone"))]
                 {
-                    return Err(AgentMemError::unsupported_provider("Pinecone feature not enabled"));
+                    return Err(AgentMemError::unsupported_provider(
+                        "Pinecone feature not enabled",
+                    ));
                 }
             }
             _ => return Err(AgentMemError::unsupported_provider(&config.provider)),
@@ -167,7 +186,10 @@ impl StorageFactory {
     }
 
     /// 创建Chroma存储
-    pub async fn create_chroma_store(url: &str, collection_name: &str) -> Result<Arc<dyn VectorStore + Send + Sync>> {
+    pub async fn create_chroma_store(
+        url: &str,
+        collection_name: &str,
+    ) -> Result<Arc<dyn VectorStore + Send + Sync>> {
         let config = VectorStoreConfig {
             provider: "chroma".to_string(),
             url: Some(url.to_string()),
@@ -179,7 +201,10 @@ impl StorageFactory {
 
     /// 创建Qdrant存储
     #[cfg(feature = "qdrant")]
-    pub async fn create_qdrant_store(url: &str, collection_name: &str) -> Result<Arc<dyn VectorStore + Send + Sync>> {
+    pub async fn create_qdrant_store(
+        url: &str,
+        collection_name: &str,
+    ) -> Result<Arc<dyn VectorStore + Send + Sync>> {
         let config = VectorStoreConfig {
             provider: "qdrant".to_string(),
             url: Some(url.to_string()),
@@ -191,12 +216,19 @@ impl StorageFactory {
 
     /// 创建Pinecone存储
     #[cfg(feature = "pinecone")]
-    pub async fn create_pinecone_store(api_key: &str, index_name: &str, environment: &str) -> Result<Arc<dyn VectorStore + Send + Sync>> {
+    pub async fn create_pinecone_store(
+        api_key: &str,
+        index_name: &str,
+        environment: &str,
+    ) -> Result<Arc<dyn VectorStore + Send + Sync>> {
         let config = VectorStoreConfig {
             provider: "pinecone".to_string(),
             api_key: Some(api_key.to_string()),
             index_name: Some(index_name.to_string()),
-            url: Some(format!("https://{}-{}.svc.{}.pinecone.io", index_name, "default", environment)),
+            url: Some(format!(
+                "https://{}-{}.svc.{}.pinecone.io",
+                index_name, "default", environment
+            )),
             ..Default::default()
         };
         Self::create_vector_store(&config).await
@@ -231,7 +263,9 @@ mod tests {
         #[cfg(feature = "pinecone")]
         assert!(StorageFactory::is_provider_supported("pinecone"));
 
-        assert!(!StorageFactory::is_provider_supported("unsupported_provider"));
+        assert!(!StorageFactory::is_provider_supported(
+            "unsupported_provider"
+        ));
     }
 
     #[test]
@@ -268,7 +302,8 @@ mod tests {
     #[cfg(feature = "pinecone")]
     #[tokio::test]
     async fn test_create_pinecone_store() {
-        let result = StorageFactory::create_pinecone_store("test-key", "test-index", "us-east1-gcp").await;
+        let result =
+            StorageFactory::create_pinecone_store("test-key", "test-index", "us-east1-gcp").await;
         assert!(result.is_ok());
     }
 

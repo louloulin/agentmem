@@ -1,6 +1,6 @@
 //! OpenAI LLM提供商实现
 
-use agent_mem_traits::{LLMProvider, LLMConfig, Message, Result, AgentMemError, ModelInfo};
+use agent_mem_traits::{AgentMemError, LLMConfig, LLMProvider, Message, ModelInfo, Result};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -75,9 +75,13 @@ impl OpenAIProvider {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
             .build()
-            .map_err(|e| AgentMemError::network_error(format!("Failed to create HTTP client: {}", e)))?;
+            .map_err(|e| {
+                AgentMemError::network_error(format!("Failed to create HTTP client: {}", e))
+            })?;
 
-        let base_url = config.base_url.clone()
+        let base_url = config
+            .base_url
+            .clone()
             .unwrap_or_else(|| "https://api.openai.com/v1".to_string());
 
         Ok(Self {
@@ -89,18 +93,21 @@ impl OpenAIProvider {
 
     /// 将Message转换为OpenAI格式
     fn convert_messages(&self, messages: &[Message]) -> Vec<OpenAIMessage> {
-        messages.iter().map(|msg| {
-            let role = match msg.role {
-                agent_mem_traits::MessageRole::System => "system",
-                agent_mem_traits::MessageRole::User => "user",
-                agent_mem_traits::MessageRole::Assistant => "assistant",
-            };
-            
-            OpenAIMessage {
-                role: role.to_string(),
-                content: msg.content.clone(),
-            }
-        }).collect()
+        messages
+            .iter()
+            .map(|msg| {
+                let role = match msg.role {
+                    agent_mem_traits::MessageRole::System => "system",
+                    agent_mem_traits::MessageRole::User => "user",
+                    agent_mem_traits::MessageRole::Assistant => "assistant",
+                };
+
+                OpenAIMessage {
+                    role: role.to_string(),
+                    content: msg.content.clone(),
+                }
+            })
+            .collect()
     }
 
     /// 构建API请求
@@ -120,13 +127,17 @@ impl OpenAIProvider {
 #[async_trait]
 impl LLMProvider for OpenAIProvider {
     async fn generate(&self, messages: &[Message]) -> Result<String> {
-        let api_key = self.config.api_key.as_ref()
+        let api_key = self
+            .config
+            .api_key
+            .as_ref()
             .ok_or_else(|| AgentMemError::config_error("OpenAI API key not configured"))?;
 
         let request = self.build_request(messages);
         let url = format!("{}/chat/completions", self.base_url);
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .header("Authorization", format!("Bearer {}", api_key))
             .header("Content-Type", "application/json")
@@ -137,15 +148,19 @@ impl LLMProvider for OpenAIProvider {
 
         if !response.status().is_success() {
             let status = response.status();
-            let error_text = response.text().await
+            let error_text = response
+                .text()
+                .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(AgentMemError::llm_error(format!(
-                "OpenAI API error {}: {}", status, error_text
+                "OpenAI API error {}: {}",
+                status, error_text
             )));
         }
 
-        let openai_response: OpenAIResponse = response.json().await
-            .map_err(|e| AgentMemError::parsing_error(format!("Failed to parse response: {}", e)))?;
+        let openai_response: OpenAIResponse = response.json().await.map_err(|e| {
+            AgentMemError::parsing_error(format!("Failed to parse response: {}", e))
+        })?;
 
         if openai_response.choices.is_empty() {
             return Err(AgentMemError::llm_error("No choices in OpenAI response"));
@@ -154,9 +169,14 @@ impl LLMProvider for OpenAIProvider {
         Ok(openai_response.choices[0].message.content.clone())
     }
 
-    async fn generate_stream(&self, _messages: &[Message]) -> Result<Box<dyn futures::Stream<Item = Result<String>> + Send + Unpin>> {
+    async fn generate_stream(
+        &self,
+        _messages: &[Message],
+    ) -> Result<Box<dyn futures::Stream<Item = Result<String>> + Send + Unpin>> {
         // 流式生成的实现（简化版本）
-        Err(AgentMemError::llm_error("Streaming not implemented for OpenAI provider"))
+        Err(AgentMemError::llm_error(
+            "Streaming not implemented for OpenAI provider",
+        ))
     }
 
     fn get_model_info(&self) -> ModelInfo {
@@ -180,9 +200,13 @@ impl LLMProvider for OpenAIProvider {
 
         // 验证模型名称是否为已知的OpenAI模型
         let known_models = [
-            "gpt-3.5-turbo", "gpt-3.5-turbo-16k",
-            "gpt-4", "gpt-4-32k", "gpt-4-turbo-preview",
-            "gpt-4o", "gpt-4o-mini"
+            "gpt-3.5-turbo",
+            "gpt-3.5-turbo-16k",
+            "gpt-4",
+            "gpt-4-32k",
+            "gpt-4-turbo-preview",
+            "gpt-4o",
+            "gpt-4o-mini",
         ];
 
         if !known_models.contains(&self.config.model.as_str()) {
@@ -235,7 +259,7 @@ mod tests {
         };
 
         let provider = OpenAIProvider::new(config).unwrap();
-        
+
         let messages = vec![
             Message {
                 role: MessageRole::System,

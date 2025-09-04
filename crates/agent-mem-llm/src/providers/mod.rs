@@ -1,21 +1,21 @@
 //! LLM提供商实现模块
 
-pub mod openai;
 pub mod anthropic;
 pub mod azure;
-pub mod gemini;
-pub mod ollama;
 pub mod claude;
 pub mod cohere;
+pub mod gemini;
 pub mod mistral;
+pub mod ollama;
+pub mod openai;
 pub mod perplexity;
 
-pub use openai::OpenAIProvider;
 pub use anthropic::AnthropicProvider;
 pub use azure::AzureProvider;
-pub use gemini::GeminiProvider;
-pub use ollama::OllamaProvider;
 pub use claude::ClaudeProvider;
 pub use cohere::CohereProvider;
+pub use gemini::GeminiProvider;
 pub use mistral::MistralProvider;
+pub use ollama::OllamaProvider;
+pub use openai::OpenAIProvider;
 pub use perplexity::PerplexityProvider;

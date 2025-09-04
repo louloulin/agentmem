@@ -1,15 +1,15 @@
 //! LLM工厂模式实现
 
-use crate::providers::{OpenAIProvider, AnthropicProvider};
 #[cfg(feature = "azure")]
 use crate::providers::AzureProvider;
 #[cfg(feature = "gemini")]
 use crate::providers::GeminiProvider;
 #[cfg(feature = "ollama")]
 use crate::providers::OllamaProvider;
+use crate::providers::{AnthropicProvider, OpenAIProvider};
 use crate::providers::{ClaudeProvider, CohereProvider, MistralProvider, PerplexityProvider};
 
-use agent_mem_traits::{LLMProvider, LLMConfig, Result, AgentMemError, ModelInfo, Message};
+use agent_mem_traits::{AgentMemError, LLMConfig, LLMProvider, Message, ModelInfo, Result};
 use async_trait::async_trait;
 use std::sync::Arc;
 
@@ -52,7 +52,10 @@ impl LLMProvider for LLMProviderEnum {
         }
     }
 
-    async fn generate_stream(&self, messages: &[Message]) -> Result<Box<dyn futures::Stream<Item = Result<String>> + Send + Unpin>> {
+    async fn generate_stream(
+        &self,
+        messages: &[Message],
+    ) -> Result<Box<dyn futures::Stream<Item = Result<String>> + Send + Unpin>> {
         match self {
             #[cfg(feature = "openai")]
             LLMProviderEnum::OpenAI(provider) => provider.generate_stream(messages).await,
@@ -125,7 +128,9 @@ impl LLMFactory {
                 }
                 #[cfg(not(feature = "openai"))]
                 {
-                    return Err(AgentMemError::unsupported_provider("OpenAI feature not enabled"));
+                    return Err(AgentMemError::unsupported_provider(
+                        "OpenAI feature not enabled",
+                    ));
                 }
             }
             "anthropic" => {
@@ -136,7 +141,9 @@ impl LLMFactory {
                 }
                 #[cfg(not(feature = "anthropic"))]
                 {
-                    return Err(AgentMemError::unsupported_provider("Anthropic feature not enabled"));
+                    return Err(AgentMemError::unsupported_provider(
+                        "Anthropic feature not enabled",
+                    ));
                 }
             }
             "azure" => {
@@ -147,7 +154,9 @@ impl LLMFactory {
                 }
                 #[cfg(not(feature = "azure"))]
                 {
-                    return Err(AgentMemError::unsupported_provider("Azure feature not enabled"));
+                    return Err(AgentMemError::unsupported_provider(
+                        "Azure feature not enabled",
+                    ));
                 }
             }
             "gemini" => {
@@ -158,7 +167,9 @@ impl LLMFactory {
                 }
                 #[cfg(not(feature = "gemini"))]
                 {
-                    return Err(AgentMemError::unsupported_provider("Gemini feature not enabled"));
+                    return Err(AgentMemError::unsupported_provider(
+                        "Gemini feature not enabled",
+                    ));
                 }
             }
             "ollama" => {
@@ -169,7 +180,9 @@ impl LLMFactory {
                 }
                 #[cfg(not(feature = "ollama"))]
                 {
-                    return Err(AgentMemError::unsupported_provider("Ollama feature not enabled"));
+                    return Err(AgentMemError::unsupported_provider(
+                        "Ollama feature not enabled",
+                    ));
                 }
             }
             "claude" => {
@@ -253,7 +266,10 @@ impl LLMFactory {
 
     /// 创建本地Ollama提供商（如果启用）
     #[cfg(feature = "ollama")]
-    pub fn create_ollama_provider(base_url: Option<&str>, model: &str) -> Result<Arc<dyn LLMProvider + Send + Sync>> {
+    pub fn create_ollama_provider(
+        base_url: Option<&str>,
+        model: &str,
+    ) -> Result<Arc<dyn LLMProvider + Send + Sync>> {
         let config = LLMConfig {
             provider: "ollama".to_string(),
             model: model.to_string(),
@@ -264,7 +280,10 @@ impl LLMFactory {
     }
 
     /// 创建Claude提供商
-    pub fn create_claude_provider(api_key: &str, model: Option<&str>) -> Result<Arc<dyn LLMProvider + Send + Sync>> {
+    pub fn create_claude_provider(
+        api_key: &str,
+        model: Option<&str>,
+    ) -> Result<Arc<dyn LLMProvider + Send + Sync>> {
         let config = LLMConfig {
             provider: "claude".to_string(),
             model: model.unwrap_or("claude-3-haiku-20240307").to_string(),
@@ -275,7 +294,10 @@ impl LLMFactory {
     }
 
     /// 创建Cohere提供商
-    pub fn create_cohere_provider(api_key: &str, model: Option<&str>) -> Result<Arc<dyn LLMProvider + Send + Sync>> {
+    pub fn create_cohere_provider(
+        api_key: &str,
+        model: Option<&str>,
+    ) -> Result<Arc<dyn LLMProvider + Send + Sync>> {
         let config = LLMConfig {
             provider: "cohere".to_string(),
             model: model.unwrap_or("command-r").to_string(),
@@ -286,7 +308,10 @@ impl LLMFactory {
     }
 
     /// 创建Mistral提供商
-    pub fn create_mistral_provider(api_key: &str, model: Option<&str>) -> Result<Arc<dyn LLMProvider + Send + Sync>> {
+    pub fn create_mistral_provider(
+        api_key: &str,
+        model: Option<&str>,
+    ) -> Result<Arc<dyn LLMProvider + Send + Sync>> {
         let config = LLMConfig {
             provider: "mistral".to_string(),
             model: model.unwrap_or("mistral-small-latest").to_string(),
@@ -297,10 +322,15 @@ impl LLMFactory {
     }
 
     /// 创建Perplexity提供商
-    pub fn create_perplexity_provider(api_key: &str, model: Option<&str>) -> Result<Arc<dyn LLMProvider + Send + Sync>> {
+    pub fn create_perplexity_provider(
+        api_key: &str,
+        model: Option<&str>,
+    ) -> Result<Arc<dyn LLMProvider + Send + Sync>> {
         let config = LLMConfig {
             provider: "perplexity".to_string(),
-            model: model.unwrap_or("llama-3.1-sonar-small-128k-chat").to_string(),
+            model: model
+                .unwrap_or("llama-3.1-sonar-small-128k-chat")
+                .to_string(),
             api_key: Some(api_key.to_string()),
             ..Default::default()
         };
@@ -316,11 +346,11 @@ mod tests {
     fn test_supported_providers() {
         let providers = LLMFactory::supported_providers();
         assert!(!providers.is_empty());
-        
+
         // 检查默认启用的提供商
         #[cfg(feature = "openai")]
         assert!(providers.contains(&"openai"));
-        
+
         #[cfg(feature = "anthropic")]
         assert!(providers.contains(&"anthropic"));
     }
@@ -329,10 +359,10 @@ mod tests {
     fn test_is_provider_supported() {
         #[cfg(feature = "openai")]
         assert!(LLMFactory::is_provider_supported("openai"));
-        
+
         #[cfg(feature = "anthropic")]
         assert!(LLMFactory::is_provider_supported("anthropic"));
-        
+
         assert!(!LLMFactory::is_provider_supported("unsupported_provider"));
     }
 
@@ -342,7 +372,7 @@ mod tests {
             provider: "unsupported".to_string(),
             ..Default::default()
         };
-        
+
         let result = LLMFactory::create_provider(&config);
         assert!(result.is_err());
     }

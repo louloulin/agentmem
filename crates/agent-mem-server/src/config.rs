@@ -41,8 +41,7 @@ impl Default for ServerConfig {
                 .unwrap_or_else(|_| "8080".to_string())
                 .parse()
                 .unwrap_or(8080),
-            host: env::var("AGENT_MEM_HOST")
-                .unwrap_or_else(|_| "0.0.0.0".to_string()),
+            host: env::var("AGENT_MEM_HOST").unwrap_or_else(|_| "0.0.0.0".to_string()),
             enable_cors: env::var("AGENT_MEM_ENABLE_CORS")
                 .unwrap_or_else(|_| "true".to_string())
                 .parse()
@@ -73,8 +72,7 @@ impl Default for ServerConfig {
                 .unwrap_or_else(|_| "true".to_string())
                 .parse()
                 .unwrap_or(true),
-            log_level: env::var("AGENT_MEM_LOG_LEVEL")
-                .unwrap_or_else(|_| "info".to_string()),
+            log_level: env::var("AGENT_MEM_LOG_LEVEL").unwrap_or_else(|_| "info".to_string()),
             multi_tenant: env::var("AGENT_MEM_MULTI_TENANT")
                 .unwrap_or_else(|_| "false".to_string())
                 .parse()
@@ -92,25 +90,25 @@ impl ServerConfig {
     pub fn from_env() -> Self {
         Self::default()
     }
-    
+
     /// Validate configuration
     pub fn validate(&self) -> Result<(), String> {
         if self.port == 0 {
             return Err("Port cannot be 0".to_string());
         }
-        
+
         if self.jwt_secret.len() < 32 {
             return Err("JWT secret must be at least 32 characters".to_string());
         }
-        
+
         if self.request_timeout == 0 {
             return Err("Request timeout must be greater than 0".to_string());
         }
-        
+
         if self.max_body_size == 0 {
             return Err("Max body size must be greater than 0".to_string());
         }
-        
+
         Ok(())
     }
 }
@@ -126,12 +124,12 @@ mod tests {
         assert_eq!(config.host, "0.0.0.0");
         assert!(config.enable_cors);
     }
-    
+
     #[test]
     fn test_config_validation() {
         let mut config = ServerConfig::default();
         assert!(config.validate().is_ok());
-        
+
         config.port = 0;
         assert!(config.validate().is_err());
     }

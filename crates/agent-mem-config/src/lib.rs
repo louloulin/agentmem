@@ -1,5 +1,5 @@
 //! # Agent Memory Configuration
-//! 
+//!
 //! Configuration management for the AgentMem memory platform.
 
 pub mod factory;
