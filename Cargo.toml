@@ -11,6 +11,7 @@ members = [
     "crates/agent-mem-embeddings",
     "crates/agent-mem-intelligence",
     "crates/agent-mem-server",
+    "crates/agent-mem-client",
     # "crates/agent-mem-embeddings",
     # "crates/agent-mem-session",
     # "crates/agent-mem-intelligence",
@@ -27,6 +28,8 @@ members = [
 
     # 示例
     "examples/demo",
+    "examples/server-demo",
+    "examples/client-demo",
     # "examples/basic-usage",
     # "examples/advanced-features",
     # "examples/migration-from-agentmen",

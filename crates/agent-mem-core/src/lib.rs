@@ -13,12 +13,14 @@ pub mod lifecycle;
 pub mod types;
 pub mod operations;
 pub mod history;
+pub mod hierarchy;
 
 pub use manager::MemoryManager;
 pub use lifecycle::MemoryLifecycle;
 pub use types::*;
 pub use operations::*;
 pub use history::MemoryHistory;
+pub use hierarchy::*;
 
 #[cfg(test)]
 mod tests {
