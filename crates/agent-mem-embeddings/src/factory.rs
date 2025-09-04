@@ -13,6 +13,10 @@ pub enum EmbedderEnum {
     HuggingFace(HuggingFaceEmbedder),
     #[cfg(feature = "local")]
     Local(LocalEmbedder),
+    #[cfg(feature = "anthropic")]
+    Anthropic(AnthropicEmbedder),
+    #[cfg(feature = "cohere")]
+    Cohere(CohereEmbedder),
 }
 
 #[async_trait]
@@ -24,6 +28,10 @@ impl Embedder for EmbedderEnum {
             EmbedderEnum::HuggingFace(embedder) => embedder.embed(text).await,
             #[cfg(feature = "local")]
             EmbedderEnum::Local(embedder) => embedder.embed(text).await,
+            #[cfg(feature = "anthropic")]
+            EmbedderEnum::Anthropic(embedder) => embedder.embed(text).await,
+            #[cfg(feature = "cohere")]
+            EmbedderEnum::Cohere(embedder) => embedder.embed(text).await,
         }
     }
 
@@ -34,6 +42,10 @@ impl Embedder for EmbedderEnum {
             EmbedderEnum::HuggingFace(embedder) => embedder.embed_batch(texts).await,
             #[cfg(feature = "local")]
             EmbedderEnum::Local(embedder) => embedder.embed_batch(texts).await,
+            #[cfg(feature = "anthropic")]
+            EmbedderEnum::Anthropic(embedder) => embedder.embed_batch(texts).await,
+            #[cfg(feature = "cohere")]
+            EmbedderEnum::Cohere(embedder) => embedder.embed_batch(texts).await,
         }
     }
 
@@ -44,6 +56,10 @@ impl Embedder for EmbedderEnum {
             EmbedderEnum::HuggingFace(embedder) => embedder.dimension(),
             #[cfg(feature = "local")]
             EmbedderEnum::Local(embedder) => embedder.dimension(),
+            #[cfg(feature = "anthropic")]
+            EmbedderEnum::Anthropic(embedder) => embedder.dimension(),
+            #[cfg(feature = "cohere")]
+            EmbedderEnum::Cohere(embedder) => embedder.dimension(),
         }
     }
 
@@ -54,6 +70,10 @@ impl Embedder for EmbedderEnum {
             EmbedderEnum::HuggingFace(embedder) => embedder.provider_name(),
             #[cfg(feature = "local")]
             EmbedderEnum::Local(embedder) => embedder.provider_name(),
+            #[cfg(feature = "anthropic")]
+            EmbedderEnum::Anthropic(embedder) => embedder.provider_name(),
+            #[cfg(feature = "cohere")]
+            EmbedderEnum::Cohere(embedder) => embedder.provider_name(),
         }
     }
 
@@ -74,6 +94,10 @@ impl Embedder for EmbedderEnum {
             EmbedderEnum::HuggingFace(embedder) => embedder.health_check().await,
             #[cfg(feature = "local")]
             EmbedderEnum::Local(embedder) => embedder.health_check().await,
+            #[cfg(feature = "anthropic")]
+            EmbedderEnum::Anthropic(embedder) => embedder.health_check().await,
+            #[cfg(feature = "cohere")]
+            EmbedderEnum::Cohere(embedder) => embedder.health_check().await,
         }
     }
 }
@@ -114,6 +138,28 @@ impl EmbeddingFactory {
                     return Err(AgentMemError::unsupported_provider("Local feature not enabled"));
                 }
             }
+            "anthropic" => {
+                #[cfg(feature = "anthropic")]
+                {
+                    let embedder = AnthropicEmbedder::new(config.clone()).await?;
+                    EmbedderEnum::Anthropic(embedder)
+                }
+                #[cfg(not(feature = "anthropic"))]
+                {
+                    return Err(AgentMemError::unsupported_provider("Anthropic feature not enabled"));
+                }
+            }
+            "cohere" => {
+                #[cfg(feature = "cohere")]
+                {
+                    let embedder = CohereEmbedder::new(config.clone()).await?;
+                    EmbedderEnum::Cohere(embedder)
+                }
+                #[cfg(not(feature = "cohere"))]
+                {
+                    return Err(AgentMemError::unsupported_provider("Cohere feature not enabled"));
+                }
+            }
             _ => return Err(AgentMemError::unsupported_provider(&config.provider)),
         };
 
@@ -123,15 +169,21 @@ impl EmbeddingFactory {
     /// 获取支持的嵌入提供商列表
     pub fn supported_providers() -> Vec<&'static str> {
         let mut providers = Vec::new();
-        
+
         providers.push("openai");
-        
+
         #[cfg(feature = "huggingface")]
         providers.push("huggingface");
-        
+
         #[cfg(feature = "local")]
         providers.push("local");
-        
+
+        #[cfg(feature = "anthropic")]
+        providers.push("anthropic");
+
+        #[cfg(feature = "cohere")]
+        providers.push("cohere");
+
         providers
     }
 
@@ -172,6 +224,33 @@ impl EmbeddingFactory {
         Self::create_embedder(&config).await
     }
 
+    /// 创建Anthropic嵌入器
+    #[cfg(feature = "anthropic")]
+    pub async fn create_anthropic_embedder(api_key: String) -> Result<Arc<dyn Embedder + Send + Sync>> {
+        let config = EmbeddingConfig {
+            provider: "anthropic".to_string(),
+            model: "claude-embedding".to_string(),
+            api_key: Some(api_key),
+            dimension: 1536,
+            ..Default::default()
+        };
+        Self::create_embedder(&config).await
+    }
+
+    /// 创建Cohere嵌入器
+    #[cfg(feature = "cohere")]
+    pub async fn create_cohere_embedder(api_key: String, model: Option<&str>) -> Result<Arc<dyn Embedder + Send + Sync>> {
+        let config = EmbeddingConfig {
+            provider: "cohere".to_string(),
+            model: model.unwrap_or("embed-english-v3.0").to_string(),
+            api_key: Some(api_key),
+            dimension: 1024,
+            base_url: Some("https://api.cohere.ai/v1".to_string()),
+            ..Default::default()
+        };
+        Self::create_embedder(&config).await
+    }
+
     /// 从环境变量创建嵌入器
     pub async fn from_env() -> Result<Arc<dyn Embedder + Send + Sync>> {
         let provider = std::env::var("EMBEDDING_PROVIDER").unwrap_or_else(|_| "openai".to_string());
@@ -208,6 +287,31 @@ impl EmbeddingFactory {
                 #[cfg(not(feature = "local"))]
                 {
                     Err(AgentMemError::unsupported_provider("Local feature not enabled"))
+                }
+            }
+            "anthropic" => {
+                #[cfg(feature = "anthropic")]
+                {
+                    let api_key = std::env::var("ANTHROPIC_API_KEY")
+                        .map_err(|_| AgentMemError::config_error("ANTHROPIC_API_KEY environment variable not set"))?;
+                    Self::create_anthropic_embedder(api_key).await
+                }
+                #[cfg(not(feature = "anthropic"))]
+                {
+                    Err(AgentMemError::unsupported_provider("Anthropic feature not enabled"))
+                }
+            }
+            "cohere" => {
+                #[cfg(feature = "cohere")]
+                {
+                    let api_key = std::env::var("COHERE_API_KEY")
+                        .map_err(|_| AgentMemError::config_error("COHERE_API_KEY environment variable not set"))?;
+                    let model = std::env::var("COHERE_MODEL").ok();
+                    Self::create_cohere_embedder(api_key, model.as_deref()).await
+                }
+                #[cfg(not(feature = "cohere"))]
+                {
+                    Err(AgentMemError::unsupported_provider("Cohere feature not enabled"))
                 }
             }
             _ => Err(AgentMemError::unsupported_provider(&provider)),

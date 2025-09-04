@@ -1,7 +1,7 @@
 //! Neo4j图存储实现
 
 use agent_mem_traits::{GraphStore, Entity, Relation, Session, GraphResult, Result, AgentMemError};
-use agent_mem_config::GraphStoreConfig;
+use agent_mem_config::memory::GraphStoreConfig;
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -75,7 +75,7 @@ impl Neo4jStore {
 
         // 创建基本认证头
         let auth_string = format!("{}:{}", username, password);
-        let auth_header = format!("Basic {}", base64::encode(auth_string));
+        let auth_header = format!("Basic {}", base64::encode(&auth_string));
 
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
@@ -185,27 +185,23 @@ impl Neo4jStore {
         params.insert("id".to_string(), serde_json::Value::String(entity.id.clone()));
         params.insert("entity_type".to_string(), serde_json::Value::String(entity.entity_type.clone()));
         params.insert("name".to_string(), serde_json::Value::String(entity.name.clone()));
-        
+
         // 添加属性
-        for (key, value) in &entity.properties {
-            params.insert(key.clone(), serde_json::Value::String(value.clone()));
+        for (key, value) in &entity.attributes {
+            params.insert(key.clone(), value.clone());
         }
-        
+
         params
     }
 
     /// 将Relation转换为Cypher参数
     fn relation_to_parameters(&self, relation: &Relation) -> HashMap<String, serde_json::Value> {
         let mut params = HashMap::new();
-        params.insert("from_id".to_string(), serde_json::Value::String(relation.from_id.clone()));
-        params.insert("to_id".to_string(), serde_json::Value::String(relation.to_id.clone()));
-        params.insert("relation_type".to_string(), serde_json::Value::String(relation.relation_type.clone()));
-        
-        // 添加属性
-        for (key, value) in &relation.properties {
-            params.insert(key.clone(), serde_json::Value::String(value.clone()));
-        }
-        
+        params.insert("source".to_string(), serde_json::Value::String(relation.source.clone()));
+        params.insert("target".to_string(), serde_json::Value::String(relation.target.clone()));
+        params.insert("relation_type".to_string(), serde_json::Value::String(relation.relation.clone()));
+        params.insert("confidence".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(relation.confidence as f64).unwrap()));
+
         params
     }
 }
@@ -225,11 +221,9 @@ impl GraphStore for Neo4jStore {
             let mut parameters = self.entity_to_parameters(entity);
             
             // 将属性作为单独的参数传递
-            let properties: HashMap<String, serde_json::Value> = entity.properties.iter()
-                .map(|(k, v)| (k.clone(), serde_json::Value::String(v.clone())))
-                .collect();
+            let attributes: HashMap<String, serde_json::Value> = entity.attributes.clone();
             parameters.insert("properties".to_string(), serde_json::Value::Object(
-                properties.into_iter().collect()
+                attributes.into_iter().collect()
             ));
             
             self.execute_query(statement, Some(parameters)).await?;
@@ -241,23 +235,14 @@ impl GraphStore for Neo4jStore {
     async fn add_relations(&self, relations: &[Relation], _session: &Session) -> Result<()> {
         for relation in relations {
             let statement = r#"
-                MATCH (from:Entity {id: $from_id})
-                MATCH (to:Entity {id: $to_id})
-                MERGE (from)-[r:RELATES {type: $relation_type}]->(to)
-                SET r += $properties
+                MATCH (from:Entity {id: $source})
+                MATCH (to:Entity {id: $target})
+                MERGE (from)-[r:RELATES {type: $relation_type, confidence: $confidence}]->(to)
                 RETURN r
             "#;
-            
-            let mut parameters = self.relation_to_parameters(relation);
-            
-            // 将属性作为单独的参数传递
-            let properties: HashMap<String, serde_json::Value> = relation.properties.iter()
-                .map(|(k, v)| (k.clone(), serde_json::Value::String(v.clone())))
-                .collect();
-            parameters.insert("properties".to_string(), serde_json::Value::Object(
-                properties.into_iter().collect()
-            ));
-            
+
+            let parameters = self.relation_to_parameters(relation);
+
             self.execute_query(statement, Some(parameters)).await?;
         }
         
@@ -289,7 +274,7 @@ impl GraphStore for Neo4jStore {
                         id: "parsed_id".to_string(), // 实际实现需要从JSON中解析
                         entity_type: "parsed_type".to_string(),
                         name: "parsed_name".to_string(),
-                        properties: HashMap::new(),
+                        attributes: HashMap::new(),
                     };
                     
                     let graph_result = GraphResult {
@@ -329,7 +314,7 @@ impl GraphStore for Neo4jStore {
                         id: "neighbor_id".to_string(), // 实际实现需要从JSON中解析
                         entity_type: "neighbor_type".to_string(),
                         name: "neighbor_name".to_string(),
-                        properties: HashMap::new(),
+                        attributes: HashMap::new(),
                     };
                     
                     entities.push(entity);
@@ -433,7 +418,7 @@ mod tests {
             id: "test-id".to_string(),
             entity_type: "Person".to_string(),
             name: "Test Person".to_string(),
-            properties,
+            attributes: properties,
         };
 
         let params = store.entity_to_parameters(&entity);

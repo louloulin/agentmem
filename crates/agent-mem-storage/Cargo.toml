@@ -14,6 +14,7 @@ description = "Storage backends for AgentMem memory platform"
 [dependencies]
 agent-mem-traits = { path = "../agent-mem-traits" }
 agent-mem-utils = { path = "../agent-mem-utils" }
+agent-mem-config = { path = "../agent-mem-config" }
 
 # 核心依赖
 serde.workspace = true

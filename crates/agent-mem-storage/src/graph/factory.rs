@@ -2,7 +2,7 @@
 
 use crate::graph::{Neo4jStore, MemgraphStore};
 use agent_mem_traits::{GraphStore, Result, AgentMemError};
-use agent_mem_config::GraphStoreConfig;
+use agent_mem_config::memory::GraphStoreConfig;
 use async_trait::async_trait;
 use std::sync::Arc;
 
@@ -12,6 +12,8 @@ pub enum GraphStoreEnum {
     Neo4j(Neo4jStore),
     #[cfg(feature = "memgraph")]
     Memgraph(MemgraphStore),
+    #[cfg(not(any(feature = "neo4j", feature = "memgraph")))]
+    _Phantom(std::marker::PhantomData<()>),
 }
 
 #[async_trait]
@@ -22,6 +24,8 @@ impl GraphStore for GraphStoreEnum {
             GraphStoreEnum::Neo4j(store) => store.add_entities(entities, session).await,
             #[cfg(feature = "memgraph")]
             GraphStoreEnum::Memgraph(store) => store.add_entities(entities, session).await,
+            #[cfg(not(any(feature = "neo4j", feature = "memgraph")))]
+            GraphStoreEnum::_Phantom(_) => unreachable!(),
         }
     }
 
@@ -31,6 +35,8 @@ impl GraphStore for GraphStoreEnum {
             GraphStoreEnum::Neo4j(store) => store.add_relations(relations, session).await,
             #[cfg(feature = "memgraph")]
             GraphStoreEnum::Memgraph(store) => store.add_relations(relations, session).await,
+            #[cfg(not(any(feature = "neo4j", feature = "memgraph")))]
+            GraphStoreEnum::_Phantom(_) => unreachable!(),
         }
     }
 
@@ -40,6 +46,8 @@ impl GraphStore for GraphStoreEnum {
             GraphStoreEnum::Neo4j(store) => store.search_graph(query, session).await,
             #[cfg(feature = "memgraph")]
             GraphStoreEnum::Memgraph(store) => store.search_graph(query, session).await,
+            #[cfg(not(any(feature = "neo4j", feature = "memgraph")))]
+            GraphStoreEnum::_Phantom(_) => unreachable!(),
         }
     }
 
@@ -49,6 +57,8 @@ impl GraphStore for GraphStoreEnum {
             GraphStoreEnum::Neo4j(store) => store.get_neighbors(entity_id, depth).await,
             #[cfg(feature = "memgraph")]
             GraphStoreEnum::Memgraph(store) => store.get_neighbors(entity_id, depth).await,
+            #[cfg(not(any(feature = "neo4j", feature = "memgraph")))]
+            GraphStoreEnum::_Phantom(_) => unreachable!(),
         }
     }
 
@@ -58,6 +68,8 @@ impl GraphStore for GraphStoreEnum {
             GraphStoreEnum::Neo4j(store) => store.reset().await,
             #[cfg(feature = "memgraph")]
             GraphStoreEnum::Memgraph(store) => store.reset().await,
+            #[cfg(not(any(feature = "neo4j", feature = "memgraph")))]
+            GraphStoreEnum::_Phantom(_) => unreachable!(),
         }
     }
 }
@@ -68,33 +80,33 @@ pub struct GraphStoreFactory;
 impl GraphStoreFactory {
     /// 根据配置创建图存储实例
     pub async fn create_graph_store(config: &GraphStoreConfig) -> Result<Arc<dyn GraphStore + Send + Sync>> {
-        let store_enum = match config.provider.as_str() {
+        match config.provider.as_str() {
             "neo4j" => {
                 #[cfg(feature = "neo4j")]
                 {
                     let store = Neo4jStore::new(config.clone()).await?;
-                    GraphStoreEnum::Neo4j(store)
+                    let store_enum = GraphStoreEnum::Neo4j(store);
+                    Ok(Arc::new(store_enum))
                 }
                 #[cfg(not(feature = "neo4j"))]
                 {
-                    return Err(AgentMemError::unsupported_provider("Neo4j feature not enabled"));
+                    Err(AgentMemError::unsupported_provider("Neo4j feature not enabled"))
                 }
             }
             "memgraph" => {
                 #[cfg(feature = "memgraph")]
                 {
                     let store = MemgraphStore::new(config.clone()).await?;
-                    GraphStoreEnum::Memgraph(store)
+                    let store_enum = GraphStoreEnum::Memgraph(store);
+                    Ok(Arc::new(store_enum))
                 }
                 #[cfg(not(feature = "memgraph"))]
                 {
-                    return Err(AgentMemError::unsupported_provider("Memgraph feature not enabled"));
+                    Err(AgentMemError::unsupported_provider("Memgraph feature not enabled"))
                 }
             }
-            _ => return Err(AgentMemError::unsupported_provider(&config.provider)),
-        };
-
-        Ok(Arc::new(store_enum))
+            _ => Err(AgentMemError::unsupported_provider(&config.provider)),
+        }
     }
 
     /// 获取支持的图存储提供商列表

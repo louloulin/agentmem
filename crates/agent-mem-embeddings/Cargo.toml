@@ -48,6 +48,8 @@ default = ["openai"]
 openai = []
 huggingface = ["dep:hf-hub"]
 local = ["dep:candle-core", "dep:candle-nn", "dep:candle-transformers", "dep:tokenizers"]
+anthropic = []
+cohere = []
 
 # 所有提供商
 all-providers = ["openai", "huggingface", "local"]
