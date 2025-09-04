@@ -27,6 +27,18 @@ use tokio::time::sleep;
 use tracing::{info, warn, error};
 use uuid::Uuid;
 
+/// Simple error type for demo
+#[derive(Debug)]
+struct DemoError(String);
+
+impl std::fmt::Display for DemoError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::error::Error for DemoError {}
+
 /// Demo batch item for processing
 #[derive(Debug)]
 struct DemoTask {
@@ -38,7 +50,7 @@ struct DemoTask {
 #[async_trait]
 impl BatchItem for DemoTask {
     type Output = String;
-    type Error = String;
+    type Error = DemoError;
 
     async fn process(&self) -> std::result::Result<Self::Output, Self::Error> {
         // Simulate processing time
@@ -231,13 +243,13 @@ async fn demo_concurrency() -> Result<()> {
         ..Default::default()
     };
     
-    let concurrency_manager = ConcurrencyManager::new(config)?;
+    let concurrency_manager = Arc::new(ConcurrencyManager::new(config)?);
     info!("✓ Concurrency manager created with max 5 concurrent tasks, 10 RPS limit");
-    
+
     // Execute multiple tasks with concurrency control
     let mut handles = Vec::new();
     for i in 0..8 {
-        let manager = Arc::new(concurrency_manager);
+        let manager = Arc::clone(&concurrency_manager);
         let handle = tokio::spawn(async move {
             let task_id = i;
             manager.execute(move || async move {
@@ -248,7 +260,7 @@ async fn demo_concurrency() -> Result<()> {
         });
         handles.push(handle);
     }
-    
+
     // Wait for all tasks
     for handle in handles {
         match handle.await.unwrap() {
@@ -256,7 +268,7 @@ async fn demo_concurrency() -> Result<()> {
             Err(e) => warn!("Task failed: {}", e),
         }
     }
-    
+
     let stats = concurrency_manager.get_stats().await?;
     info!("✓ Concurrency stats: {} completed tasks", stats.completed_tasks);
     
@@ -302,9 +314,13 @@ async fn demo_query_optimization() -> Result<()> {
               i + 1, plan.execution_steps.len(), plan.estimated_cost);
         
         // Simulate query execution
-        let result = optimizer.execute_query(&plan, |plan| async {
-            sleep(Duration::from_millis((plan.estimated_cost / 10.0) as u64)).await;
-            Ok::<String, agent_mem_traits::AgentMemError>(format!("Query executed with {} steps", plan.execution_steps.len()))
+        let plan_clone = plan.clone();
+        let result = optimizer.execute_query(&plan, move |_| {
+            let plan = plan_clone.clone();
+            async move {
+                sleep(Duration::from_millis((plan.estimated_cost / 10.0) as u64)).await;
+                Ok::<String, agent_mem_traits::AgentMemError>(format!("Query executed with {} steps", plan.execution_steps.len()))
+            }
         }).await?;
         
         info!("✓ {}", result);
