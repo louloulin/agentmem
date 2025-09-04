@@ -1,0 +1,38 @@
+[package]
+name = "agent-mem-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Core memory management for AgentMem memory platform"
+
+[dependencies]
+agent-mem-traits = { path = "../agent-mem-traits" }
+agent-mem-utils = { path = "../agent-mem-utils" }
+agent-mem-config = { path = "../agent-mem-config" }
+
+# Core dependencies
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+
+# Storage and async
+async-trait.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio-test = "0.4"
+
+[features]
+default = []
+persistence = []
+vector-search = []

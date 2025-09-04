@@ -5,7 +5,7 @@ members = [
     "crates/agent-mem-traits",
     "crates/agent-mem-utils",
     "crates/agent-mem-config",
-    # "crates/agent-mem-core",
+    "crates/agent-mem-core",
     # "crates/agent-mem-llm",
     # "crates/agent-mem-storage",
     # "crates/agent-mem-embeddings",
