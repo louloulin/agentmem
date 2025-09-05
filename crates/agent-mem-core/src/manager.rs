@@ -259,7 +259,11 @@ impl MemoryManager {
         drop(operations);
 
         let mut lifecycle = self.lifecycle.write().await;
-        lifecycle.apply_auto_policies(&all_memories)
+        let memory_items: Vec<agent_mem_traits::MemoryItem> = all_memories
+            .iter()
+            .map(|m| agent_mem_traits::MemoryItem::from(m.clone()))
+            .collect();
+        lifecycle.apply_auto_policies(&memory_items)
     }
 
     /// Clean up expired memories and old history

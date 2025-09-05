@@ -191,10 +191,10 @@ impl From<Memory> for MemoryItem {
 
         // Create a session from memory data
         let mut session = Session::new();
-        if let Some(user_id) = memory.user_id {
-            session = session.with_user_id(Some(user_id));
+        if let Some(ref user_id) = memory.user_id {
+            session = session.with_user_id(Some(user_id.clone()));
         }
-        session = session.with_agent_id(Some(memory.agent_id));
+        session = session.with_agent_id(Some(memory.agent_id.clone()));
 
         MemoryItem {
             id: memory.id,
