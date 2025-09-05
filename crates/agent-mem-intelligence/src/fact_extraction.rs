@@ -80,36 +80,33 @@ impl FactExtractor {
     /// 构建事实提取提示
     fn build_fact_extraction_prompt(&self, conversation: &str) -> String {
         format!(
-            r#"You are an expert fact extractor. Analyze the following conversation and extract key facts that should be remembered.
+            r#"Extract key facts from this conversation. Return JSON only.
 
 Conversation:
 {}
 
-Extract facts from this conversation and return them in the following JSON format:
+JSON format:
 {{
     "facts": [
         {{
-            "content": "The specific fact or information",
-            "confidence": 0.95,
+            "content": "fact description",
+            "confidence": 0.9,
             "category": "Personal|Preference|Relationship|Event|Knowledge|Procedural",
             "entities": ["entity1", "entity2"],
-            "temporal_info": "time information if any",
+            "temporal_info": null,
             "source_message_id": null
         }}
     ],
-    "confidence": 0.9,
-    "reasoning": "Brief explanation of the extraction process"
+    "confidence": 0.8,
+    "reasoning": "brief explanation"
 }}
 
-Guidelines:
-1. Extract only meaningful, memorable facts
-2. Assign confidence scores (0.0-1.0) based on clarity and importance
-3. Categorize facts appropriately
-4. Identify key entities mentioned
-5. Note temporal information when present
-6. Focus on information that would be useful to remember for future conversations
-
-Return valid JSON only."#,
+Rules:
+- Extract 1-5 most important facts only
+- Use confidence 0.3-1.0
+- Categories: Personal (name, age), Preference (likes/dislikes), Relationship (connections), Event (actions), Knowledge (facts), Procedural (how-to)
+- Include key entities mentioned
+- Keep content concise (max 50 words per fact)"#,
             conversation
         )
     }

@@ -151,11 +151,17 @@ impl MemoryDecisionEngine {
         new_facts: &[ExtractedFact],
         existing_memories: &[ExistingMemory],
     ) -> String {
-        let facts_json = serde_json::to_string_pretty(new_facts).unwrap_or_default();
-        let memories_json = serde_json::to_string_pretty(existing_memories).unwrap_or_default();
+        // 简化输入数据以减少token使用
+        let facts_summary: Vec<String> = new_facts.iter()
+            .map(|f| format!("{} (conf: {:.1})", f.content, f.confidence))
+            .collect();
+
+        let memories_summary: Vec<String> = existing_memories.iter()
+            .map(|m| format!("{}: {} (imp: {:.1})", m.id, m.content, m.importance))
+            .collect();
 
         format!(
-            r#"You are an intelligent memory management system. Analyze the new facts and existing memories to decide what memory operations should be performed.
+            r#"Memory management task. Return JSON only.
 
 New Facts:
 {}
@@ -163,49 +169,32 @@ New Facts:
 Existing Memories:
 {}
 
-Based on the new facts and existing memories, decide what actions to take. Consider:
-1. Should new facts be added as new memories?
-2. Do any new facts update or contradict existing memories?
-3. Should any existing memories be deleted or merged?
-4. What is the importance level of each new fact?
+Decide memory operations:
 
-Return your decisions in the following JSON format:
 {{
     "decisions": [
         {{
-            "action": {{
-                "Add": {{
-                    "content": "memory content",
-                    "importance": 0.8,
-                    "metadata": {{"key": "value"}}
-                }}
-            }},
+            "action": {{"Add": {{"content": "text", "importance": 0.8, "metadata": {{}}}}}},
             "confidence": 0.9,
-            "reasoning": "Why this decision was made",
-            "affected_memories": ["memory_id1"],
+            "reasoning": "brief reason",
+            "affected_memories": [],
             "estimated_impact": 0.7
         }}
     ],
-    "overall_confidence": 0.85,
-    "reasoning": "Overall reasoning for all decisions"
+    "overall_confidence": 0.8,
+    "reasoning": "summary"
 }}
 
-Action types available:
-- Add: Create new memory
-- Update: Modify existing memory
-- Delete: Remove memory
-- Merge: Combine multiple memories
-- NoAction: No operation needed
+Actions: Add, Update, Delete, Merge, NoAction
+- Add new facts as memories (importance 0.3-1.0)
+- Update if fact conflicts with existing memory
+- Delete outdated/contradicted memories
+- Merge similar memories
+- NoAction if no changes needed
 
-Guidelines:
-1. Assign importance scores (0.0-1.0) based on relevance and usefulness
-2. Use high confidence (>0.8) for clear decisions
-3. Provide clear reasoning for each decision
-4. Consider memory consolidation to avoid redundancy
-5. Preserve important information when updating or merging
-
-Return valid JSON only."#,
-            facts_json, memories_json
+Keep reasoning brief. Max 3 decisions."#,
+            facts_summary.join("\n"),
+            memories_summary.join("\n")
         )
     }
 

@@ -28,7 +28,7 @@ impl Default for DeepSeekConfig {
             model: "deepseek-chat".to_string(),
             temperature: 0.7,
             max_tokens: 4096,
-            timeout: Duration::from_secs(30),
+            timeout: Duration::from_secs(120), // 增加到 120 秒
         }
     }
 }
@@ -101,7 +101,7 @@ impl DeepSeekProvider {
         Self::new(config)
     }
 
-    /// 发送聊天完成请求
+    /// 发送聊天完成请求（带重试机制）
     pub async fn chat_completion(&self, messages: Vec<DeepSeekMessage>) -> Result<DeepSeekResponse> {
         let request = DeepSeekRequest {
             model: self.config.model.clone(),
@@ -111,15 +111,47 @@ impl DeepSeekProvider {
             stream: false,
         };
 
+        // 重试机制
+        let max_retries = 3;
+        let mut last_error = None;
+
+        for attempt in 0..max_retries {
+            match self.send_request(&request).await {
+                Ok(response) => return Ok(response),
+                Err(e) => {
+                    last_error = Some(e);
+                    if attempt < max_retries - 1 {
+                        // 指数退避
+                        let delay = std::time::Duration::from_millis(1000 * (2_u64.pow(attempt as u32)));
+                        tokio::time::sleep(delay).await;
+                        println!("DeepSeek API 请求失败，第 {} 次重试...", attempt + 1);
+                    }
+                }
+            }
+        }
+
+        Err(last_error.unwrap())
+    }
+
+    /// 发送单次请求
+    async fn send_request(&self, request: &DeepSeekRequest) -> Result<DeepSeekResponse> {
         let response = self
             .client
             .post(&format!("{}/chat/completions", self.config.base_url))
             .header("Authorization", format!("Bearer {}", self.config.api_key))
             .header("Content-Type", "application/json")
-            .json(&request)
+            .json(request)
             .send()
             .await
-            .map_err(|e| AgentMemError::LLMError(format!("Request failed: {}", e)))?;
+            .map_err(|e| {
+                if e.is_timeout() {
+                    AgentMemError::LLMError(format!("Request timeout after {}s: {}", self.config.timeout.as_secs(), e))
+                } else if e.is_connect() {
+                    AgentMemError::LLMError(format!("Connection failed: {}", e))
+                } else {
+                    AgentMemError::LLMError(format!("Request failed: {}", e))
+                }
+            })?;
 
         if !response.status().is_success() {
             let status = response.status();

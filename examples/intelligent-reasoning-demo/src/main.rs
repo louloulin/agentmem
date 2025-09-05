@@ -30,43 +30,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("✅ 智能处理器创建成功");
 
-    // 准备测试消息
+    // 准备简化的测试消息
     let messages = vec![
         Message {
             role: "user".to_string(),
-            content: "Hi, my name is John and I'm a software engineer from San Francisco. I love coffee and prefer working in the morning.".to_string(),
+            content: "Hi, I'm John from San Francisco. I love coffee.".to_string(),
             timestamp: Some("2024-01-01T10:00:00Z".to_string()),
             message_id: Some("msg1".to_string()),
         },
         Message {
-            role: "assistant".to_string(),
-            content: "Nice to meet you, John! It's great that you're a software engineer. What programming languages do you enjoy working with?".to_string(),
-            timestamp: Some("2024-01-01T10:01:00Z".to_string()),
-            message_id: Some("msg2".to_string()),
-        },
-        Message {
             role: "user".to_string(),
-            content: "I mainly work with Rust and Python. I've been programming for about 8 years now. I also enjoy hiking on weekends.".to_string(),
+            content: "I work with Rust and Python. I enjoy hiking.".to_string(),
             timestamp: Some("2024-01-01T10:02:00Z".to_string()),
-            message_id: Some("msg3".to_string()),
+            message_id: Some("msg2".to_string()),
         },
     ];
 
-    // 准备现有记忆（模拟）
+    // 准备简化的现有记忆
     let existing_memories = vec![
         ExistingMemory {
             id: "mem1".to_string(),
-            content: "User is a software developer".to_string(),
-            importance: 0.7,
+            content: "User likes tea".to_string(),
+            importance: 0.5,
             created_at: "2023-12-01T00:00:00Z".to_string(),
-            updated_at: None,
-            metadata: HashMap::new(),
-        },
-        ExistingMemory {
-            id: "mem2".to_string(),
-            content: "User likes coffee".to_string(),
-            importance: 0.6,
-            created_at: "2023-12-02T00:00:00Z".to_string(),
             updated_at: None,
             metadata: HashMap::new(),
         },
