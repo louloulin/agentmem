@@ -8,6 +8,7 @@ use crate::providers::GeminiProvider;
 use crate::providers::OllamaProvider;
 use crate::providers::{AnthropicProvider, OpenAIProvider};
 use crate::providers::{ClaudeProvider, CohereProvider, MistralProvider, PerplexityProvider};
+use crate::providers::LiteLLMProvider;
 
 use agent_mem_traits::{AgentMemError, LLMConfig, LLMProvider, Message, ModelInfo, Result};
 use async_trait::async_trait;
@@ -27,6 +28,7 @@ pub enum LLMProviderEnum {
     Ollama(OllamaProvider),
     Claude(ClaudeProvider),
     Cohere(CohereProvider),
+    LiteLLM(LiteLLMProvider),
     Mistral(MistralProvider),
     Perplexity(PerplexityProvider),
 }
@@ -47,6 +49,21 @@ impl LLMProvider for LLMProviderEnum {
             LLMProviderEnum::Ollama(provider) => provider.generate(messages).await,
             LLMProviderEnum::Claude(provider) => provider.generate(messages).await,
             LLMProviderEnum::Cohere(provider) => provider.generate(messages).await,
+            LLMProviderEnum::LiteLLM(provider) => {
+                // Convert messages to LiteLLM format
+                let litellm_messages: Vec<crate::providers::litellm::LiteLLMMessage> = messages
+                    .iter()
+                    .map(|m| crate::providers::litellm::LiteLLMMessage {
+                        role: match m.role {
+                            agent_mem_traits::MessageRole::System => "system".to_string(),
+                            agent_mem_traits::MessageRole::User => "user".to_string(),
+                            agent_mem_traits::MessageRole::Assistant => "assistant".to_string(),
+                        },
+                        content: m.content.clone(),
+                    })
+                    .collect();
+                provider.generate_response(&litellm_messages).await
+            },
             LLMProviderEnum::Mistral(provider) => provider.generate(messages).await,
             LLMProviderEnum::Perplexity(provider) => provider.generate(messages).await,
         }
@@ -69,6 +86,10 @@ impl LLMProvider for LLMProviderEnum {
             LLMProviderEnum::Ollama(provider) => provider.generate_stream(messages).await,
             LLMProviderEnum::Claude(provider) => provider.generate_stream(messages).await,
             LLMProviderEnum::Cohere(provider) => provider.generate_stream(messages).await,
+            LLMProviderEnum::LiteLLM(_provider) => {
+                // LiteLLM doesn't support streaming yet, return error
+                Err(AgentMemError::LLMError("LiteLLM streaming not supported".to_string()))
+            },
             LLMProviderEnum::Mistral(provider) => provider.generate_stream(messages).await,
             LLMProviderEnum::Perplexity(provider) => provider.generate_stream(messages).await,
         }
@@ -88,6 +109,13 @@ impl LLMProvider for LLMProviderEnum {
             LLMProviderEnum::Ollama(provider) => provider.get_model_info(),
             LLMProviderEnum::Claude(provider) => provider.get_model_info(),
             LLMProviderEnum::Cohere(provider) => provider.get_model_info(),
+            LLMProviderEnum::LiteLLM(provider) => ModelInfo {
+                provider: "LiteLLM".to_string(),
+                model: provider.get_model().to_string(),
+                max_tokens: provider.get_max_tokens().unwrap_or(4096),
+                supports_streaming: false,
+                supports_functions: false,
+            },
             LLMProviderEnum::Mistral(provider) => provider.get_model_info(),
             LLMProviderEnum::Perplexity(provider) => provider.get_model_info(),
         }
@@ -107,6 +135,10 @@ impl LLMProvider for LLMProviderEnum {
             LLMProviderEnum::Ollama(provider) => provider.validate_config(),
             LLMProviderEnum::Claude(provider) => provider.validate_config(),
             LLMProviderEnum::Cohere(provider) => provider.validate_config(),
+            LLMProviderEnum::LiteLLM(_provider) => {
+                // Basic validation - LiteLLM handles most validation internally
+                Ok(())
+            },
             LLMProviderEnum::Mistral(provider) => provider.validate_config(),
             LLMProviderEnum::Perplexity(provider) => provider.validate_config(),
         }
@@ -193,6 +225,18 @@ impl LLMFactory {
                 let provider = CohereProvider::new(config.clone())?;
                 LLMProviderEnum::Cohere(provider)
             }
+            "litellm" => {
+                let litellm_config = crate::providers::litellm::LiteLLMConfig {
+                    model: config.model.clone(),
+                    api_key: config.api_key.clone(),
+                    api_base: config.base_url.clone(),
+                    temperature: config.temperature,
+                    max_tokens: config.max_tokens,
+                    ..Default::default()
+                };
+                let provider = LiteLLMProvider::new(litellm_config)?;
+                LLMProviderEnum::LiteLLM(provider)
+            }
             "mistral" => {
                 let provider = MistralProvider::new(config.clone())?;
                 LLMProviderEnum::Mistral(provider)
@@ -229,6 +273,7 @@ impl LLMFactory {
         // New providers (always available)
         providers.push("claude");
         providers.push("cohere");
+        providers.push("litellm");
         providers.push("mistral");
         providers.push("perplexity");
 

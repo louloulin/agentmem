@@ -41,6 +41,8 @@ members = [
     "examples/mem0-compat-demo",
     "examples/client-server-integration-test",
     "examples/intelligent-reasoning-demo",
+    "examples/litellm-demo",
+    "examples/multimodal-demo",
     # "examples/basic-usage",
     # "examples/advanced-features",
     # "examples/migration-from-agentmen",

@@ -388,14 +388,18 @@ impl<'a> MemoryBlock<'a> {
 
 impl<'a> Drop for MemoryBlock<'a> {
     fn drop(&mut self) {
-        // Only return buffer to pool if it hasn't been frozen
-        if !self.frozen {
+        // Only return buffer to pool if it hasn't been frozen and has content
+        if !self.frozen && !self.buffer.is_empty() {
             let buffer = std::mem::replace(&mut self.buffer, BytesMut::new());
             self.pool.return_buffer(buffer);
         }
-        self.pool
-            .total_allocated
-            .fetch_sub(self.size, Ordering::Relaxed);
+
+        // Only decrement if we actually allocated this size
+        if self.size > 0 {
+            self.pool
+                .total_allocated
+                .fetch_sub(self.size, Ordering::Relaxed);
+        }
     }
 }
 

@@ -20,6 +20,9 @@ pub mod fact_extraction;
 pub mod decision_engine;
 pub mod intelligent_processor;
 
+// 多模态内容处理模块
+pub mod multimodal;
+
 // 重新导出常用类型
 pub use agent_mem_traits::{AgentMemError, Result};
 
