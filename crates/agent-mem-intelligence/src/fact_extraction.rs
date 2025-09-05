@@ -1,11 +1,12 @@
 //! 事实提取模块
 //!
-//! 使用 LLM 从对话消息中提取结构化事实信息
+//! 使用 LLM 从对话消息中提取结构化事实信息，支持实体识别、时间信息提取和上下文感知
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use agent_mem_traits::{AgentMemError, Result};
-use agent_mem_llm::providers::deepseek::{DeepSeekProvider, DeepSeekMessage};
+use agent_mem_llm::providers::deepseek::DeepSeekProvider;
+use chrono::{DateTime, Utc};
 
 /// 提取的事实信息
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -13,20 +14,78 @@ pub struct ExtractedFact {
     pub content: String,
     pub confidence: f32,
     pub category: FactCategory,
-    pub entities: Vec<String>,
-    pub temporal_info: Option<String>,
+    pub entities: Vec<Entity>,
+    pub temporal_info: Option<TemporalInfo>,
     pub source_message_id: Option<String>,
+    pub metadata: HashMap<String, String>,
 }
 
-/// 事实类别
+/// 事实类别（扩展版本）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FactCategory {
-    Personal,      // 个人信息
-    Preference,    // 偏好设置
-    Relationship,  // 关系信息
-    Event,         // 事件记录
-    Knowledge,     // 知识事实
-    Procedural,    // 程序性知识
+    Personal,      // 个人信息（姓名、年龄、职业等）
+    Preference,    // 偏好设置（喜好、厌恶等）
+    Relationship,  // 关系信息（家庭、朋友、同事等）
+    Event,         // 事件记录（发生的事情）
+    Knowledge,     // 知识事实（客观信息）
+    Procedural,    // 程序性知识（如何做某事）
+    Emotional,     // 情感状态（心情、感受等）
+    Goal,          // 目标和计划
+    Skill,         // 技能和能力
+    Location,      // 地理位置信息
+    Temporal,      // 时间相关信息
+    Financial,     // 财务信息
+    Health,        // 健康相关信息
+    Educational,   // 教育背景
+    Professional,  // 职业相关
+}
+
+/// 实体信息
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Entity {
+    pub name: String,
+    pub entity_type: EntityType,
+    pub confidence: f32,
+    pub attributes: HashMap<String, String>,
+}
+
+/// 实体类型
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum EntityType {
+    Person,        // 人物
+    Organization,  // 组织机构
+    Location,      // 地点
+    Product,       // 产品
+    Concept,       // 概念
+    Date,          // 日期
+    Time,          // 时间
+    Number,        // 数字
+    Money,         // 金额
+    Percentage,    // 百分比
+    Email,         // 邮箱
+    Phone,         // 电话
+    Url,           // 网址
+    Event,         // 事件
+    Skill,         // 技能
+    Language,      // 语言
+    Technology,    // 技术
+}
+
+/// 时间信息
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TemporalInfo {
+    pub timestamp: Option<String>,      // ISO 8601 格式时间戳
+    pub duration: Option<String>,       // 持续时间描述
+    pub frequency: Option<String>,      // 频率描述
+    pub relative_time: Option<String>,  // 相对时间（如"昨天"、"下周"）
+    pub time_range: Option<TimeRange>,  // 时间范围
+}
+
+/// 时间范围
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TimeRange {
+    pub start: Option<String>,
+    pub end: Option<String>,
 }
 
 /// 消息结构
@@ -58,14 +117,30 @@ impl FactExtractor {
         Ok(Self { llm })
     }
 
-    /// 从消息中提取事实
+    /// 从消息中提取事实（增强版本）
     pub async fn extract_facts(&self, messages: &[Message]) -> Result<Vec<ExtractedFact>> {
+        if messages.is_empty() {
+            return Ok(vec![]);
+        }
+
         let conversation = self.format_conversation(messages);
-        let prompt = self.build_fact_extraction_prompt(&conversation);
+        let prompt = self.build_enhanced_extraction_prompt(&conversation);
 
         let response = self.llm.generate_json::<FactExtractionResponse>(&prompt).await?;
-        
-        Ok(response.facts)
+
+        let mut facts = response.facts;
+
+        // 后处理：实体识别和时间信息提取
+        self.enhance_facts_with_entities(&mut facts).await?;
+        self.enhance_facts_with_temporal_info(&mut facts).await?;
+
+        // 验证和过滤
+        facts = self.validate_and_filter_facts(facts);
+
+        // 合并相似事实
+        facts = self.merge_similar_facts(facts);
+
+        Ok(facts)
     }
 
     /// 格式化对话内容
@@ -111,19 +186,173 @@ Rules:
         )
     }
 
-    /// 验证和过滤事实
-    pub fn validate_facts(&self, facts: Vec<ExtractedFact>) -> Vec<ExtractedFact> {
+    /// 构建增强的事实提取提示
+    fn build_enhanced_extraction_prompt(&self, conversation: &str) -> String {
+        format!(
+            r#"Extract structured facts from this conversation. You are a professional information extraction expert.
+
+Conversation:
+{}
+
+Extract facts in these categories:
+1. Personal - personal info (name, age, job, contact)
+2. Preference - preferences (likes, dislikes, habits)
+3. Relationship - relationships (family, friends, colleagues)
+4. Event - events (activities, experiences)
+5. Knowledge - knowledge facts (objective information)
+6. Procedural - procedural knowledge (how-to, methods)
+7. Emotional - emotional states (mood, feelings)
+8. Goal - goals and plans (objectives, planning)
+9. Skill - skills and abilities (professional skills, languages)
+10. Location - location info (residence, workplace, travel)
+11. Temporal - time-related info (schedule, timing)
+12. Financial - financial info (income, expenses)
+13. Health - health info (medical records, conditions)
+14. Educational - education background (degree, school)
+15. Professional - professional info (career, work experience)
+
+JSON format:
+{{
+    "facts": [
+        {{
+            "content": "clear, complete fact description",
+            "confidence": 0.9,
+            "category": "Personal|Preference|Relationship|Event|Knowledge|Procedural|Emotional|Goal|Skill|Location|Temporal|Financial|Health|Educational|Professional",
+            "entities": [
+                {{
+                    "name": "entity_name",
+                    "entity_type": "Person|Organization|Location|Product|Concept|Date|Time|Number|Money|Percentage|Email|Phone|Url|Event|Skill|Language|Technology",
+                    "confidence": 0.9,
+                    "attributes": {{}}
+                }}
+            ],
+            "temporal_info": {{
+                "timestamp": "ISO 8601 format if specific time",
+                "duration": "duration description",
+                "frequency": "frequency description",
+                "relative_time": "relative time like 'yesterday', 'next week'",
+                "time_range": {{
+                    "start": "start time",
+                    "end": "end time"
+                }}
+            }},
+            "source_message_id": null,
+            "metadata": {{}}
+        }}
+    ],
+    "confidence": 0.8,
+    "reasoning": "brief explanation"
+}}
+
+Requirements:
+- Ensure accuracy and completeness
+- Avoid duplicate or redundant information
+- Lower confidence for ambiguous information
+- Extract specific entities and temporal info
+- Preserve original semantic meaning"#,
+            conversation
+        )
+    }
+
+    /// 增强事实的实体信息
+    async fn enhance_facts_with_entities(&self, facts: &mut Vec<ExtractedFact>) -> Result<()> {
+        for fact in facts.iter_mut() {
+            if fact.entities.is_empty() {
+                // 如果没有实体信息，尝试从内容中提取
+                let entities = self.extract_entities_from_content(&fact.content).await?;
+                fact.entities = entities;
+            }
+        }
+        Ok(())
+    }
+
+    /// 增强事实的时间信息
+    async fn enhance_facts_with_temporal_info(&self, facts: &mut Vec<ExtractedFact>) -> Result<()> {
+        for fact in facts.iter_mut() {
+            if fact.temporal_info.is_none() {
+                // 如果没有时间信息，尝试从内容中提取
+                let temporal_info = self.extract_temporal_info_from_content(&fact.content).await?;
+                fact.temporal_info = temporal_info;
+            }
+        }
+        Ok(())
+    }
+
+    /// 从内容中提取实体
+    async fn extract_entities_from_content(&self, content: &str) -> Result<Vec<Entity>> {
+        // 简化的实体提取逻辑，实际应用中可以使用更复杂的NER模型
+        let mut entities = Vec::new();
+
+        // 基于规则的简单实体识别
+        if let Some(entity) = self.extract_person_entities(content) {
+            entities.push(entity);
+        }
+
+        if let Some(entity) = self.extract_location_entities(content) {
+            entities.push(entity);
+        }
+
+        if let Some(entity) = self.extract_organization_entities(content) {
+            entities.push(entity);
+        }
+
+        Ok(entities)
+    }
+
+    /// 从内容中提取时间信息
+    async fn extract_temporal_info_from_content(&self, content: &str) -> Result<Option<TemporalInfo>> {
+        // 简化的时间信息提取逻辑
+        let mut temporal_info = TemporalInfo {
+            timestamp: None,
+            duration: None,
+            frequency: None,
+            relative_time: None,
+            time_range: None,
+        };
+
+        // 检测相对时间表达
+        if content.contains("昨天") || content.contains("yesterday") {
+            temporal_info.relative_time = Some("yesterday".to_string());
+        } else if content.contains("今天") || content.contains("today") {
+            temporal_info.relative_time = Some("today".to_string());
+        } else if content.contains("明天") || content.contains("tomorrow") {
+            temporal_info.relative_time = Some("tomorrow".to_string());
+        }
+
+        // 检测频率表达
+        if content.contains("每天") || content.contains("daily") {
+            temporal_info.frequency = Some("daily".to_string());
+        } else if content.contains("每周") || content.contains("weekly") {
+            temporal_info.frequency = Some("weekly".to_string());
+        }
+
+        // 如果有任何时间信息，返回结构
+        if temporal_info.timestamp.is_some() || temporal_info.duration.is_some() ||
+           temporal_info.frequency.is_some() || temporal_info.relative_time.is_some() {
+            Ok(Some(temporal_info))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// 验证和过滤事实（增强版本）
+    fn validate_and_filter_facts(&self, facts: Vec<ExtractedFact>) -> Vec<ExtractedFact> {
         facts
             .into_iter()
             .filter(|fact| {
-                // 过滤低置信度的事实
-                fact.confidence >= 0.3 && 
-                // 过滤空内容
-                !fact.content.trim().is_empty() &&
-                // 过滤过短的内容
-                fact.content.len() >= 10
+                // 过滤掉置信度过低的事实
+                fact.confidence >= 0.3 &&
+                // 过滤掉内容过短的事实
+                fact.content.len() >= 10 &&
+                // 过滤掉空内容
+                !fact.content.trim().is_empty()
             })
             .collect()
+    }
+
+    /// 验证和过滤事实（保持向后兼容）
+    pub fn validate_facts(&self, facts: Vec<ExtractedFact>) -> Vec<ExtractedFact> {
+        self.validate_and_filter_facts(facts)
     }
 
     /// 合并相似事实
@@ -158,6 +387,74 @@ Rules:
             intersection as f32 / union as f32
         }
     }
+    /// 提取人物实体
+    fn extract_person_entities(&self, content: &str) -> Option<Entity> {
+        // 简化的人物实体识别
+        let person_patterns = vec![
+            r"我叫(\w+)", r"我是(\w+)", r"名字是(\w+)",
+            r"My name is (\w+)", r"I am (\w+)", r"called (\w+)"
+        ];
+
+        for pattern in person_patterns {
+            if let Ok(re) = regex::Regex::new(pattern) {
+                if let Some(captures) = re.captures(content) {
+                    if let Some(name) = captures.get(1) {
+                        return Some(Entity {
+                            name: name.as_str().to_string(),
+                            entity_type: EntityType::Person,
+                            confidence: 0.8,
+                            attributes: HashMap::new(),
+                        });
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// 提取地点实体
+    fn extract_location_entities(&self, content: &str) -> Option<Entity> {
+        // 简化的地点实体识别
+        let location_keywords = vec![
+            "北京", "上海", "广州", "深圳", "杭州", "南京", "成都", "武汉",
+            "Beijing", "Shanghai", "Guangzhou", "Shenzhen", "Hangzhou",
+            "New York", "London", "Tokyo", "Paris", "Berlin"
+        ];
+
+        for keyword in location_keywords {
+            if content.contains(keyword) {
+                return Some(Entity {
+                    name: keyword.to_string(),
+                    entity_type: EntityType::Location,
+                    confidence: 0.7,
+                    attributes: HashMap::new(),
+                });
+            }
+        }
+        None
+    }
+
+    /// 提取组织实体
+    fn extract_organization_entities(&self, content: &str) -> Option<Entity> {
+        // 简化的组织实体识别
+        let org_keywords = vec![
+            "公司", "企业", "组织", "机构", "学校", "大学", "医院",
+            "Company", "Corporation", "Organization", "University", "School", "Hospital",
+            "Google", "Microsoft", "Apple", "Amazon", "Facebook", "Tesla"
+        ];
+
+        for keyword in org_keywords {
+            if content.contains(keyword) {
+                return Some(Entity {
+                    name: keyword.to_string(),
+                    entity_type: EntityType::Organization,
+                    confidence: 0.7,
+                    attributes: HashMap::new(),
+                });
+            }
+        }
+        None
+    }
 }
 
 #[cfg(test)]
@@ -177,13 +474,22 @@ mod tests {
             content: "User likes coffee".to_string(),
             confidence: 0.9,
             category: FactCategory::Preference,
-            entities: vec!["coffee".to_string()],
+            entities: vec![Entity {
+                name: "coffee".to_string(),
+                entity_type: EntityType::Product,
+                confidence: 0.9,
+                attributes: HashMap::new(),
+            }],
             temporal_info: None,
             source_message_id: None,
+            metadata: HashMap::new(),
         };
 
         assert_eq!(fact.content, "User likes coffee");
         assert_eq!(fact.confidence, 0.9);
+        assert!(matches!(fact.category, FactCategory::Preference));
+        assert_eq!(fact.entities.len(), 1);
+        assert_eq!(fact.entities[0].name, "coffee");
     }
 
     #[test]
@@ -218,6 +524,7 @@ mod tests {
             entities: vec![],
             temporal_info: None,
             source_message_id: None,
+            metadata: HashMap::new(),
         };
 
         let fact2 = ExtractedFact {
@@ -227,6 +534,7 @@ mod tests {
             entities: vec![],
             temporal_info: None,
             source_message_id: None,
+            metadata: HashMap::new(),
         };
 
         let facts = vec![fact1, fact2];
@@ -244,6 +552,7 @@ mod tests {
                 entities: vec![],
                 temporal_info: None,
                 source_message_id: None,
+                metadata: HashMap::new(),
             },
             ExtractedFact {
                 content: "Short".to_string(), // 应该被过滤掉
@@ -252,6 +561,7 @@ mod tests {
                 entities: vec![],
                 temporal_info: None,
                 source_message_id: None,
+                metadata: HashMap::new(),
             },
             ExtractedFact {
                 content: "Low confidence fact".to_string(),
@@ -260,6 +570,7 @@ mod tests {
                 entities: vec![],
                 temporal_info: None,
                 source_message_id: None,
+                metadata: HashMap::new(),
             },
         ];
 

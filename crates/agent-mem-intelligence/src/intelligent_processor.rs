@@ -6,15 +6,37 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use agent_mem_traits::{AgentMemError, Result};
 use crate::fact_extraction::{FactExtractor, ExtractedFact, Message};
-use crate::decision_engine::{MemoryDecisionEngine, MemoryDecision, ExistingMemory};
+use crate::decision_engine::{MemoryDecisionEngine, MemoryDecision, ExistingMemory, ConflictDetection};
 
-/// 智能处理结果
+/// 智能处理结果（增强版本）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IntelligentProcessingResult {
     pub extracted_facts: Vec<ExtractedFact>,
     pub memory_decisions: Vec<MemoryDecision>,
+    pub conflict_detections: Vec<ConflictDetection>,
     pub processing_stats: ProcessingStats,
     pub recommendations: Vec<String>,
+    pub quality_metrics: QualityMetrics,
+    pub processing_insights: ProcessingInsights,
+}
+
+/// 质量指标
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QualityMetrics {
+    pub average_fact_confidence: f32,
+    pub average_decision_confidence: f32,
+    pub conflict_rate: f32,
+    pub fact_diversity_score: f32,
+    pub processing_efficiency: f32,
+}
+
+/// 处理洞察
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProcessingInsights {
+    pub dominant_fact_categories: Vec<String>,
+    pub memory_growth_prediction: f32,
+    pub suggested_optimizations: Vec<String>,
+    pub attention_areas: Vec<String>,
 }
 
 /// 处理统计信息
@@ -110,14 +132,32 @@ impl IntelligentMemoryProcessor {
             extracted_facts.truncate(self.config.max_facts_per_message);
         }
 
-        // 5. 生成记忆决策
+        // 5. 检测冲突
+        let mut conflict_detections = Vec::new();
+        for fact in &extracted_facts {
+            let conflict = self
+                .decision_engine
+                .detect_conflicts(fact, existing_memories)
+                .await?;
+            if conflict.has_conflict {
+                conflict_detections.push(conflict);
+            }
+        }
+
+        // 6. 生成记忆决策
         let memory_decisions = self
             .decision_engine
             .make_decisions(&extracted_facts, existing_memories)
             .await?;
 
-        // 6. 生成推荐
+        // 7. 生成推荐
         let recommendations = self.generate_recommendations(&extracted_facts, &memory_decisions);
+
+        // 8. 计算质量指标
+        let quality_metrics = self.calculate_quality_metrics(&extracted_facts, &memory_decisions, &conflict_detections);
+
+        // 9. 生成处理洞察
+        let processing_insights = self.generate_processing_insights(&extracted_facts, &memory_decisions, existing_memories);
 
         // 7. 计算统计信息
         let processing_time = start_time.elapsed();
@@ -137,8 +177,11 @@ impl IntelligentMemoryProcessor {
         Ok(IntelligentProcessingResult {
             extracted_facts,
             memory_decisions,
+            conflict_detections,
             processing_stats,
             recommendations,
+            quality_metrics,
+            processing_insights,
         })
     }
 
@@ -200,6 +243,113 @@ impl IntelligentMemoryProcessor {
         Ok(report)
     }
 
+    /// 计算质量指标
+    fn calculate_quality_metrics(
+        &self,
+        facts: &[ExtractedFact],
+        decisions: &[MemoryDecision],
+        conflicts: &[ConflictDetection],
+    ) -> QualityMetrics {
+        let average_fact_confidence = if facts.is_empty() {
+            0.0
+        } else {
+            facts.iter().map(|f| f.confidence).sum::<f32>() / facts.len() as f32
+        };
+
+        let average_decision_confidence = if decisions.is_empty() {
+            0.0
+        } else {
+            decisions.iter().map(|d| d.confidence).sum::<f32>() / decisions.len() as f32
+        };
+
+        let conflict_rate = if facts.is_empty() {
+            0.0
+        } else {
+            conflicts.len() as f32 / facts.len() as f32
+        };
+
+        // 计算事实多样性分数（基于不同类别的数量）
+        let unique_categories: std::collections::HashSet<_> = facts.iter()
+            .map(|f| std::mem::discriminant(&f.category))
+            .collect();
+        let fact_diversity_score = if facts.is_empty() {
+            0.0
+        } else {
+            unique_categories.len() as f32 / 15.0 // 15是总类别数
+        };
+
+        // 处理效率（基于事实数量和决策数量的比率）
+        let processing_efficiency = if facts.is_empty() {
+            1.0
+        } else {
+            decisions.len() as f32 / facts.len() as f32
+        };
+
+        QualityMetrics {
+            average_fact_confidence,
+            average_decision_confidence,
+            conflict_rate,
+            fact_diversity_score,
+            processing_efficiency,
+        }
+    }
+
+    /// 生成处理洞察
+    fn generate_processing_insights(
+        &self,
+        facts: &[ExtractedFact],
+        decisions: &[MemoryDecision],
+        existing_memories: &[ExistingMemory],
+    ) -> ProcessingInsights {
+        // 统计主要事实类别
+        let mut category_counts = std::collections::HashMap::new();
+        for fact in facts {
+            let category_name = format!("{:?}", fact.category);
+            *category_counts.entry(category_name).or_insert(0) += 1;
+        }
+
+        let mut dominant_fact_categories: Vec<_> = category_counts.into_iter().collect();
+        dominant_fact_categories.sort_by(|a, b| b.1.cmp(&a.1));
+        let dominant_fact_categories: Vec<String> = dominant_fact_categories
+            .into_iter()
+            .take(3)
+            .map(|(category, _)| category)
+            .collect();
+
+        // 预测记忆增长
+        let memory_growth_prediction = if existing_memories.is_empty() {
+            facts.len() as f32
+        } else {
+            let growth_rate = facts.len() as f32 / existing_memories.len() as f32;
+            growth_rate.min(2.0) // 限制最大增长率
+        };
+
+        // 生成优化建议
+        let mut suggested_optimizations = Vec::new();
+        if facts.len() > 10 {
+            suggested_optimizations.push("Consider increasing batch processing size".to_string());
+        }
+        if decisions.iter().any(|d| d.confidence < 0.5) {
+            suggested_optimizations.push("Review low-confidence decisions".to_string());
+        }
+
+        // 生成注意区域
+        let mut attention_areas = Vec::new();
+        if facts.iter().any(|f| matches!(f.category, crate::fact_extraction::FactCategory::Personal)) {
+            attention_areas.push("Personal information detected - ensure privacy compliance".to_string());
+        }
+        if facts.iter().any(|f| matches!(f.category, crate::fact_extraction::FactCategory::Financial)) {
+            attention_areas.push("Financial information detected - ensure security measures".to_string());
+        }
+
+        ProcessingInsights {
+            dominant_fact_categories,
+            memory_growth_prediction,
+            suggested_optimizations,
+            attention_areas,
+        }
+    }
+
     /// 生成处理推荐
     fn generate_recommendations(
         &self,
@@ -226,9 +376,9 @@ impl IntelligentMemoryProcessor {
 
         // 基于事实类别的推荐
         let personal_facts = facts.iter().filter(|f| matches!(f.category, crate::fact_extraction::FactCategory::Personal)).count();
-        if personal_facts > 3 {
+        if personal_facts > 0 {
             recommendations.push(
-                "Multiple personal facts detected. Ensure privacy compliance.".to_string()
+                "Personal facts detected. Ensure privacy compliance.".to_string()
             );
         }
 
@@ -303,17 +453,19 @@ mod tests {
                 content: "User's name is John".to_string(),
                 confidence: 0.9,
                 category: FactCategory::Personal,
-                entities: vec!["John".to_string()],
+                entities: vec![],
                 temporal_info: None,
                 source_message_id: None,
+                metadata: std::collections::HashMap::new(),
             },
             ExtractedFact {
                 content: "User lives in New York".to_string(),
                 confidence: 0.8,
                 category: FactCategory::Personal,
-                entities: vec!["New York".to_string()],
+                entities: vec![],
                 temporal_info: None,
                 source_message_id: None,
+                metadata: std::collections::HashMap::new(),
             },
         ];
 
@@ -331,7 +483,17 @@ mod tests {
             },
         ];
 
-        // 需要创建 IntelligentMemoryProcessor 实例来测试 generate_recommendations
-        // 在实际测试中会生成相应的推荐
+        // 创建处理器实例进行测试
+        let processor = IntelligentMemoryProcessor::new("test-key".to_string()).unwrap();
+        let recommendations = processor.generate_recommendations(&facts, &decisions);
+
+        // 验证推荐生成
+        assert!(!recommendations.is_empty());
+
+        // 应该包含关于低置信度决策的推荐
+        assert!(recommendations.iter().any(|r| r.contains("low confidence")));
+
+        // 应该包含关于个人信息的推荐
+        assert!(recommendations.iter().any(|r| r.contains("Personal facts") || r.contains("privacy")));
     }
 }
