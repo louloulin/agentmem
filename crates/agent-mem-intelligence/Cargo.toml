@@ -15,6 +15,7 @@ description = "Intelligent memory processing for AgentMem memory platform"
 agent-mem-traits = { path = "../agent-mem-traits" }
 agent-mem-utils = { path = "../agent-mem-utils" }
 agent-mem-core = { path = "../agent-mem-core" }
+agent-mem-llm = { path = "../agent-mem-llm" }
 
 # 核心依赖
 serde.workspace = true

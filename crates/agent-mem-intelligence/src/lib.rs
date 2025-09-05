@@ -15,6 +15,11 @@ pub mod processing;
 pub mod reasoning;
 pub mod similarity;
 
+// 新增智能推理模块
+pub mod fact_extraction;
+pub mod decision_engine;
+pub mod intelligent_processor;
+
 // 重新导出常用类型
 pub use agent_mem_traits::{AgentMemError, Result};
 
@@ -24,3 +29,8 @@ pub use importance::ImportanceEvaluator;
 pub use processing::{MemoryProcessor, ProcessingConfig, ProcessingStats};
 pub use reasoning::MemoryReasoner;
 pub use similarity::SemanticSimilarity;
+
+// 导出新的智能推理模块
+pub use fact_extraction::{FactExtractor, ExtractedFact, Message, FactCategory};
+pub use decision_engine::{MemoryDecisionEngine, MemoryDecision, MemoryAction, ExistingMemory};
+pub use intelligent_processor::{IntelligentMemoryProcessor, IntelligentProcessingResult, MemoryHealthReport};
