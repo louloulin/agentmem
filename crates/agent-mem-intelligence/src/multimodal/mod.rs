@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use agent_mem_traits::{AgentMemError, Result};
 use std::collections::HashMap;
 use base64::{Engine as _, engine::general_purpose};
+use async_trait::async_trait;
 
 /// 多模态内容类型
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -193,6 +194,7 @@ impl MultimodalContent {
 }
 
 /// 多模态处理器特征
+#[async_trait]
 pub trait MultimodalProcessor: Send + Sync {
     /// 处理多模态内容
     async fn process(&self, content: &mut MultimodalContent) -> Result<()>;

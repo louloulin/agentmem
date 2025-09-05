@@ -5,6 +5,7 @@ use agent_mem_traits::{AgentMemError, Result};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use base64::{Engine as _, engine::general_purpose};
 
 /// 文本处理器
 #[derive(Debug)]
@@ -66,18 +67,18 @@ impl TextProcessor {
             .filter(|word| word.len() > 3)
             .collect();
 
-        let mut keyword_counts: HashMap<&str, usize> = HashMap::new();
+        let mut keyword_counts: HashMap<String, usize> = HashMap::new();
         for word in words {
             let clean_word = word.trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
             if !clean_word.is_empty() && !is_stop_word(&clean_word) {
-                *keyword_counts.entry(&clean_word).or_insert(0) += 1;
+                *keyword_counts.entry(clean_word).or_insert(0) += 1;
             }
         }
 
         let mut keywords: Vec<Keyword> = keyword_counts
             .into_iter()
             .map(|(word, count)| Keyword {
-                word: word.to_string(),
+                word,
                 frequency: count,
                 relevance: (count as f32) / (text.len() as f32) * 1000.0,
             })
@@ -235,7 +236,7 @@ impl MultimodalProcessor for TextProcessor {
             extracted_text.clone()
         } else if let Some(data) = &content.data {
             // 假设是 Base64 编码的文本
-            let decoded = base64::decode(data)
+            let decoded = general_purpose::STANDARD.decode(data)
                 .map_err(|e| AgentMemError::ProcessingError(format!("Failed to decode text data: {}", e)))?;
             String::from_utf8(decoded)
                 .map_err(|e| AgentMemError::ProcessingError(format!("Invalid UTF-8 text: {}", e)))?
@@ -287,9 +288,10 @@ impl MultimodalProcessor for TextProcessor {
 
     async fn generate_summary(&self, content: &MultimodalContent) -> Result<Option<String>> {
         if let Some(text) = &content.extracted_text {
-            // 简化的摘要生成：取前100个字符
-            let summary = if text.len() > 100 {
-                format!("{}...", &text[..100])
+            // 简化的摘要生成：取前100个字符（安全处理多字节字符）
+            let summary = if text.chars().count() > 100 {
+                let truncated: String = text.chars().take(100).collect();
+                format!("{}...", truncated)
             } else {
                 text.clone()
             };

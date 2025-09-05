@@ -43,6 +43,7 @@ members = [
     "examples/intelligent-reasoning-demo",
     "examples/litellm-demo",
     "examples/multimodal-demo",
+    "examples/intelligence-demo",
     # "examples/basic-usage",
     # "examples/advanced-features",
     # "examples/migration-from-agentmen",

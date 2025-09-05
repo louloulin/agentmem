@@ -56,6 +56,9 @@ pub enum AgentMemError {
     #[error("Parsing error: {0}")]
     ParsingError(String),
 
+    #[error("Processing error: {0}")]
+    ProcessingError(String),
+
     #[error("Unsupported operation: {0}")]
     UnsupportedOperation(String),
 
@@ -127,6 +130,10 @@ impl AgentMemError {
 
     pub fn parsing_error(msg: impl Into<String>) -> Self {
         Self::ParsingError(msg.into())
+    }
+
+    pub fn processing_error(msg: impl Into<String>) -> Self {
+        Self::ProcessingError(msg.into())
     }
 
     pub fn unsupported_operation(msg: impl Into<String>) -> Self {
