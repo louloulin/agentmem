@@ -61,3 +61,4 @@ proptest = "1.4"
 default = ["metrics"]
 metrics = ["dep:metrics", "dep:metrics-exporter-prometheus"]
 profiling = []
+skip-performance-tests = []

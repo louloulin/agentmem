@@ -1,6 +1,9 @@
 //! 存储工厂模式实现
 
-use crate::backends::{ChromaStore, MemoryVectorStore, PineconeStore, QdrantStore};
+use crate::backends::{
+    ChromaStore, ElasticsearchStore, LanceDBStore, MemoryVectorStore,
+    MilvusStore, PineconeStore, QdrantStore, WeaviateStore
+};
 use agent_mem_traits::{AgentMemError, Result, VectorStore, VectorStoreConfig};
 use async_trait::async_trait;
 use std::sync::Arc;
@@ -13,6 +16,14 @@ pub enum VectorStoreEnum {
     Qdrant(QdrantStore),
     #[cfg(feature = "pinecone")]
     Pinecone(PineconeStore),
+    #[cfg(feature = "elasticsearch")]
+    Elasticsearch(ElasticsearchStore),
+    #[cfg(feature = "lancedb")]
+    LanceDB(LanceDBStore),
+    #[cfg(feature = "milvus")]
+    Milvus(MilvusStore),
+    #[cfg(feature = "weaviate")]
+    Weaviate(WeaviateStore),
 }
 
 #[async_trait]
@@ -25,6 +36,14 @@ impl VectorStore for VectorStoreEnum {
             VectorStoreEnum::Qdrant(store) => store.add_vectors(vectors).await,
             #[cfg(feature = "pinecone")]
             VectorStoreEnum::Pinecone(store) => store.add_vectors(vectors).await,
+            #[cfg(feature = "elasticsearch")]
+            VectorStoreEnum::Elasticsearch(store) => store.add_vectors(vectors).await,
+            #[cfg(feature = "lancedb")]
+            VectorStoreEnum::LanceDB(store) => store.add_vectors(vectors).await,
+            #[cfg(feature = "milvus")]
+            VectorStoreEnum::Milvus(store) => store.add_vectors(vectors).await,
+            #[cfg(feature = "weaviate")]
+            VectorStoreEnum::Weaviate(store) => store.add_vectors(vectors).await,
         }
     }
 
@@ -49,6 +68,22 @@ impl VectorStore for VectorStoreEnum {
             VectorStoreEnum::Pinecone(store) => {
                 store.search_vectors(query_vector, limit, threshold).await
             }
+            #[cfg(feature = "elasticsearch")]
+            VectorStoreEnum::Elasticsearch(store) => {
+                store.search_vectors(query_vector, limit, threshold).await
+            }
+            #[cfg(feature = "lancedb")]
+            VectorStoreEnum::LanceDB(store) => {
+                store.search_vectors(query_vector, limit, threshold).await
+            }
+            #[cfg(feature = "milvus")]
+            VectorStoreEnum::Milvus(store) => {
+                store.search_vectors(query_vector, limit, threshold).await
+            }
+            #[cfg(feature = "weaviate")]
+            VectorStoreEnum::Weaviate(store) => {
+                store.search_vectors(query_vector, limit, threshold).await
+            }
         }
     }
 
@@ -60,6 +95,14 @@ impl VectorStore for VectorStoreEnum {
             VectorStoreEnum::Qdrant(store) => store.delete_vectors(ids).await,
             #[cfg(feature = "pinecone")]
             VectorStoreEnum::Pinecone(store) => store.delete_vectors(ids).await,
+            #[cfg(feature = "elasticsearch")]
+            VectorStoreEnum::Elasticsearch(store) => store.delete_vectors(ids).await,
+            #[cfg(feature = "lancedb")]
+            VectorStoreEnum::LanceDB(store) => store.delete_vectors(ids).await,
+            #[cfg(feature = "milvus")]
+            VectorStoreEnum::Milvus(store) => store.delete_vectors(ids).await,
+            #[cfg(feature = "weaviate")]
+            VectorStoreEnum::Weaviate(store) => store.delete_vectors(ids).await,
         }
     }
 
@@ -71,6 +114,14 @@ impl VectorStore for VectorStoreEnum {
             VectorStoreEnum::Qdrant(store) => store.update_vectors(vectors).await,
             #[cfg(feature = "pinecone")]
             VectorStoreEnum::Pinecone(store) => store.update_vectors(vectors).await,
+            #[cfg(feature = "elasticsearch")]
+            VectorStoreEnum::Elasticsearch(store) => store.update_vectors(vectors).await,
+            #[cfg(feature = "lancedb")]
+            VectorStoreEnum::LanceDB(store) => store.update_vectors(vectors).await,
+            #[cfg(feature = "milvus")]
+            VectorStoreEnum::Milvus(store) => store.update_vectors(vectors).await,
+            #[cfg(feature = "weaviate")]
+            VectorStoreEnum::Weaviate(store) => store.update_vectors(vectors).await,
         }
     }
 
@@ -82,6 +133,14 @@ impl VectorStore for VectorStoreEnum {
             VectorStoreEnum::Qdrant(store) => store.get_vector(id).await,
             #[cfg(feature = "pinecone")]
             VectorStoreEnum::Pinecone(store) => store.get_vector(id).await,
+            #[cfg(feature = "elasticsearch")]
+            VectorStoreEnum::Elasticsearch(store) => store.get_vector(id).await,
+            #[cfg(feature = "lancedb")]
+            VectorStoreEnum::LanceDB(store) => store.get_vector(id).await,
+            #[cfg(feature = "milvus")]
+            VectorStoreEnum::Milvus(store) => store.get_vector(id).await,
+            #[cfg(feature = "weaviate")]
+            VectorStoreEnum::Weaviate(store) => store.get_vector(id).await,
         }
     }
 
@@ -93,6 +152,14 @@ impl VectorStore for VectorStoreEnum {
             VectorStoreEnum::Qdrant(store) => store.count_vectors().await,
             #[cfg(feature = "pinecone")]
             VectorStoreEnum::Pinecone(store) => store.count_vectors().await,
+            #[cfg(feature = "elasticsearch")]
+            VectorStoreEnum::Elasticsearch(store) => store.count_vectors().await,
+            #[cfg(feature = "lancedb")]
+            VectorStoreEnum::LanceDB(store) => store.count_vectors().await,
+            #[cfg(feature = "milvus")]
+            VectorStoreEnum::Milvus(store) => store.count_vectors().await,
+            #[cfg(feature = "weaviate")]
+            VectorStoreEnum::Weaviate(store) => store.count_vectors().await,
         }
     }
 
@@ -104,6 +171,14 @@ impl VectorStore for VectorStoreEnum {
             VectorStoreEnum::Qdrant(store) => store.clear().await,
             #[cfg(feature = "pinecone")]
             VectorStoreEnum::Pinecone(store) => store.clear().await,
+            #[cfg(feature = "elasticsearch")]
+            VectorStoreEnum::Elasticsearch(store) => store.clear().await,
+            #[cfg(feature = "lancedb")]
+            VectorStoreEnum::LanceDB(store) => store.clear().await,
+            #[cfg(feature = "milvus")]
+            VectorStoreEnum::Milvus(store) => store.clear().await,
+            #[cfg(feature = "weaviate")]
+            VectorStoreEnum::Weaviate(store) => store.clear().await,
         }
     }
 }
@@ -151,6 +226,58 @@ impl StorageFactory {
                     ));
                 }
             }
+            "elasticsearch" => {
+                #[cfg(feature = "elasticsearch")]
+                {
+                    let store = ElasticsearchStore::new(config.clone()).await?;
+                    VectorStoreEnum::Elasticsearch(store)
+                }
+                #[cfg(not(feature = "elasticsearch"))]
+                {
+                    return Err(AgentMemError::unsupported_provider(
+                        "Elasticsearch feature not enabled",
+                    ));
+                }
+            }
+            "lancedb" => {
+                #[cfg(feature = "lancedb")]
+                {
+                    let store = LanceDBStore::new(config.clone()).await?;
+                    VectorStoreEnum::LanceDB(store)
+                }
+                #[cfg(not(feature = "lancedb"))]
+                {
+                    return Err(AgentMemError::unsupported_provider(
+                        "LanceDB feature not enabled",
+                    ));
+                }
+            }
+            "milvus" => {
+                #[cfg(feature = "milvus")]
+                {
+                    let store = MilvusStore::new(config.clone()).await?;
+                    VectorStoreEnum::Milvus(store)
+                }
+                #[cfg(not(feature = "milvus"))]
+                {
+                    return Err(AgentMemError::unsupported_provider(
+                        "Milvus feature not enabled",
+                    ));
+                }
+            }
+            "weaviate" => {
+                #[cfg(feature = "weaviate")]
+                {
+                    let store = WeaviateStore::new(config.clone()).await?;
+                    VectorStoreEnum::Weaviate(store)
+                }
+                #[cfg(not(feature = "weaviate"))]
+                {
+                    return Err(AgentMemError::unsupported_provider(
+                        "Weaviate feature not enabled",
+                    ));
+                }
+            }
             _ => return Err(AgentMemError::unsupported_provider(&config.provider)),
         };
 
@@ -167,6 +294,18 @@ impl StorageFactory {
 
         #[cfg(feature = "pinecone")]
         providers.push("pinecone");
+
+        #[cfg(feature = "elasticsearch")]
+        providers.push("elasticsearch");
+
+        #[cfg(feature = "lancedb")]
+        providers.push("lancedb");
+
+        #[cfg(feature = "milvus")]
+        providers.push("milvus");
+
+        #[cfg(feature = "weaviate")]
+        providers.push("weaviate");
 
         providers
     }
@@ -233,6 +372,66 @@ impl StorageFactory {
         };
         Self::create_vector_store(&config).await
     }
+
+    /// 创建Elasticsearch存储
+    #[cfg(feature = "elasticsearch")]
+    pub async fn create_elasticsearch_store(
+        url: &str,
+        index_name: &str,
+    ) -> Result<Arc<dyn VectorStore + Send + Sync>> {
+        let config = VectorStoreConfig {
+            provider: "elasticsearch".to_string(),
+            url: Some(url.to_string()),
+            index_name: Some(index_name.to_string()),
+            ..Default::default()
+        };
+        Self::create_vector_store(&config).await
+    }
+
+    /// 创建LanceDB存储
+    #[cfg(feature = "lancedb")]
+    pub async fn create_lancedb_store(
+        url: &str,
+        table_name: &str,
+    ) -> Result<Arc<dyn VectorStore + Send + Sync>> {
+        let config = VectorStoreConfig {
+            provider: "lancedb".to_string(),
+            url: Some(url.to_string()),
+            collection_name: Some(table_name.to_string()),
+            ..Default::default()
+        };
+        Self::create_vector_store(&config).await
+    }
+
+    /// 创建Milvus存储
+    #[cfg(feature = "milvus")]
+    pub async fn create_milvus_store(
+        url: &str,
+        collection_name: &str,
+    ) -> Result<Arc<dyn VectorStore + Send + Sync>> {
+        let config = VectorStoreConfig {
+            provider: "milvus".to_string(),
+            url: Some(url.to_string()),
+            collection_name: Some(collection_name.to_string()),
+            ..Default::default()
+        };
+        Self::create_vector_store(&config).await
+    }
+
+    /// 创建Weaviate存储
+    #[cfg(feature = "weaviate")]
+    pub async fn create_weaviate_store(
+        url: &str,
+        class_name: &str,
+    ) -> Result<Arc<dyn VectorStore + Send + Sync>> {
+        let config = VectorStoreConfig {
+            provider: "weaviate".to_string(),
+            url: Some(url.to_string()),
+            collection_name: Some(class_name.to_string()),
+            ..Default::default()
+        };
+        Self::create_vector_store(&config).await
+    }
 }
 
 #[cfg(test)]
@@ -250,6 +449,18 @@ mod tests {
 
         #[cfg(feature = "pinecone")]
         assert!(providers.contains(&"pinecone"));
+
+        #[cfg(feature = "elasticsearch")]
+        assert!(providers.contains(&"elasticsearch"));
+
+        #[cfg(feature = "lancedb")]
+        assert!(providers.contains(&"lancedb"));
+
+        #[cfg(feature = "milvus")]
+        assert!(providers.contains(&"milvus"));
+
+        #[cfg(feature = "weaviate")]
+        assert!(providers.contains(&"weaviate"));
     }
 
     #[test]
@@ -262,6 +473,18 @@ mod tests {
 
         #[cfg(feature = "pinecone")]
         assert!(StorageFactory::is_provider_supported("pinecone"));
+
+        #[cfg(feature = "elasticsearch")]
+        assert!(StorageFactory::is_provider_supported("elasticsearch"));
+
+        #[cfg(feature = "lancedb")]
+        assert!(StorageFactory::is_provider_supported("lancedb"));
+
+        #[cfg(feature = "milvus")]
+        assert!(StorageFactory::is_provider_supported("milvus"));
+
+        #[cfg(feature = "weaviate")]
+        assert!(StorageFactory::is_provider_supported("weaviate"));
 
         assert!(!StorageFactory::is_provider_supported(
             "unsupported_provider"

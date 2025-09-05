@@ -58,6 +58,9 @@ chroma = []
 lancedb = [] # 使用HTTP实现，暂不依赖原生SDK
 qdrant = [] # 使用HTTP实现
 pinecone = [] # 使用HTTP实现
+elasticsearch = [] # 使用HTTP实现
+milvus = [] # 使用HTTP实现
+weaviate = [] # 使用HTTP实现
 
 # 图存储后端
 neo4j = [] # 使用HTTP实现
@@ -72,6 +75,8 @@ memory = ["dep:dashmap"]
 
 # 所有后端
 all-backends = [
-    "chroma", "sled", "rocksdb", "memory"
-    # "lancedb", "qdrant", "pinecone"
+    "chroma", "lancedb", "qdrant", "pinecone",
+    "elasticsearch", "milvus", "weaviate",
+    "neo4j", "memgraph",
+    "sled", "rocksdb", "memory"
 ]
