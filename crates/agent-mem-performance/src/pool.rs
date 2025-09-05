@@ -315,6 +315,7 @@ impl MemoryPool {
             buffer,
             pool: self,
             size,
+            frozen: false,
         })
     }
 
@@ -362,6 +363,7 @@ pub struct MemoryBlock<'a> {
     buffer: BytesMut,
     pool: &'a MemoryPool,
     size: usize,
+    frozen: bool,
 }
 
 impl<'a> MemoryBlock<'a> {
@@ -377,6 +379,7 @@ impl<'a> MemoryBlock<'a> {
 
     /// Convert to Bytes (immutable)
     pub fn freeze(mut self) -> Bytes {
+        self.frozen = true;
         let bytes = self.buffer.clone().freeze();
         // Note: We can't return the buffer to pool after freeze
         bytes
@@ -385,8 +388,11 @@ impl<'a> MemoryBlock<'a> {
 
 impl<'a> Drop for MemoryBlock<'a> {
     fn drop(&mut self) {
-        let buffer = std::mem::replace(&mut self.buffer, BytesMut::new());
-        self.pool.return_buffer(buffer);
+        // Only return buffer to pool if it hasn't been frozen
+        if !self.frozen {
+            let buffer = std::mem::replace(&mut self.buffer, BytesMut::new());
+            self.pool.return_buffer(buffer);
+        }
         self.pool
             .total_allocated
             .fetch_sub(self.size, Ordering::Relaxed);

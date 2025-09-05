@@ -180,7 +180,8 @@ impl BatchProcessor {
     /// Shutdown the batch processor
     pub async fn shutdown(&self) -> Result<()> {
         // Close the sender to signal shutdown
-        drop(&self.sender);
+        // Note: We can't drop the sender here as it's behind a shared reference
+        // The sender will be dropped when the BatchProcessor is dropped
         info!("Batch processor shutdown initiated");
         Ok(())
     }
