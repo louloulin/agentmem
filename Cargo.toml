@@ -14,6 +14,7 @@ members = [
     "crates/agent-mem-client",
     "crates/agent-mem-performance",
     "crates/agent-mem-distributed",
+    "crates/agent-mem-compat",
     # "crates/agent-mem-embeddings",
     # "crates/agent-mem-session",
     # "crates/agent-mem-intelligence",

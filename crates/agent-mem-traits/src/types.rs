@@ -60,6 +60,16 @@ pub struct MemoryItem {
     pub memory_type: MemoryType,
     pub entities: Vec<Entity>,
     pub relations: Vec<Relation>,
+
+    // Additional fields for compatibility and advanced features
+    pub agent_id: String,
+    pub user_id: Option<String>,
+    pub importance: f32,
+    pub embedding: Option<Vec<f32>>,
+    pub last_accessed_at: DateTime<Utc>,
+    pub access_count: u32,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub version: u32,
 }
 
 /// Session information for scoping memories

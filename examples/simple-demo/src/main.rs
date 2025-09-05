@@ -7,7 +7,7 @@ use agent_mem_core::{MemoryEngine, MemoryEngineConfig, Memory};
 use agent_mem_traits::{MemoryType, Session};
 use chrono::Utc;
 use std::collections::HashMap;
-use tracing::{info, warn, error};
+use tracing::{info, error};
 use uuid::Uuid;
 
 #[tokio::main]
@@ -94,6 +94,14 @@ fn create_test_memories() -> Vec<Memory> {
             memory_type: MemoryType::Procedural,
             entities: Vec::new(),
             relations: Vec::new(),
+            agent_id: "demo_agent".to_string(),
+            user_id: Some("demo_user".to_string()),
+            importance: 0.8,
+            embedding: None,
+            last_accessed_at: now,
+            access_count: 0,
+            expires_at: None,
+            version: 1,
         },
         Memory {
             id: Uuid::new_v4().to_string(),
@@ -112,6 +120,14 @@ fn create_test_memories() -> Vec<Memory> {
             memory_type: MemoryType::Episodic,
             entities: Vec::new(),
             relations: Vec::new(),
+            agent_id: "demo_agent".to_string(),
+            user_id: Some("john-doe".to_string()),
+            importance: 0.6,
+            embedding: None,
+            last_accessed_at: now,
+            access_count: 0,
+            expires_at: None,
+            version: 1,
         },
         Memory {
             id: Uuid::new_v4().to_string(),
@@ -129,6 +145,14 @@ fn create_test_memories() -> Vec<Memory> {
             memory_type: MemoryType::Semantic,
             entities: Vec::new(),
             relations: Vec::new(),
+            agent_id: "demo_agent".to_string(),
+            user_id: None,
+            importance: 0.4,
+            embedding: None,
+            last_accessed_at: now,
+            access_count: 0,
+            expires_at: None,
+            version: 1,
         },
     ]
 }

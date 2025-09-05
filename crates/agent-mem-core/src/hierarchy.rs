@@ -613,7 +613,7 @@ impl HierarchyManager for DefaultHierarchyManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Utc;
+
 
     fn create_test_memory(id: &str, content: &str) -> Memory {
         use agent_mem_traits::Session;
@@ -629,6 +629,14 @@ mod tests {
             memory_type: MemoryType::Episodic,
             entities: Vec::new(),
             relations: Vec::new(),
+            agent_id: "test_agent".to_string(),
+            user_id: Some("test_user".to_string()),
+            importance: 0.5,
+            embedding: None,
+            last_accessed_at: chrono::Utc::now(),
+            access_count: 0,
+            expires_at: None,
+            version: 1,
         }
     }
 

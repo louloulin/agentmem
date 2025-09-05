@@ -9,7 +9,6 @@ pub use hierarchical::HierarchicalClusterer;
 pub use kmeans::KMeansClusterer;
 
 use agent_mem_traits::{AgentMemError, Result};
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

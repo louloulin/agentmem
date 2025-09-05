@@ -207,7 +207,7 @@ mod tests {
         // 注意：这个测试会尝试连接到Cohere API，在没有有效API密钥的情况下会失败
         // 这是预期的行为
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let result = rt.block_on(CohereEmbedder::new(config));
+        let _result = rt.block_on(CohereEmbedder::new(config));
         // 我们不检查结果，因为API调用可能失败
     }
 

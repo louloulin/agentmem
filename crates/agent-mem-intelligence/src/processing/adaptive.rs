@@ -4,7 +4,7 @@
 //! archiving, deletion, and capacity management.
 
 use agent_mem_core::Memory;
-use agent_mem_traits::{AgentMemError, Result};
+use agent_mem_traits::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tracing::{debug, info, warn};
@@ -306,6 +306,7 @@ impl AdaptiveMemoryManager {
         );
 
         // Reduce importance slightly for archived memories
+        memory.importance *= 0.8;
         if let Some(score) = memory.score {
             memory.score = Some(score * 0.8);
         }
@@ -441,20 +442,28 @@ mod tests {
     use std::collections::HashMap;
 
     fn create_test_memory(id: &str, importance: f32, access_count: u32, age_days: i64) -> Memory {
-        let current_time = Utc::now().timestamp();
+        use agent_mem_traits::Session;
+        let current_time = Utc::now();
+        let age_duration = chrono::Duration::days(age_days);
         Memory {
             id: id.to_string(),
+            content: format!("Test memory content for {}", id),
+            hash: None,
+            metadata: HashMap::new(),
+            score: Some(importance),
+            created_at: current_time - age_duration,
+            updated_at: None,
+            session: Session::new(),
+            memory_type: MemoryType::Episodic,
+            entities: Vec::new(),
+            relations: Vec::new(),
             agent_id: "test_agent".to_string(),
             user_id: Some("test_user".to_string()),
-            memory_type: MemoryType::Episodic,
-            content: format!("Test memory content for {}", id),
             importance,
             embedding: None,
-            created_at: current_time - (age_days * 24 * 60 * 60),
-            last_accessed_at: current_time - (age_days * 24 * 60 * 60 / 2),
+            last_accessed_at: current_time - age_duration / 2,
             access_count,
             expires_at: None,
-            metadata: HashMap::new(),
             version: 1,
         }
     }
@@ -494,7 +503,7 @@ mod tests {
 
         manager.archive_memory(&mut memory).await.unwrap();
 
-        assert_eq!(memory.metadata.get("archived"), Some(&"true".to_string()));
+        assert_eq!(memory.metadata.get("archived"), Some(&serde_json::Value::Bool(true)));
         assert!(memory.importance < 0.5); // Should be reduced
     }
 
@@ -508,7 +517,7 @@ mod tests {
         manager.compress_memory(&mut memory).await.unwrap();
 
         assert!(memory.content.len() < original_size);
-        assert_eq!(memory.metadata.get("compressed"), Some(&"true".to_string()));
+        assert_eq!(memory.metadata.get("compressed"), Some(&serde_json::Value::Bool(true)));
     }
 
     #[tokio::test]

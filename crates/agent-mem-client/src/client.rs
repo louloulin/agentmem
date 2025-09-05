@@ -8,7 +8,7 @@ use crate::{
 };
 use reqwest::{Client, Response};
 use serde::de::DeserializeOwned;
-use std::time::Duration;
+
 use tracing::{debug, error};
 use url::Url;
 

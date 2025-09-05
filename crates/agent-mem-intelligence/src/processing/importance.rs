@@ -4,10 +4,10 @@
 //! including recency, frequency, relevance, and context.
 
 use agent_mem_core::Memory;
-use agent_mem_traits::{AgentMemError, Result};
+use agent_mem_traits::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use tracing::{debug, info};
+use tracing::info;
 
 /// Importance scoring factors
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -197,10 +197,7 @@ impl ImportanceScorer {
     /// Calculate frequency score (more accessed memories are more important)
     fn calculate_frequency_score(&self, memory: &Memory) -> f32 {
         let max_access_count = 100.0; // Normalize to this maximum
-        let access_count = memory.metadata
-            .get("access_count")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0) as f32;
+        let access_count = memory.access_count as f32;
         (access_count / max_access_count).clamp(0.0, 1.0)
     }
 
@@ -335,19 +332,27 @@ mod tests {
     use std::collections::HashMap;
 
     fn create_test_memory(id: &str, content: &str, access_count: u32) -> Memory {
+        use agent_mem_traits::Session;
+        let now = Utc::now();
         Memory {
             id: id.to_string(),
+            content: content.to_string(),
+            hash: None,
+            metadata: HashMap::new(),
+            score: Some(0.5),
+            created_at: now - chrono::Duration::hours(1),
+            updated_at: None,
+            session: Session::new(),
+            memory_type: MemoryType::Episodic,
+            entities: Vec::new(),
+            relations: Vec::new(),
             agent_id: "test_agent".to_string(),
             user_id: Some("test_user".to_string()),
-            memory_type: MemoryType::Episodic,
-            content: content.to_string(),
             importance: 0.5,
             embedding: None,
-            created_at: Utc::now().timestamp() - 3600, // 1 hour ago
-            last_accessed_at: Utc::now().timestamp() - 1800, // 30 minutes ago
+            last_accessed_at: now - chrono::Duration::minutes(30),
             access_count,
             expires_at: None,
-            metadata: HashMap::new(),
             version: 1,
         }
     }
@@ -365,7 +370,7 @@ mod tests {
 
         let recent_memory = create_test_memory("1", "Recent memory", 1);
         let old_memory = Memory {
-            created_at: current_time - 7 * 24 * 60 * 60, // 7 days ago
+            created_at: Utc::now() - chrono::Duration::days(7), // 7 days ago
             ..create_test_memory("2", "Old memory", 1)
         };
 

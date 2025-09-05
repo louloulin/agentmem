@@ -231,7 +231,7 @@ impl LLMClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agent_mem_traits::MessageRole;
+
 
     fn create_test_config() -> LLMConfig {
         LLMConfig {

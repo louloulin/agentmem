@@ -4,7 +4,7 @@
 //! and improve memory organization.
 
 use agent_mem_core::Memory;
-use agent_mem_traits::{AgentMemError, Result};
+use agent_mem_traits::Result;
 use agent_mem_utils::text::jaccard_similarity;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -383,6 +383,14 @@ mod tests {
             session,
             entities: Vec::new(),
             relations: Vec::new(),
+            agent_id: "test_agent".to_string(),
+            user_id: Some("test_user".to_string()),
+            importance,
+            embedding: None,
+            last_accessed_at: chrono::Utc::now(),
+            access_count: 0,
+            expires_at: None,
+            version: 1,
         }
     }
 

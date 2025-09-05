@@ -11,8 +11,8 @@ pub use adaptive::*;
 pub use consolidation::*;
 pub use importance::*;
 
-use agent_mem_core::{Memory, MemoryType};
-use agent_mem_traits::{AgentMemError, Result};
+use agent_mem_core::Memory;
+use agent_mem_traits::{MemoryType, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -187,19 +187,27 @@ mod tests {
     use chrono::Utc;
 
     fn create_test_memory(id: &str, content: &str, importance: f32) -> Memory {
+        use agent_mem_traits::Session;
+        let now = Utc::now();
         Memory {
             id: id.to_string(),
+            content: content.to_string(),
+            hash: None,
+            metadata: std::collections::HashMap::new(),
+            score: Some(importance),
+            created_at: now,
+            updated_at: None,
+            session: Session::new(),
+            memory_type: MemoryType::Episodic,
+            entities: Vec::new(),
+            relations: Vec::new(),
             agent_id: "test_agent".to_string(),
             user_id: Some("test_user".to_string()),
-            memory_type: MemoryType::Episodic,
-            content: content.to_string(),
             importance,
             embedding: None,
-            created_at: Utc::now().timestamp(),
-            last_accessed_at: Utc::now().timestamp(),
+            last_accessed_at: now,
             access_count: 0,
             expires_at: None,
-            metadata: HashMap::new(),
             version: 1,
         }
     }
