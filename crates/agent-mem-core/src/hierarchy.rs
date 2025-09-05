@@ -2,8 +2,8 @@
 //!
 //! Implements ContextEngine's layered memory architecture with scoped access control.
 
-use crate::types::{Memory, MemoryType};
-use agent_mem_traits::{AgentMemError, Result};
+use crate::Memory;
+use agent_mem_traits::{MemoryType, AgentMemError, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
