@@ -121,11 +121,11 @@ impl ImportanceScorer for DefaultImportanceScorer {
         let age_hours = (now - memory.created_at).num_hours() as f64;
         let recency_score = (1.0 / (1.0 + age_hours / 24.0)).max(0.0).min(1.0);
         
-        // Calculate frequency score based on access count
-        let frequency_score = (memory.access_count as f64 / 100.0).min(1.0);
-        
+        // Calculate frequency score based on metadata (placeholder)
+        let frequency_score = 0.5; // TODO: Implement based on access patterns
+
         // Calculate relevance score (placeholder - would use semantic analysis)
-        let relevance_score = memory.importance; // Use existing importance as base
+        let relevance_score = memory.score.unwrap_or(0.5) as f64; // Use existing score as base
         
         // Calculate interaction score based on metadata
         let interaction_score = if memory.metadata.contains_key("user_interaction") {
@@ -264,8 +264,9 @@ impl ConflictResolver for DefaultConflictResolver {
                         
                         for memory_id in &conflict.memory_ids {
                             if let Some(memory) = memories.iter().find(|m| m.id == *memory_id) {
-                                if memory.importance > best_importance {
-                                    best_importance = memory.importance;
+                                let importance = memory.score.unwrap_or(0.0) as f64;
+                                if importance > best_importance {
+                                    best_importance = importance;
                                     best_memory = Some(memory_id.clone());
                                 }
                             }

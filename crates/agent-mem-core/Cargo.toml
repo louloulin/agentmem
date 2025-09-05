@@ -27,6 +27,7 @@ thiserror.workspace = true
 
 # Storage and async
 async-trait.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

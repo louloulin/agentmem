@@ -1,6 +1,7 @@
 //! Memory lifecycle management
 
-use crate::types::{ImportanceLevel, Memory, MemoryType};
+use crate::Memory;
+use agent_mem_traits::MemoryType;
 use agent_mem_traits::{AgentMemError, Result};
 use std::collections::HashMap;
 
@@ -112,7 +113,7 @@ impl MemoryLifecycle {
         self.add_event(event);
 
         // Set expiration for working memories
-        if memory.memory_type == MemoryType::Working && memory.expires_at.is_none() {
+        if memory.memory_type == MemoryType::Working {
             let expiration = chrono::Utc::now().timestamp() + self.config.working_memory_ttl;
             self.set_expiration(&memory.id, expiration)?;
         }
@@ -310,8 +311,8 @@ impl MemoryLifecycle {
                 continue;
             }
 
-            let age = current_time - memory.created_at;
-            let current_importance = memory.calculate_current_importance();
+            let age = current_time - memory.created_at.timestamp();
+            let current_importance = memory.score.unwrap_or(0.5);
 
             // Auto-delete policy
             if let Some(delete_age) = self.config.auto_delete_age {

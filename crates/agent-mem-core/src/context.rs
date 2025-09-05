@@ -1,6 +1,6 @@
 //! Context analysis and management
 
-use agent_mem_traits::Memory;
+use crate::Memory;
 use serde::{Deserialize, Serialize};
 
 /// Context analyzer

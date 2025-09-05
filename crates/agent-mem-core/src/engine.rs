@@ -68,9 +68,9 @@ impl MemoryEngine {
         // Calculate importance if auto-processing is enabled
         if self.config.auto_processing {
             let importance_factors = self.importance_scorer.calculate_importance(&memory).await?;
-            memory.importance = importance_factors.final_score;
-            
-            debug!("Calculated importance {} for memory {}", memory.importance, memory.id);
+            memory.score = Some(importance_factors.final_score as f32);
+
+            debug!("Calculated importance {} for memory {}", memory.score.unwrap_or(0.0), memory.id);
         }
         
         // Add to hierarchy
@@ -94,7 +94,7 @@ impl MemoryEngine {
         // Recalculate importance if auto-processing is enabled
         if self.config.auto_processing {
             let importance_factors = self.importance_scorer.calculate_importance(&memory).await?;
-            memory.importance = importance_factors.final_score;
+            memory.score = Some(importance_factors.final_score as f32);
         }
         
         // Get current hierarchical memory

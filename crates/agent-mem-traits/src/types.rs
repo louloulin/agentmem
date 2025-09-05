@@ -100,7 +100,7 @@ impl Session {
 }
 
 /// Types of memory
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum MemoryType {
     Factual,    // 事实性记忆
     Episodic,   // 情节性记忆

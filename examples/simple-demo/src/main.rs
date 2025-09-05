@@ -3,8 +3,8 @@
 //! This example demonstrates basic usage of the AgentMem core functionality,
 //! including memory creation, storage, and retrieval.
 
-use agent_mem_core::{MemoryEngine, MemoryEngineConfig};
-use agent_mem_traits::{Memory, MemoryType, MemoryScope};
+use agent_mem_core::{MemoryEngine, MemoryEngineConfig, Memory};
+use agent_mem_traits::{MemoryType, Session};
 use chrono::Utc;
 use std::collections::HashMap;
 use tracing::{info, warn, error};
@@ -75,87 +75,60 @@ async fn main() -> anyhow::Result<()> {
 
 fn create_test_memories() -> Vec<Memory> {
     let now = Utc::now();
-    
+
     vec![
         Memory {
             id: Uuid::new_v4().to_string(),
             content: "Remember to implement the new authentication system".to_string(),
-            memory_type: MemoryType::Procedural,
-            scope: MemoryScope::Global,
-            importance: 0.8,
-            tags: vec!["authentication".to_string(), "security".to_string(), "implementation".to_string()],
+            hash: None,
             metadata: {
                 let mut meta = HashMap::new();
-                meta.insert("priority".to_string(), "high".to_string());
-                meta.insert("category".to_string(), "development".to_string());
+                meta.insert("priority".to_string(), serde_json::Value::String("high".to_string()));
+                meta.insert("category".to_string(), serde_json::Value::String("development".to_string()));
                 meta
             },
+            score: Some(0.8),
             created_at: now,
-            updated_at: now,
-            accessed_at: None,
-            access_count: 0,
+            updated_at: Some(now),
+            session: Session::new(),
+            memory_type: MemoryType::Procedural,
+            entities: Vec::new(),
+            relations: Vec::new(),
         },
         Memory {
             id: Uuid::new_v4().to_string(),
             content: "User John Doe prefers dark mode interface".to_string(),
-            memory_type: MemoryType::Episodic,
-            scope: MemoryScope::User { 
-                agent_id: "agent-1".to_string(), 
-                user_id: "john-doe".to_string() 
-            },
-            importance: 0.6,
-            tags: vec!["user-preference".to_string(), "ui".to_string()],
+            hash: None,
             metadata: {
                 let mut meta = HashMap::new();
-                meta.insert("user_id".to_string(), "john-doe".to_string());
-                meta.insert("preference_type".to_string(), "ui".to_string());
+                meta.insert("user_id".to_string(), serde_json::Value::String("john-doe".to_string()));
+                meta.insert("preference_type".to_string(), serde_json::Value::String("ui".to_string()));
                 meta
             },
+            score: Some(0.6),
             created_at: now,
-            updated_at: now,
-            accessed_at: None,
-            access_count: 0,
+            updated_at: Some(now),
+            session: Session::new().with_user_id(Some("john-doe".to_string())),
+            memory_type: MemoryType::Episodic,
+            entities: Vec::new(),
+            relations: Vec::new(),
         },
         Memory {
             id: Uuid::new_v4().to_string(),
             content: "The capital of France is Paris".to_string(),
+            hash: None,
+            metadata: {
+                let mut meta = HashMap::new();
+                meta.insert("category".to_string(), serde_json::Value::String("general-knowledge".to_string()));
+                meta
+            },
+            score: Some(0.4),
+            created_at: now,
+            updated_at: Some(now),
+            session: Session::new(),
             memory_type: MemoryType::Semantic,
-            scope: MemoryScope::Global,
-            importance: 0.4,
-            tags: vec!["geography".to_string(), "facts".to_string()],
-            metadata: {
-                let mut meta = HashMap::new();
-                meta.insert("category".to_string(), "general-knowledge".to_string());
-                meta.insert("verified".to_string(), "true".to_string());
-                meta
-            },
-            created_at: now,
-            updated_at: now,
-            accessed_at: None,
-            access_count: 0,
-        },
-        Memory {
-            id: Uuid::new_v4().to_string(),
-            content: "Current task: Review pull request #123".to_string(),
-            memory_type: MemoryType::Working,
-            scope: MemoryScope::Session { 
-                agent_id: "agent-1".to_string(), 
-                user_id: "developer".to_string(),
-                session_id: "session-456".to_string()
-            },
-            importance: 0.9,
-            tags: vec!["task".to_string(), "review".to_string(), "urgent".to_string()],
-            metadata: {
-                let mut meta = HashMap::new();
-                meta.insert("pr_number".to_string(), "123".to_string());
-                meta.insert("status".to_string(), "pending".to_string());
-                meta.insert("deadline".to_string(), "today".to_string());
-                meta
-            },
-            created_at: now,
-            updated_at: now,
-            accessed_at: None,
-            access_count: 0,
+            entities: Vec::new(),
+            relations: Vec::new(),
         },
     ]
 }

@@ -1,6 +1,6 @@
 //! Conflict detection and resolution
 
-use agent_mem_traits::Memory;
+use crate::Memory;
 use serde::{Deserialize, Serialize};
 
 /// Conflict detector

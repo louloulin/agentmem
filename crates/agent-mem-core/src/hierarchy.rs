@@ -140,21 +140,7 @@ impl MemoryScope {
     }
 }
 
-/// Hierarchical memory with scope information
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HierarchicalMemory {
-    /// Base memory data
-    pub memory: Memory,
 
-    /// Memory scope
-    pub scope: MemoryScope,
-
-    /// Inheritance rules
-    pub inheritance: MemoryInheritance,
-
-    /// Access permissions
-    pub permissions: MemoryPermissions,
-}
 
 /// Memory inheritance configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -239,8 +225,14 @@ impl HierarchicalMemoryManager {
         let hierarchical_memory = HierarchicalMemory {
             memory,
             scope: scope.clone(),
-            inheritance: inheritance.unwrap_or_default(),
-            permissions: permissions.unwrap_or_default(),
+            level: MemoryLevel::Operational, // Default level
+            hierarchy_metadata: HierarchyMetadata {
+                level_assigned_at: chrono::Utc::now(),
+                promotion_count: 0,
+                demotion_count: 0,
+                inheritance: inheritance.unwrap_or_default(),
+                permissions: permissions.unwrap_or_default(),
+            },
         };
 
         self.memories
@@ -261,7 +253,7 @@ impl HierarchicalMemoryManager {
         for accessible_scope in accessible_scopes {
             if let Some(memories) = self.memories.get(&accessible_scope) {
                 for memory in memories {
-                    if memory.permissions.readable && scope.can_access(&memory.scope) {
+                    if memory.hierarchy_metadata.permissions.readable && scope.can_access(&memory.scope) {
                         accessible.push(memory);
                     }
                 }
@@ -280,16 +272,17 @@ impl HierarchicalMemoryManager {
         while let Some(parent_scope) = current_scope {
             if let Some(memories) = self.memories.get(&parent_scope) {
                 for memory in memories {
-                    if memory.inheritance.inheritable && memory.permissions.shareable {
+                    if memory.hierarchy_metadata.inheritance.inheritable && memory.hierarchy_metadata.permissions.shareable {
                         let mut inherited_memory = memory.clone();
 
                         // Apply inheritance decay
-                        inherited_memory.memory.importance = inherited_memory.memory.importance
-                            * memory.inheritance.decay_factor.powi(level);
+                        let current_score = inherited_memory.memory.score.unwrap_or(0.5);
+                        inherited_memory.memory.score = Some(current_score
+                            * memory.hierarchy_metadata.inheritance.decay_factor.powi(level));
 
                         // Mark as inherited
-                        inherited_memory.inheritance.inherited = true;
-                        inherited_memory.inheritance.original_scope = Some(parent_scope.clone());
+                        inherited_memory.hierarchy_metadata.inheritance.inherited = true;
+                        inherited_memory.hierarchy_metadata.inheritance.original_scope = Some(parent_scope.clone());
                         inherited_memory.scope = scope.clone();
 
                         inherited.push(inherited_memory);
@@ -331,8 +324,8 @@ impl HierarchicalMemoryManager {
         if let Some(memories) = self.memories.get_mut(scope) {
             for memory in memories {
                 if memory.memory.id == memory_id {
-                    if memory.permissions.writable {
-                        memory.permissions = permissions;
+                    if memory.hierarchy_metadata.permissions.writable {
+                        memory.hierarchy_metadata.permissions = permissions;
                         return Ok(());
                     } else {
                         return Err(AgentMemError::memory_error("Memory is not writable"));
@@ -349,7 +342,7 @@ impl HierarchicalMemoryManager {
         if let Some(memories) = self.memories.get_mut(scope) {
             if let Some(pos) = memories.iter().position(|m| m.memory.id == memory_id) {
                 let memory = &memories[pos];
-                if memory.permissions.deletable {
+                if memory.hierarchy_metadata.permissions.deletable {
                     memories.remove(pos);
                     Ok(())
                 } else {
@@ -374,17 +367,18 @@ impl HierarchicalMemoryManager {
                 scope_stats.total_memories += 1;
 
                 match memory.memory.memory_type {
+                    MemoryType::Factual => scope_stats.semantic_memories += 1,
                     MemoryType::Episodic => scope_stats.episodic_memories += 1,
                     MemoryType::Semantic => scope_stats.semantic_memories += 1,
                     MemoryType::Procedural => scope_stats.procedural_memories += 1,
                     MemoryType::Working => scope_stats.untyped_memories += 1,
                 }
 
-                if memory.inheritance.inherited {
+                if memory.hierarchy_metadata.inheritance.inherited {
                     scope_stats.inherited_memories += 1;
                 }
 
-                let importance = memory.memory.importance;
+                let importance = memory.memory.score.unwrap_or(0.5);
                 scope_stats.total_importance += importance;
                 if importance > scope_stats.max_importance {
                     scope_stats.max_importance = importance;
@@ -421,26 +415,220 @@ pub struct ScopeStatistics {
     pub min_importance: f32,
 }
 
+/// Hierarchy configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HierarchyConfig {
+    /// Auto-promotion enabled
+    pub auto_promotion: bool,
+
+    /// Auto-demotion enabled
+    pub auto_demotion: bool,
+
+    /// Enable inheritance
+    pub enable_inheritance: bool,
+
+    /// Promotion threshold
+    pub promotion_threshold: f64,
+
+    /// Demotion threshold
+    pub demotion_threshold: f64,
+
+    /// Level capacities
+    pub level_capacities: HashMap<MemoryLevel, usize>,
+}
+
+impl Default for HierarchyConfig {
+    fn default() -> Self {
+        let mut level_capacities = HashMap::new();
+        level_capacities.insert(MemoryLevel::Strategic, 100);
+        level_capacities.insert(MemoryLevel::Tactical, 500);
+        level_capacities.insert(MemoryLevel::Operational, 2000);
+        level_capacities.insert(MemoryLevel::Contextual, 5000);
+
+        Self {
+            auto_promotion: true,
+            auto_demotion: true,
+            enable_inheritance: true,
+            promotion_threshold: 1.2,
+            demotion_threshold: 0.8,
+            level_capacities,
+        }
+    }
+}
+
+/// Hierarchy metadata
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HierarchyMetadata {
+    /// When level was assigned
+    pub level_assigned_at: chrono::DateTime<chrono::Utc>,
+
+    /// Number of promotions
+    pub promotion_count: u32,
+
+    /// Number of demotions
+    pub demotion_count: u32,
+
+    /// Inheritance configuration
+    pub inheritance: MemoryInheritance,
+
+    /// Access permissions
+    pub permissions: MemoryPermissions,
+}
+
+impl Default for HierarchyMetadata {
+    fn default() -> Self {
+        Self {
+            level_assigned_at: chrono::Utc::now(),
+            promotion_count: 0,
+            demotion_count: 0,
+            inheritance: MemoryInheritance::default(),
+            permissions: MemoryPermissions::default(),
+        }
+    }
+}
+
+/// Hierarchical memory record
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HierarchicalMemory {
+    /// The memory itself
+    pub memory: Memory,
+
+    /// Memory scope
+    pub scope: MemoryScope,
+
+    /// Hierarchy level
+    pub level: MemoryLevel,
+
+    /// Hierarchy metadata
+    pub hierarchy_metadata: HierarchyMetadata,
+}
+
+/// Hierarchy statistics
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HierarchyStatistics {
+    /// Memories by level
+    pub memories_by_level: HashMap<MemoryLevel, usize>,
+
+    /// Average importance by level
+    pub avg_importance_by_level: HashMap<MemoryLevel, f64>,
+
+    /// Inheritance relationships
+    pub inheritance_relationships: usize,
+
+    /// Level utilization
+    pub level_utilization: HashMap<MemoryLevel, f64>,
+}
+
+/// Hierarchy manager trait
+#[async_trait::async_trait]
+pub trait HierarchyManager: Send + Sync {
+    /// Add memory to hierarchy
+    async fn add_memory(&self, memory: Memory) -> crate::CoreResult<HierarchicalMemory>;
+
+    /// Get memory by ID
+    async fn get_memory(&self, id: &str) -> crate::CoreResult<Option<HierarchicalMemory>>;
+
+    /// Update memory in hierarchy
+    async fn update_memory(&self, memory: HierarchicalMemory) -> crate::CoreResult<HierarchicalMemory>;
+
+    /// Remove memory from hierarchy
+    async fn remove_memory(&self, id: &str) -> crate::CoreResult<bool>;
+
+    /// Get memories at specific level
+    async fn get_memories_at_level(&self, level: MemoryLevel) -> crate::CoreResult<Vec<HierarchicalMemory>>;
+
+    /// Get hierarchy statistics
+    async fn get_hierarchy_stats(&self) -> crate::CoreResult<HierarchyStatistics>;
+}
+
+/// Default hierarchy manager implementation
+pub struct DefaultHierarchyManager {
+    config: HierarchyConfig,
+    // TODO: Add storage backend
+}
+
+impl DefaultHierarchyManager {
+    /// Create new default hierarchy manager
+    pub fn new(config: HierarchyConfig) -> Self {
+        Self { config }
+    }
+}
+
+#[async_trait::async_trait]
+impl HierarchyManager for DefaultHierarchyManager {
+    async fn add_memory(&self, memory: Memory) -> crate::CoreResult<HierarchicalMemory> {
+        // Determine appropriate level based on importance
+        let level = if memory.score.unwrap_or(0.0) > 0.8 {
+            MemoryLevel::Strategic
+        } else if memory.score.unwrap_or(0.0) > 0.6 {
+            MemoryLevel::Tactical
+        } else if memory.score.unwrap_or(0.0) > 0.4 {
+            MemoryLevel::Operational
+        } else {
+            MemoryLevel::Contextual
+        };
+
+        let hierarchical_memory = HierarchicalMemory {
+            memory,
+            scope: MemoryScope::Global, // TODO: Determine scope from memory
+            level,
+            hierarchy_metadata: HierarchyMetadata::default(),
+        };
+
+        // TODO: Store in backend
+        Ok(hierarchical_memory)
+    }
+
+    async fn get_memory(&self, _id: &str) -> crate::CoreResult<Option<HierarchicalMemory>> {
+        // TODO: Implement retrieval from backend
+        Ok(None)
+    }
+
+    async fn update_memory(&self, memory: HierarchicalMemory) -> crate::CoreResult<HierarchicalMemory> {
+        // TODO: Implement update in backend
+        Ok(memory)
+    }
+
+    async fn remove_memory(&self, _id: &str) -> crate::CoreResult<bool> {
+        // TODO: Implement removal from backend
+        Ok(false)
+    }
+
+    async fn get_memories_at_level(&self, _level: MemoryLevel) -> crate::CoreResult<Vec<HierarchicalMemory>> {
+        // TODO: Implement level-based retrieval
+        Ok(Vec::new())
+    }
+
+    async fn get_hierarchy_stats(&self) -> crate::CoreResult<HierarchyStatistics> {
+        // TODO: Implement statistics calculation
+        Ok(HierarchyStatistics {
+            memories_by_level: HashMap::new(),
+            avg_importance_by_level: HashMap::new(),
+            inheritance_relationships: 0,
+            level_utilization: HashMap::new(),
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use chrono::Utc;
 
     fn create_test_memory(id: &str, content: &str) -> Memory {
+        use agent_mem_traits::Session;
         Memory {
             id: id.to_string(),
-            agent_id: "test_agent".to_string(),
-            user_id: Some("test_user".to_string()),
-            memory_type: MemoryType::Episodic,
             content: content.to_string(),
-            importance: 0.8,
-            embedding: None,
-            created_at: chrono::Utc::now().timestamp(),
-            last_accessed_at: chrono::Utc::now().timestamp(),
-            access_count: 0,
-            expires_at: None,
+            hash: None,
             metadata: std::collections::HashMap::new(),
-            version: 1,
+            score: Some(0.8),
+            created_at: chrono::Utc::now(),
+            updated_at: Some(chrono::Utc::now()),
+            session: Session::new(),
+            memory_type: MemoryType::Episodic,
+            entities: Vec::new(),
+            relations: Vec::new(),
         }
     }
 
@@ -552,14 +740,14 @@ mod tests {
         // Get inherited memories for user scope
         let inherited = manager.get_inherited_memories(&user_scope);
         assert_eq!(inherited.len(), 1);
-        assert!(inherited[0].inheritance.inherited);
+        assert!(inherited[0].hierarchy_metadata.inheritance.inherited);
         assert_eq!(
-            inherited[0].inheritance.original_scope,
+            inherited[0].hierarchy_metadata.inheritance.original_scope,
             Some(MemoryScope::Global)
         );
 
-        // Check importance decay (0.8 * 0.8^2 = 0.512)
-        let expected_importance = 0.8 * 0.8_f32.powi(2);
-        assert!((inherited[0].memory.importance - expected_importance).abs() < 0.001);
+        // Check score decay (0.8 * 0.8^2 = 0.512)
+        let expected_score = 0.8 * 0.8_f32.powi(2);
+        assert!((inherited[0].memory.score.unwrap_or(0.0) - expected_score).abs() < 0.001);
     }
 }
