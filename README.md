@@ -57,7 +57,7 @@ AgentMem is a production-ready, enterprise-grade intelligent memory management p
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/agentmem.git
+git clone https://gitcode.com/louloulin/agentmem.git
 cd agentmem
 
 # Build all crates
@@ -389,7 +389,7 @@ We welcome all forms of contributions! Please see our [Contributing Guide](CONTR
 ### **Development Setup**
 ```bash
 # Clone repository
-git clone https://github.com/your-org/agentmem.git
+git clone https://gitcode.com/louloulin/agentmem.git
 cd agentmem
 
 # Install dependencies

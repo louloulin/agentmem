@@ -2,7 +2,7 @@
 
 [![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)](https://www.rust-lang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Build Status](https://github.com/your-org/agentmem/workflows/CI/badge.svg)](https://github.com/your-org/agentmem/actions)
+[![Build Status](https://gitcode.com/louloulin/agentmem/workflows/CI/badge.svg)](https://gitcode.com/louloulin/agentmem/actions)
 [![Coverage](https://codecov.io/gh/your-org/agentmem/branch/main/graph/badge.svg)](https://codecov.io/gh/your-org/agentmem)
 
 **AgentMem** 是一个高性能、智能化的 AI 代理记忆管理系统，为 AI 代理提供类人的记忆能力。
@@ -48,7 +48,7 @@
 cargo add agentmem
 
 # 或者克隆源码
-git clone https://github.com/your-org/agentmem.git
+git clone https://gitcode.com/louloulin/agentmem.git
 cd agentmem
 cargo build --release
 ```
@@ -292,7 +292,7 @@ cat reports/improvement_summary.md
 
 - **官网**: https://agentmem.com
 - **文档**: https://docs.agentmem.com
-- **GitHub**: https://github.com/your-org/agentmem
+- **GitHub**: https://gitcode.com/louloulin/agentmem
 - **Discord**: https://discord.gg/agentmem
 - **邮箱**: hello@agentmem.com
 

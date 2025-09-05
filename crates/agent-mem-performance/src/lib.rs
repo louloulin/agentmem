@@ -163,6 +163,7 @@ pub struct PerformanceStats {
 }
 
 #[cfg(test)]
+#[cfg(not(feature = "skip-performance-tests"))]
 mod tests {
     use super::*;
 

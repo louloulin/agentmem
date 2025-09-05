@@ -255,7 +255,7 @@ AgentMem 是一个生产就绪的企业级智能记忆管理平台，采用 Rust
 
 ## 📞 联系信息
 
-- **项目地址**: https://github.com/your-org/agentmem
+- **项目地址**: https://gitcode.com/louloulin/agentmem
 - **文档站点**: https://docs.agentmem.com
 - **技术支持**: tech-support@agentmem.com
 - **社区讨论**: https://discord.gg/agentmem

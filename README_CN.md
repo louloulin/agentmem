@@ -57,7 +57,7 @@ AgentMem 是一个生产就绪的企业级智能记忆管理平台，采用 Rust
 
 ```bash
 # 克隆仓库
-git clone https://github.com/your-org/agentmem.git
+git clone https://gitcode.com/louloulin/agentmem.git
 cd agentmem
 
 # 构建所有 crate

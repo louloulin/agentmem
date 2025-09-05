@@ -35,7 +35,7 @@
 
 ```bash
 # 克隆项目
-git clone https://github.com/your-org/agentmem.git
+git clone https://gitcode.com/louloulin/agentmem.git
 cd agentmem
 
 # 安装依赖
