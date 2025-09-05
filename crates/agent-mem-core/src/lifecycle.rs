@@ -1,6 +1,5 @@
 //! Memory lifecycle management
 
-use crate::Memory;
 use agent_mem_traits::MemoryType;
 use agent_mem_traits::{AgentMemError, Result};
 use std::collections::HashMap;
@@ -99,7 +98,7 @@ impl MemoryLifecycle {
     }
 
     /// Register a new memory
-    pub fn register_memory(&mut self, memory: &Memory) -> Result<()> {
+    pub fn register_memory(&mut self, memory: &agent_mem_traits::MemoryItem) -> Result<()> {
         self.memory_states
             .insert(memory.id.clone(), MemoryState::Created);
 
@@ -301,7 +300,7 @@ impl MemoryLifecycle {
     }
 
     /// Apply automatic lifecycle policies
-    pub fn apply_auto_policies(&mut self, memories: &[Memory]) -> Result<Vec<String>> {
+    pub fn apply_auto_policies(&mut self, memories: &[agent_mem_traits::MemoryItem]) -> Result<Vec<String>> {
         let current_time = chrono::Utc::now().timestamp();
         let mut affected_memories = Vec::new();
 

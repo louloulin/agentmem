@@ -92,7 +92,8 @@ impl MemoryManager {
         // Register with lifecycle manager
         {
             let mut lifecycle = self.lifecycle.write().await;
-            lifecycle.register_memory(&memory)?;
+            let memory_item = agent_mem_traits::MemoryItem::from(memory.clone());
+            lifecycle.register_memory(&memory_item)?;
         }
 
         // Record creation in history

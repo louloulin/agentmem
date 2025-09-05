@@ -179,7 +179,7 @@ impl Memory {
 
 impl From<Memory> for MemoryItem {
     fn from(memory: Memory) -> Self {
-        use agent_mem_traits::{Entity, MemoryType as TraitMemoryType, Relation, Session};
+        use agent_mem_traits::{MemoryType as TraitMemoryType, Session};
         use chrono::{DateTime, Utc};
 
         // Convert metadata from String to serde_json::Value
@@ -216,6 +216,18 @@ impl From<Memory> for MemoryItem {
             },
             entities: Vec::new(),  // TODO: Extract entities if needed
             relations: Vec::new(), // TODO: Extract relations if needed
+            // Additional fields for compatibility
+            agent_id: memory.agent_id,
+            user_id: memory.user_id,
+            importance: memory.importance,
+            embedding: memory.embedding.map(|v| v.values),
+            last_accessed_at: DateTime::from_timestamp(memory.last_accessed_at, 0)
+                .unwrap_or_else(|| Utc::now()),
+            access_count: memory.access_count,
+            expires_at: memory.expires_at.map(|ts|
+                DateTime::from_timestamp(ts, 0).unwrap_or_else(|| Utc::now())
+            ),
+            version: memory.version,
         }
     }
 }

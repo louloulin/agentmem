@@ -3,7 +3,7 @@
 use crate::types::{MatchType, Memory, MemoryQuery, MemorySearchResult, MemoryStats, MemoryType};
 use agent_mem_traits::{AgentMemError, Result, Vector};
 use agent_mem_utils::jaccard_similarity;
-use serde::{Deserialize, Serialize};
+
 use std::collections::HashMap;
 
 /// Memory operations interface
