@@ -32,6 +32,7 @@ members = [
     "examples/demo",
     "examples/simple-demo",
     "examples/comprehensive-test",
+    "examples/phase1-integration-demo",
     "examples/phase3-demo",
     "examples/phase4-demo",
     "examples/server-demo",

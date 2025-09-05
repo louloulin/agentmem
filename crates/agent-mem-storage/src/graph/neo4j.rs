@@ -316,7 +316,8 @@ impl GraphStore for Neo4jStore {
             MATCH (e:Entity)
             WHERE e.name CONTAINS $query OR e.entity_type CONTAINS $query
             OPTIONAL MATCH (e)-[r:RELATES]-(related:Entity)
-            RETURN e, collect(r) as relations, collect(related) as related_entities
+            RETURN e.id as entity_id, e.entity_type as entity_type, e.name as entity_name,
+                   collect(DISTINCT {source: r.source, target: r.target, type: r.type, confidence: r.confidence}) as relations
             LIMIT 10
         "#;
 
@@ -332,18 +333,54 @@ impl GraphStore for Neo4jStore {
 
         for result in response.results {
             for data_row in result.data {
-                if let Some(entity_data) = data_row.row.get(0) {
-                    // 解析实体数据（简化实现）
+                if data_row.row.len() >= 4 {
+                    // 解析实体数据
+                    let entity_id = data_row.row[0]
+                        .as_str()
+                        .unwrap_or("unknown_id")
+                        .to_string();
+                    let entity_type = data_row.row[1]
+                        .as_str()
+                        .unwrap_or("unknown_type")
+                        .to_string();
+                    let entity_name = data_row.row[2]
+                        .as_str()
+                        .unwrap_or("unknown_name")
+                        .to_string();
+
                     let entity = Entity {
-                        id: "parsed_id".to_string(), // 实际实现需要从JSON中解析
-                        entity_type: "parsed_type".to_string(),
-                        name: "parsed_name".to_string(),
+                        id: entity_id,
+                        entity_type,
+                        name: entity_name,
                         attributes: HashMap::new(),
                     };
 
+                    // 解析关系数据
+                    let mut relations = Vec::new();
+                    if let Some(relations_array) = data_row.row[3].as_array() {
+                        for relation_obj in relations_array {
+                            if let Some(rel_map) = relation_obj.as_object() {
+                                if let (Some(source), Some(target), Some(rel_type), Some(confidence)) = (
+                                    rel_map.get("source").and_then(|v| v.as_str()),
+                                    rel_map.get("target").and_then(|v| v.as_str()),
+                                    rel_map.get("type").and_then(|v| v.as_str()),
+                                    rel_map.get("confidence").and_then(|v| v.as_f64()),
+                                ) {
+                                    relations.push(Relation {
+                                        id: format!("{}_{}", source, target),
+                                        source: source.to_string(),
+                                        target: target.to_string(),
+                                        relation: rel_type.to_string(),
+                                        confidence: confidence as f32,
+                                    });
+                                }
+                            }
+                        }
+                    }
+
                     let graph_result = GraphResult {
                         entity,
-                        relations: Vec::new(), // 实际实现需要解析关系
+                        relations,
                         score: 1.0,
                     };
 
@@ -360,7 +397,7 @@ impl GraphStore for Neo4jStore {
             r#"
             MATCH (start:Entity {{id: $entity_id}})
             MATCH (start)-[*1..{}]-(neighbor:Entity)
-            RETURN DISTINCT neighbor
+            RETURN DISTINCT neighbor.id as id, neighbor.entity_type as entity_type, neighbor.name as name
             LIMIT 50
         "#,
             depth
@@ -378,12 +415,25 @@ impl GraphStore for Neo4jStore {
 
         for result in response.results {
             for data_row in result.data {
-                if let Some(_entity_data) = data_row.row.get(0) {
-                    // 解析实体数据（简化实现）
+                if data_row.row.len() >= 3 {
+                    // 解析实体数据
+                    let id = data_row.row[0]
+                        .as_str()
+                        .unwrap_or("unknown_id")
+                        .to_string();
+                    let entity_type = data_row.row[1]
+                        .as_str()
+                        .unwrap_or("unknown_type")
+                        .to_string();
+                    let name = data_row.row[2]
+                        .as_str()
+                        .unwrap_or("unknown_name")
+                        .to_string();
+
                     let entity = Entity {
-                        id: "neighbor_id".to_string(), // 实际实现需要从JSON中解析
-                        entity_type: "neighbor_type".to_string(),
-                        name: "neighbor_name".to_string(),
+                        id,
+                        entity_type,
+                        name,
                         attributes: HashMap::new(),
                     };
 
@@ -405,7 +455,6 @@ impl GraphStore for Neo4jStore {
 // 添加base64编码功能的简单实现
 mod base64 {
     pub fn encode(input: &str) -> String {
-        use std::collections::HashMap;
 
         const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
         let mut result = String::new();
