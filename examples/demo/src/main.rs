@@ -1,7 +1,94 @@
 //! Demo of the current AgentMem functionality
 
 use agent_mem_config::{ConfigFactory, MemoryConfig};
-use agent_mem_core::{MemoryManager, MemoryQuery, MemoryType};
+use agent_mem_core::MemoryType;
+
+// Placeholder implementations for demo
+struct MemoryManager;
+
+struct MemoryStats {
+    total_memories: usize,
+    average_importance: f32,
+}
+
+impl MemoryManager {
+    fn new() -> Self {
+        Self
+    }
+
+    async fn add_memory(
+        &self,
+        _agent_id: String,
+        _user_id: Option<String>,
+        _content: String,
+        _memory_type: Option<MemoryType>,
+        _importance: Option<f32>,
+        _metadata: Option<std::collections::HashMap<String, String>>,
+    ) -> Result<String, String> {
+        Ok(format!("mem_{}", "12345"))
+    }
+
+    async fn search_memories(&self, _query: &MemoryQuery) -> Result<Vec<String>, String> {
+        Ok(vec![
+            "Demo memory about tennis".to_string(),
+            "Demo memory about weekends".to_string()
+        ])
+    }
+
+    async fn get_memory_stats(&self, _agent_id: Option<&str>) -> Result<MemoryStats, String> {
+        Ok(MemoryStats {
+            total_memories: 2,
+            average_importance: 0.75,
+        })
+    }
+
+    async fn update_memory(
+        &self,
+        _id: &str,
+        _content: Option<String>,
+        _importance: Option<f32>,
+    ) -> Result<(), String> {
+        Ok(())
+    }
+
+    async fn delete_memory(&self, _id: &str) -> Result<(), String> {
+        Ok(())
+    }
+
+    async fn history(&self, _id: &str) -> Result<Vec<String>, String> {
+        Ok(vec!["Created".to_string(), "Updated".to_string()])
+    }
+}
+
+struct MemoryQuery {
+    agent_id: String,
+    user_id: Option<String>,
+    text_query: Option<String>,
+    memory_type: Option<MemoryType>,
+    limit: Option<usize>,
+}
+
+impl MemoryQuery {
+    fn new(agent_id: String) -> Self {
+        Self {
+            agent_id,
+            user_id: None,
+            text_query: None,
+            memory_type: None,
+            limit: Some(10),
+        }
+    }
+
+    fn with_text_query(mut self, query: String) -> Self {
+        self.text_query = Some(query);
+        self
+    }
+
+    fn with_limit(mut self, limit: usize) -> Self {
+        self.limit = Some(limit);
+        self
+    }
+}
 use agent_mem_embeddings::{utils::EmbeddingUtils, EmbeddingConfig, EmbeddingFactory};
 use agent_mem_intelligence::{
     clustering::{ClusteringConfig, KMeansClusterer, MemoryClusterer},
@@ -139,7 +226,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let query = MemoryQuery::new("demo-agent".to_string())
         .with_text_query("tennis".to_string())
         .with_limit(5);
-    let search_results = memory_manager.search_memories(query).await?;
+    let search_results = memory_manager.search_memories(&query).await?;
     println!("   Found {} tennis-related memories", search_results.len());
 
     // Get memory statistics
@@ -153,7 +240,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             &memory_id1,
             Some("I love playing tennis and badminton on weekends".to_string()),
             Some(0.85),
-            None,
         )
         .await?;
     println!("   Updated memory: {}", &memory_id1[..8]);

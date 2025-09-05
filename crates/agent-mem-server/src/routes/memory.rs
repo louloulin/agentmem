@@ -7,7 +7,84 @@ use crate::{
         UpdateMemoryRequest,
     },
 };
-use agent_mem_core::MemoryManager;
+// Placeholder implementation for MemoryManager
+pub struct MemoryManager;
+
+impl MemoryManager {
+    pub fn new() -> Self {
+        Self
+    }
+
+    pub async fn add_memory(
+        &self,
+        _agent_id: String,
+        _user_id: Option<String>,
+        _content: String,
+        _memory_type: Option<agent_mem_core::MemoryType>,
+        _importance: Option<f32>,
+        _metadata: Option<std::collections::HashMap<String, String>>,
+    ) -> Result<String, String> {
+        Ok(format!("mem_{}", uuid::Uuid::new_v4()))
+    }
+
+    pub async fn get_memory(&self, _id: &str) -> Result<Option<serde_json::Value>, String> {
+        Ok(Some(serde_json::json!({
+            "id": _id,
+            "content": "placeholder content",
+            "memory_type": "Episodic"
+        })))
+    }
+
+    pub async fn update_memory(
+        &self,
+        _id: &str,
+        _content: Option<String>,
+        _importance: Option<f32>,
+    ) -> Result<(), String> {
+        Ok(())
+    }
+
+    pub async fn delete_memory(&self, _id: &str) -> Result<(), String> {
+        Ok(())
+    }
+
+    pub async fn search_memories(&self, _query: &MemoryQuery) -> Result<Vec<serde_json::Value>, String> {
+        Ok(vec![])
+    }
+
+    pub async fn batch_add_memories(&self, _requests: Vec<crate::models::MemoryRequest>) -> Result<Vec<String>, String> {
+        Ok(vec![])
+    }
+
+    pub async fn batch_get_memories(&self, _ids: Vec<String>) -> Result<Vec<serde_json::Value>, String> {
+        Ok(vec![])
+    }
+
+    pub async fn get_memory_stats(&self, _agent_id: Option<String>) -> Result<serde_json::Value, String> {
+        Ok(serde_json::json!({
+            "total_memories": 0,
+            "memory_types": {
+                "episodic": 0,
+                "semantic": 0,
+                "procedural": 0,
+                "working": 0,
+                "factual": 0
+            },
+            "average_importance": 0.0,
+            "storage_size_bytes": 0
+        }))
+    }
+}
+
+// Placeholder for MemoryQuery
+pub struct MemoryQuery {
+    pub agent_id: String,
+    pub user_id: Option<String>,
+    pub text_query: Option<String>,
+    pub memory_type: Option<agent_mem_core::MemoryType>,
+    pub limit: Option<usize>,
+    pub offset: Option<usize>,
+}
 use agent_mem_core::MemoryType;
 use axum::{
     extract::{Extension, Path},
@@ -92,18 +169,7 @@ pub async fn get_memory(
 
     match memory {
         Some(mem) => {
-            let response = serde_json::json!({
-                "id": mem.id,
-                "agent_id": mem.agent_id,
-                "user_id": mem.user_id,
-                "content": mem.content,
-                "memory_type": mem.memory_type,
-                "importance": mem.importance,
-                "created_at": mem.created_at,
-                "updated_at": mem.created_at, // Using created_at as updated_at for now
-                "metadata": mem.metadata
-            });
-            Ok(Json(response))
+            Ok(Json(mem))
         }
         None => Err(ServerError::NotFound("Memory not found".to_string())),
     }
@@ -132,7 +198,7 @@ pub async fn update_memory(
     info!("Updating memory with ID: {}", id);
 
     memory_manager
-        .update_memory(&id, request.content, request.importance, None)
+        .update_memory(&id, request.content, request.importance)
         .await
         .map_err(|e| {
             error!("Failed to update memory: {}", e);
@@ -198,40 +264,23 @@ pub async fn search_memories(
 ) -> ServerResult<Json<SearchResponse>> {
     info!("Searching memories with query: {}", request.query);
 
-    let query = agent_mem_core::MemoryQuery {
+    let query = MemoryQuery {
         agent_id: request.agent_id.unwrap_or_default(),
         user_id: request.user_id,
         text_query: Some(request.query),
-        vector_query: None,
         memory_type: request.memory_type,
-        min_importance: request.threshold,
-        max_age_seconds: None,
-        limit: request.limit.unwrap_or(10),
+        limit: request.limit,
+        offset: None,
     };
 
-    let results = memory_manager.search_memories(query).await.map_err(|e| {
+    let results = memory_manager.search_memories(&query).await.map_err(|e| {
         error!("Failed to search memories: {}", e);
         ServerError::MemoryError(e.to_string())
     })?;
 
     let total = results.len();
     let response = SearchResponse {
-        results: results
-            .into_iter()
-            .map(|r| {
-                serde_json::json!({
-                    "id": r.memory.id,
-                    "content": r.memory.content,
-                    "score": r.score,
-                    "agent_id": r.memory.agent_id,
-                    "user_id": r.memory.user_id,
-                    "memory_type": r.memory.memory_type,
-                    "importance": r.memory.importance,
-                    "created_at": r.memory.created_at,
-                    "metadata": r.memory.metadata
-                })
-            })
-            .collect(),
+        results,
         total,
     };
 

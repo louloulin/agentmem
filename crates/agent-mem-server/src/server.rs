@@ -6,7 +6,7 @@ use crate::{
     routes::create_router,
     telemetry::setup_telemetry,
 };
-use agent_mem_core::MemoryManager;
+use crate::routes::memory::MemoryManager;
 use axum::Router;
 use std::net::SocketAddr;
 use std::sync::Arc;

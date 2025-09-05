@@ -106,14 +106,14 @@ impl ImportanceScorer {
         let current_time = chrono::Utc::now().timestamp();
 
         for memory in memories.iter_mut() {
-            let old_importance = memory.importance;
+            let old_importance = memory.score.unwrap_or(0.5);
             let new_importance = self
                 .calculate_importance_score(memory, current_time)
                 .await?;
 
             if (new_importance - old_importance).abs() > 0.01 {
-                memory.importance = new_importance;
-                memory.version += 1;
+                memory.score = Some(new_importance);
+                memory.updated_at = Some(chrono::Utc::now());
                 updated_count += 1;
             }
         }
@@ -129,9 +129,9 @@ impl ImportanceScorer {
             .calculate_importance_score(memory, current_time)
             .await?;
 
-        if (new_importance - memory.importance).abs() > 0.01 {
-            memory.importance = new_importance;
-            memory.version += 1;
+        if (new_importance - memory.score.unwrap_or(0.5)).abs() > 0.01 {
+            memory.score = Some(new_importance);
+            memory.updated_at = Some(chrono::Utc::now());
         }
 
         Ok(())
@@ -173,7 +173,7 @@ impl ImportanceScorer {
         };
 
         // Apply decay based on time since last access
-        let time_since_access = current_time - memory.last_accessed_at;
+        let time_since_access = current_time - memory.updated_at.unwrap_or(memory.created_at).timestamp();
         let decay_factor = self
             .decay_rate
             .powf(time_since_access as f32 / (24.0 * 60.0 * 60.0)); // Daily decay
@@ -183,7 +183,7 @@ impl ImportanceScorer {
 
     /// Calculate recency score (newer memories are more important)
     fn calculate_recency_score(&self, memory: &Memory, current_time: i64) -> f32 {
-        let age_seconds = current_time - memory.created_at;
+        let age_seconds = current_time - memory.created_at.timestamp();
         let max_age = 30.0 * 24.0 * 60.0 * 60.0; // 30 days in seconds
 
         if age_seconds <= 0 {
@@ -197,7 +197,11 @@ impl ImportanceScorer {
     /// Calculate frequency score (more accessed memories are more important)
     fn calculate_frequency_score(&self, memory: &Memory) -> f32 {
         let max_access_count = 100.0; // Normalize to this maximum
-        (memory.access_count as f32 / max_access_count).clamp(0.0, 1.0)
+        let access_count = memory.metadata
+            .get("access_count")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as f32;
+        (access_count / max_access_count).clamp(0.0, 1.0)
     }
 
     /// Calculate relevance score based on content length and complexity
@@ -280,6 +284,10 @@ impl ImportanceScorer {
             MemoryType::Working => {
                 // Working memories: prioritize recency heavily
                 recency * 0.6 + frequency * 0.2 + relevance * 0.1 + emotional * 0.1
+            }
+            MemoryType::Factual => {
+                // Factual memories: prioritize relevance and context
+                relevance * 0.4 + context * 0.3 + frequency * 0.2 + recency * 0.1
             }
         }
     }

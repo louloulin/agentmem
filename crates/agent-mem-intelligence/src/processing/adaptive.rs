@@ -190,6 +190,22 @@ impl AdaptiveMemoryManager {
         Ok(action)
     }
 
+    /// Get access count from memory metadata
+    fn get_access_count(&self, memory: &Memory) -> u32 {
+        memory.metadata
+            .get("access_count")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as u32
+    }
+
+    /// Get last accessed timestamp from memory metadata
+    fn get_last_accessed(&self, memory: &Memory) -> i64 {
+        memory.metadata
+            .get("last_accessed_at")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(memory.created_at.timestamp())
+    }
+
     /// Determine lifecycle actions for all memories
     async fn determine_lifecycle_actions(
         &self,
@@ -214,13 +230,13 @@ impl AdaptiveMemoryManager {
         memory: &Memory,
         current_time: i64,
     ) -> Result<LifecycleAction> {
-        let age = current_time - memory.created_at;
-        let time_since_access = current_time - memory.last_accessed_at;
+        let age = current_time - memory.created_at.timestamp();
+        let time_since_access = current_time - memory.updated_at.unwrap_or(memory.created_at).timestamp();
 
         // Check for deletion conditions
         if age > self.thresholds.delete_age_threshold
-            || (memory.importance < self.thresholds.min_importance
-                && memory.access_count < self.thresholds.min_access_count)
+            || (memory.score.unwrap_or(0.5) < self.thresholds.min_importance as f32
+                && self.get_access_count(memory) < self.thresholds.min_access_count)
         {
             return Ok(LifecycleAction::Delete);
         }
@@ -247,14 +263,14 @@ impl AdaptiveMemoryManager {
                 }
             }
             AdaptiveStrategy::LFU => {
-                if memory.access_count < 2 && age > self.retention_period / 7 {
+                if self.get_access_count(memory) < 2 && age > self.retention_period / 7 {
                     Ok(LifecycleAction::Archive)
                 } else {
                     Ok(LifecycleAction::Keep)
                 }
             }
             AdaptiveStrategy::ImportanceBased => {
-                if memory.importance < 0.3 {
+                if memory.score.unwrap_or(0.5) < 0.3 {
                     Ok(LifecycleAction::Archive)
                 } else {
                     Ok(LifecycleAction::Keep)
@@ -262,10 +278,10 @@ impl AdaptiveMemoryManager {
             }
             AdaptiveStrategy::Hybrid => {
                 // Combine multiple factors
-                let importance_factor = memory.importance;
+                let importance_factor = memory.score.unwrap_or(0.5);
                 let recency_factor =
                     1.0 - (time_since_access as f32 / self.retention_period as f32).min(1.0);
-                let frequency_factor = (memory.access_count as f32 / 10.0).min(1.0);
+                let frequency_factor = (self.get_access_count(memory) as f32 / 10.0).min(1.0);
 
                 let combined_score =
                     importance_factor * 0.5 + recency_factor * 0.3 + frequency_factor * 0.2;
@@ -283,15 +299,17 @@ impl AdaptiveMemoryManager {
     async fn archive_memory(&self, memory: &mut Memory) -> Result<()> {
         memory
             .metadata
-            .insert("archived".to_string(), "true".to_string());
+            .insert("archived".to_string(), serde_json::Value::Bool(true));
         memory.metadata.insert(
             "archived_at".to_string(),
-            chrono::Utc::now().timestamp().to_string(),
+            serde_json::Value::Number(serde_json::Number::from(chrono::Utc::now().timestamp())),
         );
 
         // Reduce importance slightly for archived memories
-        memory.importance *= 0.8;
-        memory.version += 1;
+        if let Some(score) = memory.score {
+            memory.score = Some(score * 0.8);
+        }
+        memory.updated_at = Some(chrono::Utc::now());
 
         debug!("Archived memory: {}", memory.id);
         Ok(())
@@ -325,11 +343,11 @@ impl AdaptiveMemoryManager {
             memory.content = compressed_content;
             memory
                 .metadata
-                .insert("compressed".to_string(), "true".to_string());
+                .insert("compressed".to_string(), serde_json::Value::Bool(true));
             memory
                 .metadata
-                .insert("original_size".to_string(), original_size.to_string());
-            memory.version += 1;
+                .insert("original_size".to_string(), serde_json::Value::Number(serde_json::Number::from(original_size)));
+            memory.updated_at = Some(chrono::Utc::now());
 
             debug!(
                 "Compressed memory {} from {} to {} bytes",
@@ -365,15 +383,15 @@ impl AdaptiveMemoryManager {
                 let score = match self.strategy {
                     AdaptiveStrategy::LRU => {
                         let current_time = chrono::Utc::now().timestamp();
-                        -(current_time - memory.last_accessed_at) as f32
+                        -(current_time - self.get_last_accessed(memory)) as f32
                     }
-                    AdaptiveStrategy::LFU => -(memory.access_count as f32),
-                    AdaptiveStrategy::ImportanceBased => -memory.importance,
+                    AdaptiveStrategy::LFU => -(self.get_access_count(memory) as f32),
+                    AdaptiveStrategy::ImportanceBased => -memory.score.unwrap_or(0.5),
                     AdaptiveStrategy::Hybrid => {
                         let current_time = chrono::Utc::now().timestamp();
-                        let recency = -(current_time - memory.last_accessed_at) as f32 / 86400.0; // Days
-                        let frequency = -(memory.access_count as f32);
-                        let importance = -memory.importance;
+                        let recency = -(current_time - self.get_last_accessed(memory)) as f32 / 86400.0; // Days
+                        let frequency = -(self.get_access_count(memory) as f32);
+                        let importance = -memory.score.unwrap_or(0.5);
                         recency * 0.3 + frequency * 0.3 + importance * 0.4
                     }
                 };

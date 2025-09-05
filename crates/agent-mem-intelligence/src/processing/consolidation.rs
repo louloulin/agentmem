@@ -72,6 +72,14 @@ impl MemoryConsolidator {
         self.similarity_cache.clear();
     }
 
+    /// Get access count from memory metadata
+    fn get_access_count(&self, memory: &Memory) -> u32 {
+        memory.metadata
+            .get("access_count")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as u32
+    }
+
     /// Consolidate a batch of memories
     pub async fn consolidate_memories(&mut self, memories: &mut Vec<Memory>) -> Result<usize> {
         if memories.len() < 2 {
@@ -177,7 +185,7 @@ impl MemoryConsolidator {
         };
 
         // Consider temporal proximity (memories created close in time are more likely to be related)
-        let time_diff = (memory1.created_at - memory2.created_at).abs() as f32;
+        let time_diff = (memory1.created_at - memory2.created_at).num_seconds().abs() as f32;
         let max_time_diff = 24.0 * 60.0 * 60.0; // 24 hours in seconds
         let temporal_similarity = (max_time_diff - time_diff.min(max_time_diff)) / max_time_diff;
 
@@ -203,16 +211,16 @@ impl MemoryConsolidator {
             .iter()
             .max_by(|&&a, &&b| {
                 memories[a]
-                    .importance
-                    .partial_cmp(&memories[b].importance)
+                    .score.unwrap_or(0.5)
+                    .partial_cmp(&memories[b].score.unwrap_or(0.5))
                     .unwrap()
             })
             .copied()
             .unwrap();
 
         let mut merged_content = memories[base_idx].content.clone();
-        let mut merged_importance = memories[base_idx].importance;
-        let mut merged_access_count = memories[base_idx].access_count;
+        let mut merged_importance = memories[base_idx].score.unwrap_or(0.5);
+        let mut merged_access_count = self.get_access_count(&memories[base_idx]);
 
         // Merge content and aggregate statistics
         for &idx in group {
@@ -229,17 +237,20 @@ impl MemoryConsolidator {
             }
 
             // Aggregate importance (weighted average)
-            merged_importance = (merged_importance + memory.importance) / 2.0;
+            merged_importance = (merged_importance + memory.score.unwrap_or(0.5)) / 2.0;
 
             // Sum access counts
-            merged_access_count += memory.access_count;
+            merged_access_count += self.get_access_count(memory);
         }
 
         // Update the base memory
         memories[base_idx].content = merged_content;
-        memories[base_idx].importance = merged_importance;
-        memories[base_idx].access_count = merged_access_count;
-        memories[base_idx].version += 1;
+        memories[base_idx].score = Some(merged_importance);
+        memories[base_idx].metadata.insert(
+            "access_count".to_string(),
+            serde_json::Value::Number(serde_json::Number::from(merged_access_count))
+        );
+        memories[base_idx].updated_at = Some(chrono::Utc::now());
 
         // Mark other memories for removal (set empty content as marker)
         for &idx in group {
@@ -271,8 +282,8 @@ impl MemoryConsolidator {
             .iter()
             .max_by(|&&a, &&b| {
                 memories[a]
-                    .importance
-                    .partial_cmp(&memories[b].importance)
+                    .score.unwrap_or(0.5)
+                    .partial_cmp(&memories[b].score.unwrap_or(0.5))
                     .unwrap()
             })
             .copied()
@@ -288,10 +299,10 @@ impl MemoryConsolidator {
 
             memories[idx]
                 .metadata
-                .insert("consolidated_with".to_string(), primary_id.clone());
+                .insert("consolidated_with".to_string(), serde_json::Value::String(primary_id.clone()));
             memories[idx]
                 .metadata
-                .insert("consolidation_type".to_string(), "reference".to_string());
+                .insert("consolidation_type".to_string(), serde_json::Value::String("reference".to_string()));
         }
 
         // Add reference list to primary memory
@@ -303,7 +314,7 @@ impl MemoryConsolidator {
 
         memories[primary_idx]
             .metadata
-            .insert("references".to_string(), reference_ids.join(","));
+            .insert("references".to_string(), serde_json::Value::String(reference_ids.join(",")));
 
         debug!("Created references for {} memories", group.len());
         Ok(true)
@@ -321,10 +332,10 @@ impl MemoryConsolidator {
         for &idx in group {
             memories[idx]
                 .metadata
-                .insert("memory_group".to_string(), group_id.clone());
+                .insert("memory_group".to_string(), serde_json::Value::String(group_id.clone()));
             memories[idx]
                 .metadata
-                .insert("group_size".to_string(), group.len().to_string());
+                .insert("group_size".to_string(), serde_json::Value::Number(serde_json::Number::from(group.len())));
         }
 
         debug!(
@@ -345,24 +356,33 @@ impl MemoryConsolidator {
 mod tests {
     use super::*;
     use agent_mem_core::MemoryType;
-    use chrono::Utc;
-    use std::collections::HashMap;
+
 
     fn create_test_memory(id: &str, content: &str, importance: f32) -> Memory {
+        use agent_mem_traits::Session;
+
+        let session = Session {
+            id: "test_session".to_string(),
+            agent_id: Some("test_agent".to_string()),
+            user_id: Some("test_user".to_string()),
+            actor_id: Some("test_actor".to_string()),
+            run_id: Some("test_run".to_string()),
+            created_at: chrono::Utc::now(),
+            metadata: std::collections::HashMap::new(),
+        };
+
         Memory {
             id: id.to_string(),
-            agent_id: "test_agent".to_string(),
-            user_id: Some("test_user".to_string()),
-            memory_type: MemoryType::Episodic,
             content: content.to_string(),
-            importance,
-            embedding: None,
-            created_at: Utc::now().timestamp(),
-            last_accessed_at: Utc::now().timestamp(),
-            access_count: 1,
-            expires_at: None,
-            metadata: HashMap::new(),
-            version: 1,
+            hash: Some("test_hash".to_string()),
+            metadata: std::collections::HashMap::new(),
+            score: Some(importance),
+            memory_type: MemoryType::Episodic,
+            created_at: chrono::Utc::now(),
+            updated_at: None,
+            session,
+            entities: Vec::new(),
+            relations: Vec::new(),
         }
     }
 

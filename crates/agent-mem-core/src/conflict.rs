@@ -1,6 +1,6 @@
 //! Conflict detection and resolution
 
-use crate::Memory;
+
 use serde::{Deserialize, Serialize};
 
 /// Conflict detector

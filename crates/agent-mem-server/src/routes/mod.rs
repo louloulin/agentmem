@@ -6,7 +6,7 @@ pub mod memory;
 pub mod metrics;
 
 use crate::error::ServerResult;
-use agent_mem_core::MemoryManager;
+use crate::routes::memory::MemoryManager;
 use axum::{
     routing::{delete, get, post, put},
     Extension, Router,
@@ -100,7 +100,7 @@ struct ApiDoc;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agent_mem_core::MemoryManager;
+    use crate::routes::memory::MemoryManager;
     use tower_test::mock;
 
     #[tokio::test]

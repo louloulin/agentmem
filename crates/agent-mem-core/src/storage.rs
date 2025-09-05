@@ -2,7 +2,7 @@
 
 use crate::Memory;
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
+
 
 /// Storage backend trait
 #[async_trait]

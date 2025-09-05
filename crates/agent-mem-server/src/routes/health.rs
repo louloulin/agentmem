@@ -1,7 +1,7 @@
 //! Health check routes
 
 use crate::{error::ServerResult, models::HealthResponse};
-use agent_mem_core::MemoryManager;
+use crate::routes::memory::MemoryManager;
 use axum::{extract::Extension, response::Json};
 use chrono::Utc;
 use std::sync::Arc;
@@ -43,7 +43,7 @@ pub async fn health_check(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agent_mem_core::MemoryManager;
+    use crate::routes::memory::MemoryManager;
 
     #[tokio::test]
     async fn test_health_check() {
