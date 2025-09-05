@@ -300,8 +300,6 @@ examples/data/
 *.diff
 
 # Core dumps
-core
-core.*
 
 # Memory dumps
 *.dmp
