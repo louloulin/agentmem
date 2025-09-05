@@ -38,6 +38,7 @@ members = [
     "examples/phase4-demo",
     "examples/server-demo",
     "examples/client-demo",
+    "examples/mem0-compat-demo",
     # "examples/basic-usage",
     # "examples/advanced-features",
     # "examples/migration-from-agentmen",

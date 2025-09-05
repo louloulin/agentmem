@@ -12,14 +12,8 @@ categories.workspace = true
 description = "Mem0 compatibility layer for AgentMem"
 
 [dependencies]
-# AgentMem core dependencies
+# AgentMem core dependencies (minimal for compatibility layer)
 agent-mem-traits = { path = "../agent-mem-traits" }
-agent-mem-core = { path = "../agent-mem-core" }
-agent-mem-storage = { path = "../agent-mem-storage" }
-agent-mem-embeddings = { path = "../agent-mem-embeddings" }
-agent-mem-llm = { path = "../agent-mem-llm" }
-agent-mem-intelligence = { path = "../agent-mem-intelligence" }
-agent-mem-utils = { path = "../agent-mem-utils" }
 
 # Async runtime
 tokio.workspace = true

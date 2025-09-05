@@ -15,6 +15,10 @@ pub mod storage;
 pub mod conflict;
 pub mod lifecycle;
 pub mod context;
+pub mod manager;
+pub mod history;
+pub mod operations;
+pub mod types;
 
 // Re-export core types
 pub use engine::{MemoryEngine, MemoryEngineConfig};

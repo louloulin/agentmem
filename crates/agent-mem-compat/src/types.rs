@@ -177,48 +177,5 @@ pub struct MemoryHistory {
     pub metadata: HashMap<String, serde_json::Value>,
 }
 
-impl From<agent_mem_core::Memory> for Memory {
-    fn from(memory: agent_mem_core::Memory) -> Self {
-        Self {
-            id: memory.id,
-            memory: memory.content,
-            user_id: memory.user_id.unwrap_or_else(|| "default".to_string()),
-            agent_id: Some(memory.agent_id),
-            run_id: memory.session.run_id,
-            metadata: memory.metadata,
-            score: memory.score,
-            created_at: memory.created_at,
-            updated_at: memory.updated_at,
-        }
-    }
-}
-
-impl From<Memory> for agent_mem_core::Memory {
-    fn from(memory: Memory) -> Self {
-        use agent_mem_traits::{MemoryType, Session};
-        
-        Self {
-            id: memory.id,
-            content: memory.memory,
-            hash: None,
-            metadata: memory.metadata,
-            score: memory.score,
-            created_at: memory.created_at,
-            updated_at: memory.updated_at,
-            session: Session::new()
-                .with_user_id(Some(memory.user_id.clone()))
-                .with_run_id(memory.run_id),
-            memory_type: MemoryType::Episodic, // Default to episodic for Mem0 compatibility
-            entities: Vec::new(),
-            relations: Vec::new(),
-            agent_id: memory.agent_id.unwrap_or_else(|| "default".to_string()),
-            user_id: Some(memory.user_id),
-            importance: memory.score.unwrap_or(0.5),
-            embedding: None,
-            last_accessed_at: memory.created_at,
-            access_count: 0,
-            expires_at: None,
-            version: 1,
-        }
-    }
-}
+// Note: Conversion implementations would be added here when integrating with full AgentMem
+// For now, the compatibility layer uses its own Memory type

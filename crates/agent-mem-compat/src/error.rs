@@ -64,41 +64,38 @@ pub enum Mem0Error {
 impl From<agent_mem_traits::AgentMemError> for Mem0Error {
     fn from(error: agent_mem_traits::AgentMemError) -> Self {
         match error {
-            agent_mem_traits::AgentMemError::NotFound { resource, id } => {
-                Mem0Error::MemoryNotFound { id: format!("{}:{}", resource, id) }
+            agent_mem_traits::AgentMemError::NotFound(msg) => {
+                Mem0Error::MemoryNotFound { id: msg }
             }
-            agent_mem_traits::AgentMemError::InvalidInput { field, reason } => {
-                Mem0Error::InvalidContent { reason: format!("{}: {}", field, reason) }
+            agent_mem_traits::AgentMemError::StorageError(msg) => {
+                Mem0Error::StorageError { message: msg }
             }
-            agent_mem_traits::AgentMemError::StorageError { message } => {
-                Mem0Error::StorageError { message }
+            agent_mem_traits::AgentMemError::EmbeddingError(msg) => {
+                Mem0Error::EmbeddingError { message: msg }
             }
-            agent_mem_traits::AgentMemError::EmbeddingError { message } => {
-                Mem0Error::EmbeddingError { message }
+            agent_mem_traits::AgentMemError::LLMError(msg) => {
+                Mem0Error::LlmError { message: msg }
             }
-            agent_mem_traits::AgentMemError::LlmError { message } => {
-                Mem0Error::LlmError { message }
+            agent_mem_traits::AgentMemError::NetworkError(msg) => {
+                Mem0Error::NetworkError { message: msg }
             }
-            agent_mem_traits::AgentMemError::NetworkError { message } => {
-                Mem0Error::NetworkError { message }
+            agent_mem_traits::AgentMemError::SerializationError(err) => {
+                Mem0Error::SerializationError { message: err.to_string() }
             }
-            agent_mem_traits::AgentMemError::SerializationError { message } => {
-                Mem0Error::SerializationError { message }
+            agent_mem_traits::AgentMemError::ConfigError(msg) => {
+                Mem0Error::ConfigError { message: msg }
             }
-            agent_mem_traits::AgentMemError::ConfigurationError { message } => {
-                Mem0Error::ConfigError { message }
+            agent_mem_traits::AgentMemError::AuthError(msg) => {
+                Mem0Error::AuthenticationError { message: msg }
             }
-            agent_mem_traits::AgentMemError::InternalError { message } => {
-                Mem0Error::InternalError { message }
+            agent_mem_traits::AgentMemError::RateLimitError(msg) => {
+                Mem0Error::RateLimitExceeded { message: msg }
             }
-            agent_mem_traits::AgentMemError::RateLimitExceeded { message } => {
-                Mem0Error::RateLimitExceeded { message }
+            agent_mem_traits::AgentMemError::ValidationError(msg) => {
+                Mem0Error::InvalidContent { reason: msg }
             }
-            agent_mem_traits::AgentMemError::AuthenticationError { message } => {
-                Mem0Error::AuthenticationError { message }
-            }
-            agent_mem_traits::AgentMemError::PermissionDenied { message } => {
-                Mem0Error::PermissionDenied { message }
+            _ => {
+                Mem0Error::InternalError { message: error.to_string() }
             }
         }
     }

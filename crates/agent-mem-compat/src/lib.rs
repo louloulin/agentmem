@@ -37,6 +37,9 @@ pub mod types;
 pub mod error;
 pub mod utils;
 
+#[cfg(test)]
+mod tests;
+
 // Re-export main types for convenience
 pub use client::Mem0Client;
 pub use config::Mem0Config;
