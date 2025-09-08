@@ -3,11 +3,21 @@
 //! MongoDB 是一个高性能的 NoSQL 文档数据库，特别适合存储结构化的记忆数据。
 //! 支持复杂查询、聚合操作和水平扩展。
 
-use agent_mem_traits::{Result, VectorData, VectorStore, VectorSearchResult};
+use agent_mem_traits::{AgentMemError, Result, VectorData, VectorStore, VectorSearchResult};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::time::Duration;
+
+
+#[cfg(feature = "mongodb")]
+use mongodb::{Client, Collection, Database};
+#[cfg(feature = "mongodb")]
+use bson::{doc, Document};
+#[cfg(feature = "mongodb")]
+use futures::stream::StreamExt;
+
+#[cfg(not(feature = "mongodb"))]
+use std::sync::{Arc, Mutex};
 
 /// MongoDB 存储配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -101,37 +111,74 @@ pub struct MongoSearchResult {
 /// MongoDB 存储实现
 pub struct MongoDBStore {
     config: MongoDBConfig,
-    // 注意：这里我们使用一个简化的内存实现作为占位符
-    // 在实际实现中，这里应该是 MongoDB 客户端连接
+    #[cfg(feature = "mongodb")]
+    client: Client,
+    #[cfg(feature = "mongodb")]
+    database: Database,
+    #[cfg(feature = "mongodb")]
+    collection: Collection<MongoVectorDocument>,
+    #[cfg(not(feature = "mongodb"))]
+    // 当没有 MongoDB 特性时，使用内存实现作为占位符
     vectors: std::sync::Arc<std::sync::Mutex<HashMap<String, MongoVectorDocument>>>,
 }
 
 impl MongoDBStore {
     /// 创建新的 MongoDB 存储实例
     pub async fn new(config: MongoDBConfig) -> Result<Self> {
-        // 在实际实现中，这里应该建立 MongoDB 连接
-        // let client = mongodb::Client::with_uri_str(&config.connection_string).await?;
-        // let database = client.database(&config.database_name);
-        // let collection = database.collection::<MongoVectorDocument>(&config.collection_name);
-        
-        let store = Self {
-            config,
-            vectors: std::sync::Arc::new(std::sync::Mutex::new(HashMap::new())),
-        };
+        #[cfg(feature = "mongodb")]
+        {
+            // 使用真正的 MongoDB 客户端
+            let client = Client::with_uri_str(&config.connection_string)
+                .await
+                .map_err(|e| agent_mem_traits::AgentMemError::storage_error(&format!("Failed to connect to MongoDB: {}", e)))?;
 
-        // 验证连接（在实际实现中）
-        store.verify_connection().await?;
+            let database = client.database(&config.database_name);
+            let collection = database.collection::<MongoVectorDocument>(&config.collection_name);
 
-        Ok(store)
+            let store = Self {
+                config,
+                client,
+                database,
+                collection,
+            };
+
+            // 验证连接
+            store.verify_connection().await?;
+            Ok(store)
+        }
+
+        #[cfg(not(feature = "mongodb"))]
+        {
+            // 使用内存实现作为占位符
+            let store = Self {
+                config,
+                vectors: std::sync::Arc::new(std::sync::Mutex::new(HashMap::new())),
+            };
+
+            // 验证连接（模拟）
+            store.verify_connection().await?;
+            Ok(store)
+        }
     }
 
     /// 验证 MongoDB 连接
     async fn verify_connection(&self) -> Result<()> {
-        // 在实际实现中，这里应该 ping MongoDB 服务器
-        // self.client.database("admin").run_command(doc! {"ping": 1}, None).await?;
-        
-        // 模拟连接验证
-        tokio::time::sleep(Duration::from_millis(10)).await;
+        #[cfg(feature = "mongodb")]
+        {
+            // 使用真正的 MongoDB ping 命令
+            self.client
+                .database("admin")
+                .run_command(doc! {"ping": 1}, None)
+                .await
+                .map_err(|e| agent_mem_traits::AgentMemError::storage_error(&format!("MongoDB ping failed: {}", e)))?;
+        }
+
+        #[cfg(not(feature = "mongodb"))]
+        {
+            // 模拟连接验证
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+
         Ok(())
     }
 
@@ -183,24 +230,54 @@ impl MongoDBStore {
 #[async_trait]
 impl VectorStore for MongoDBStore {
     async fn add_vectors(&self, vectors: Vec<VectorData>) -> Result<Vec<String>> {
-        let mut store = self.vectors.lock().unwrap();
         let mut ids = Vec::new();
 
-        for vector_data in vectors {
-            let id = if vector_data.id.is_empty() {
-                format!("mongo_{}", uuid::Uuid::new_v4())
-            } else {
-                vector_data.id.clone()
-            };
+        #[cfg(feature = "mongodb")]
+        {
+            // 使用真正的 MongoDB 操作
+            let mut documents = Vec::new();
 
-            let mut doc = MongoVectorDocument::from(vector_data);
-            doc.id = id.clone();
+            for vector_data in vectors {
+                let id = if vector_data.id.is_empty() {
+                    format!("mongo_{}", uuid::Uuid::new_v4())
+                } else {
+                    vector_data.id.clone()
+                };
 
-            // 在实际实现中，这里应该插入到 MongoDB
-            // self.collection.insert_one(&doc, None).await?;
-            
-            store.insert(id.clone(), doc);
-            ids.push(id);
+                let mut doc = MongoVectorDocument::from(vector_data);
+                doc.id = id.clone();
+
+                documents.push(doc);
+                ids.push(id);
+            }
+
+            // 批量插入到 MongoDB
+            if !documents.is_empty() {
+                self.collection
+                    .insert_many(documents, None)
+                    .await
+                    .map_err(|e| agent_mem_traits::AgentMemError::storage_error(&format!("Failed to insert vectors: {}", e)))?;
+            }
+        }
+
+        #[cfg(not(feature = "mongodb"))]
+        {
+            // 使用内存实现作为占位符
+            let mut store = self.vectors.lock().unwrap();
+
+            for vector_data in vectors {
+                let id = if vector_data.id.is_empty() {
+                    format!("mongo_{}", uuid::Uuid::new_v4())
+                } else {
+                    vector_data.id.clone()
+                };
+
+                let mut doc = MongoVectorDocument::from(vector_data);
+                doc.id = id.clone();
+
+                store.insert(id.clone(), doc);
+                ids.push(id);
+            }
         }
 
         Ok(ids)
@@ -212,30 +289,74 @@ impl VectorStore for MongoDBStore {
         limit: usize,
         threshold: Option<f32>,
     ) -> Result<Vec<VectorSearchResult>> {
-        let store = self.vectors.lock().unwrap();
         let mut results = Vec::new();
 
-        // 在实际实现中，这里应该使用 MongoDB 的向量搜索功能
-        // 或者使用聚合管道进行相似度计算
+        #[cfg(feature = "mongodb")]
+        {
+            // 使用 MongoDB 查询所有文档，然后在内存中计算相似度
+            // 在生产环境中，可以使用 MongoDB Atlas Vector Search 或其他向量搜索解决方案
+            let cursor = self.collection
+                .find(None, None)
+                .await
+                .map_err(|e| agent_mem_traits::AgentMemError::storage_error(&format!("Failed to query vectors: {}", e)))?;
 
-        for (_, doc) in store.iter() {
-            let similarity = self.cosine_similarity(&query_vector, &doc.vector);
-            let distance = self.euclidean_distance(&query_vector, &doc.vector);
+            let cursor_results = cursor
+                .collect::<Vec<_>>()
+                .await;
 
-            // 应用阈值过滤
-            if let Some(threshold) = threshold {
-                if similarity < threshold {
-                    continue;
+            let mut documents = Vec::new();
+            for result in cursor_results {
+                match result {
+                    Ok(doc) => documents.push(doc),
+                    Err(e) => return Err(agent_mem_traits::AgentMemError::storage_error(&format!("Failed to collect results: {}", e))),
                 }
             }
 
-            results.push(VectorSearchResult {
-                id: doc.id.clone(),
-                vector: doc.vector.clone(),
-                metadata: doc.metadata.clone(),
-                similarity,
-                distance,
-            });
+            for doc in documents {
+                let similarity = self.cosine_similarity(&query_vector, &doc.vector);
+                let distance = self.euclidean_distance(&query_vector, &doc.vector);
+
+                // 应用阈值过滤
+                if let Some(threshold) = threshold {
+                    if similarity < threshold {
+                        continue;
+                    }
+                }
+
+                results.push(VectorSearchResult {
+                    id: doc.id.clone(),
+                    vector: doc.vector.clone(),
+                    metadata: doc.metadata.clone(),
+                    similarity,
+                    distance,
+                });
+            }
+        }
+
+        #[cfg(not(feature = "mongodb"))]
+        {
+            // 使用内存实现作为占位符
+            let store = self.vectors.lock().unwrap();
+
+            for (_, doc) in store.iter() {
+                let similarity = self.cosine_similarity(&query_vector, &doc.vector);
+                let distance = self.euclidean_distance(&query_vector, &doc.vector);
+
+                // 应用阈值过滤
+                if let Some(threshold) = threshold {
+                    if similarity < threshold {
+                        continue;
+                    }
+                }
+
+                results.push(VectorSearchResult {
+                    id: doc.id.clone(),
+                    vector: doc.vector.clone(),
+                    metadata: doc.metadata.clone(),
+                    similarity,
+                    distance,
+                });
+            }
         }
 
         // 按相似度排序并限制结果数量
@@ -246,34 +367,67 @@ impl VectorStore for MongoDBStore {
     }
 
     async fn delete_vectors(&self, ids: Vec<String>) -> Result<()> {
-        let mut store = self.vectors.lock().unwrap();
+        #[cfg(feature = "mongodb")]
+        {
+            // 使用真正的 MongoDB 删除操作
+            for id in ids {
+                self.collection
+                    .delete_one(doc! {"_id": &id}, None)
+                    .await
+                    .map_err(|e| agent_mem_traits::AgentMemError::storage_error(&format!("Failed to delete vector {}: {}", id, e)))?;
+            }
+        }
 
-        for id in ids {
-            // 在实际实现中，这里应该从 MongoDB 删除
-            // self.collection.delete_one(doc! {"_id": &id}, None).await?;
-            
-            store.remove(&id);
+        #[cfg(not(feature = "mongodb"))]
+        {
+            // 使用内存实现作为占位符
+            let mut store = self.vectors.lock().unwrap();
+            for id in ids {
+                store.remove(&id);
+            }
         }
 
         Ok(())
     }
 
     async fn update_vectors(&self, vectors: Vec<VectorData>) -> Result<()> {
-        let mut store = self.vectors.lock().unwrap();
+        #[cfg(feature = "mongodb")]
+        {
+            // 使用真正的 MongoDB 更新操作
+            for vector_data in vectors {
+                let id = vector_data.id.clone();
 
-        for vector_data in vectors {
-            let id = vector_data.id.clone();
-            
-            if let Some(existing_doc) = store.get(&id) {
-                let mut updated_doc = MongoVectorDocument::from(vector_data);
-                updated_doc.id = id.clone();
-                updated_doc.created_at = existing_doc.created_at; // 保持原创建时间
-                updated_doc.updated_at = chrono::Utc::now().timestamp();
+                // 先查找现有文档以保持创建时间
+                if let Ok(Some(existing_doc)) = self.collection.find_one(doc! {"_id": &id}, None).await {
+                    let mut updated_doc = MongoVectorDocument::from(vector_data);
+                    updated_doc.id = id.clone();
+                    updated_doc.created_at = existing_doc.created_at; // 保持原创建时间
+                    updated_doc.updated_at = chrono::Utc::now().timestamp();
 
-                // 在实际实现中，这里应该更新 MongoDB 文档
-                // self.collection.replace_one(doc! {"_id": &id}, &updated_doc, None).await?;
-                
-                store.insert(id, updated_doc);
+                    self.collection
+                        .replace_one(doc! {"_id": &id}, &updated_doc, None)
+                        .await
+                        .map_err(|e| agent_mem_traits::AgentMemError::storage_error(&format!("Failed to update vector {}: {}", id, e)))?;
+                }
+            }
+        }
+
+        #[cfg(not(feature = "mongodb"))]
+        {
+            // 使用内存实现作为占位符
+            let mut store = self.vectors.lock().unwrap();
+
+            for vector_data in vectors {
+                let id = vector_data.id.clone();
+
+                if let Some(existing_doc) = store.get(&id) {
+                    let mut updated_doc = MongoVectorDocument::from(vector_data);
+                    updated_doc.id = id.clone();
+                    updated_doc.created_at = existing_doc.created_at; // 保持原创建时间
+                    updated_doc.updated_at = chrono::Utc::now().timestamp();
+
+                    store.insert(id, updated_doc);
+                }
             }
         }
 
@@ -281,30 +435,62 @@ impl VectorStore for MongoDBStore {
     }
 
     async fn get_vector(&self, id: &str) -> Result<Option<VectorData>> {
-        let store = self.vectors.lock().unwrap();
-        
-        // 在实际实现中，这里应该从 MongoDB 查询
-        // let doc = self.collection.find_one(doc! {"_id": id}, None).await?;
-        
-        Ok(store.get(id).map(|doc| VectorData::from(doc.clone())))
+        #[cfg(feature = "mongodb")]
+        {
+            // 使用真正的 MongoDB 查询
+            let doc = self.collection
+                .find_one(doc! {"_id": id}, None)
+                .await
+                .map_err(|e| agent_mem_traits::AgentMemError::storage_error(&format!("Failed to get vector {}: {}", id, e)))?;
+
+            Ok(doc.map(|d| VectorData::from(d)))
+        }
+
+        #[cfg(not(feature = "mongodb"))]
+        {
+            // 使用内存实现作为占位符
+            let store = self.vectors.lock().unwrap();
+            Ok(store.get(id).map(|doc| VectorData::from(doc.clone())))
+        }
     }
 
     async fn count_vectors(&self) -> Result<usize> {
-        let store = self.vectors.lock().unwrap();
-        
-        // 在实际实现中，这里应该使用 MongoDB 的 count_documents
-        // self.collection.count_documents(doc! {}, None).await
-        
-        Ok(store.len())
+        #[cfg(feature = "mongodb")]
+        {
+            // 使用真正的 MongoDB count_documents
+            let count = self.collection
+                .count_documents(doc! {}, None)
+                .await
+                .map_err(|e| agent_mem_traits::AgentMemError::storage_error(&format!("Failed to count vectors: {}", e)))?;
+
+            Ok(count as usize)
+        }
+
+        #[cfg(not(feature = "mongodb"))]
+        {
+            // 使用内存实现作为占位符
+            let store = self.vectors.lock().unwrap();
+            Ok(store.len())
+        }
     }
 
     async fn clear(&self) -> Result<()> {
-        let mut store = self.vectors.lock().unwrap();
-        
-        // 在实际实现中，这里应该删除 MongoDB 集合中的所有文档
-        // self.collection.delete_many(doc! {}, None).await?;
-        
-        store.clear();
+        #[cfg(feature = "mongodb")]
+        {
+            // 使用真正的 MongoDB delete_many
+            self.collection
+                .delete_many(doc! {}, None)
+                .await
+                .map_err(|e| agent_mem_traits::AgentMemError::storage_error(&format!("Failed to clear vectors: {}", e)))?;
+        }
+
+        #[cfg(not(feature = "mongodb"))]
+        {
+            // 使用内存实现作为占位符
+            let mut store = self.vectors.lock().unwrap();
+            store.clear();
+        }
+
         Ok(())
     }
 }

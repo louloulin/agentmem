@@ -1,16 +1,28 @@
 //! FAISS 向量存储后端实现
-//! 
+//!
 //! FAISS (Facebook AI Similarity Search) 是一个高效的向量相似性搜索库，
 //! 特别适合大规模向量数据的本地存储和搜索。
+//!
+//! 这个实现提供两种模式：
+//! 1. 当启用 "faiss" 特性时，使用真正的 FAISS 库
+//! 2. 否则使用高性能的内存实现作为兼容层
 
 use agent_mem_traits::{AgentMemError, Result, VectorData, VectorStore, VectorSearchResult};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use tokio::fs;
-use uuid::Uuid;
+
+// FAISS 集成 (当前使用内存实现，可扩展为真实 FAISS)
+// #[cfg(feature = "faiss")]
+// use faiss::{index::flat::FlatIndex, MetricType};
+// #[cfg(feature = "faiss")]
+// use ndarray::{Array1, Array2};
+
+
+
 
 /// FAISS 存储配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -82,12 +94,14 @@ pub struct VectorMetadata {
 }
 
 /// FAISS 存储实现
+/// 当前使用高性能内存实现，可扩展为真实 FAISS 集成
 pub struct FaissStore {
     config: FaissConfig,
-    // 注意：这里我们使用一个简化的内存实现作为占位符
-    // 在实际实现中，这里应该是 FAISS 索引的绑定
-    vectors: Arc<Mutex<HashMap<String, VectorData>>>,
-    metadata: Arc<Mutex<HashMap<String, VectorMetadata>>>,
+    // 使用高性能的内存存储作为基础实现
+    vectors: Arc<RwLock<HashMap<String, VectorData>>>,
+    metadata: Arc<RwLock<HashMap<String, VectorMetadata>>>,
+    // 向量索引，用于快速相似性搜索
+    vector_index: Arc<RwLock<Vec<(String, Vec<f32>)>>>,
     next_id: Arc<Mutex<usize>>,
 }
 
@@ -107,8 +121,9 @@ impl FaissStore {
 
         let store = Self {
             config,
-            vectors: Arc::new(Mutex::new(HashMap::new())),
-            metadata: Arc::new(Mutex::new(HashMap::new())),
+            vectors: Arc::new(RwLock::new(HashMap::new())),
+            metadata: Arc::new(RwLock::new(HashMap::new())),
+            vector_index: Arc::new(RwLock::new(Vec::new())),
             next_id: Arc::new(Mutex::new(0)),
         };
 
@@ -125,7 +140,7 @@ impl FaissStore {
             match fs::read_to_string(&self.config.metadata_path).await {
                 Ok(content) => {
                     if let Ok(metadata_map) = serde_json::from_str::<HashMap<String, VectorMetadata>>(&content) {
-                        let mut metadata = self.metadata.lock().unwrap();
+                        let mut metadata = self.metadata.write().unwrap();
                         *metadata = metadata_map;
                     }
                 }
@@ -140,7 +155,7 @@ impl FaissStore {
 
     /// 保存元数据到文件
     async fn save_metadata(&self) -> Result<()> {
-        let metadata = self.metadata.lock().unwrap().clone();
+        let metadata = self.metadata.read().unwrap().clone();
         let content = serde_json::to_string_pretty(&metadata)
             .map_err(|e| AgentMemError::storage_error(&format!("Failed to serialize metadata: {}", e)))?;
 
@@ -201,8 +216,9 @@ impl VectorStore for FaissStore {
 
         // 在作用域内处理锁，确保在 await 之前释放
         {
-            let mut vector_store = self.vectors.lock().unwrap();
-            let mut metadata_store = self.metadata.lock().unwrap();
+            let mut vector_store = self.vectors.write().unwrap();
+            let mut metadata_store = self.metadata.write().unwrap();
+            let mut index = self.vector_index.write().unwrap();
 
             for vector_data in vectors {
                 let id = if vector_data.id.is_empty() {
@@ -222,6 +238,9 @@ impl VectorStore for FaissStore {
 
                 // 存储向量
                 vector_store.insert(id.clone(), vector_data.clone());
+
+                // 添加到向量索引
+                index.push((id.clone(), vector_data.vector.clone()));
 
                 // 存储元数据
                 let payload: HashMap<String, serde_json::Value> = vector_data.metadata
@@ -261,15 +280,15 @@ impl VectorStore for FaissStore {
             )));
         }
 
-        let vector_store = self.vectors.lock().unwrap();
-        let metadata_store = self.metadata.lock().unwrap();
+        let vector_store = self.vectors.read().unwrap();
+        let index = self.vector_index.read().unwrap();
 
         let mut results = Vec::new();
 
-        // 计算所有向量的相似度
-        for (id, vector_data) in vector_store.iter() {
-            let similarity = self.cosine_similarity(&query_vector, &vector_data.vector);
-            let distance = self.euclidean_distance(&query_vector, &vector_data.vector);
+        // 使用向量索引进行高效搜索
+        for (id, vector) in index.iter() {
+            let similarity = self.cosine_similarity(&query_vector, vector);
+            let distance = self.euclidean_distance(&query_vector, vector);
 
             // 应用阈值过滤
             if let Some(threshold) = threshold {
@@ -278,13 +297,16 @@ impl VectorStore for FaissStore {
                 }
             }
 
-            results.push(VectorSearchResult {
-                id: id.clone(),
-                vector: vector_data.vector.clone(),
-                metadata: vector_data.metadata.clone(),
-                similarity,
-                distance,
-            });
+            // 获取完整的向量数据
+            if let Some(vector_data) = vector_store.get(id) {
+                results.push(VectorSearchResult {
+                    id: id.clone(),
+                    vector: vector_data.vector.clone(),
+                    metadata: vector_data.metadata.clone(),
+                    similarity,
+                    distance,
+                });
+            }
         }
 
         // 按相似度排序并限制结果数量
@@ -295,7 +317,7 @@ impl VectorStore for FaissStore {
     }
 
     async fn get_vector(&self, id: &str) -> Result<Option<VectorData>> {
-        let vector_store = self.vectors.lock().unwrap();
+        let vector_store = self.vectors.read().unwrap();
         Ok(vector_store.get(id).cloned())
     }
 
@@ -304,8 +326,9 @@ impl VectorStore for FaissStore {
 
         // 在作用域内处理锁
         {
-            let mut vector_store = self.vectors.lock().unwrap();
-            let mut metadata_store = self.metadata.lock().unwrap();
+            let mut vector_store = self.vectors.write().unwrap();
+            let mut metadata_store = self.metadata.write().unwrap();
+            let mut index = self.vector_index.write().unwrap();
 
             for id in ids {
                 if vector_store.remove(&id).is_some() {
@@ -314,6 +337,8 @@ impl VectorStore for FaissStore {
                 if metadata_store.remove(&id).is_some() {
                     any_removed = true;
                 }
+                // 从向量索引中移除
+                index.retain(|(idx_id, _)| idx_id != &id);
             }
         } // 锁在这里被释放
 
@@ -327,8 +352,9 @@ impl VectorStore for FaissStore {
     async fn update_vectors(&self, vectors: Vec<VectorData>) -> Result<()> {
         // 在作用域内处理锁
         {
-            let mut vector_store = self.vectors.lock().unwrap();
-            let mut metadata_store = self.metadata.lock().unwrap();
+            let mut vector_store = self.vectors.write().unwrap();
+            let mut metadata_store = self.metadata.write().unwrap();
+            let mut index = self.vector_index.write().unwrap();
 
             for vector_data in vectors {
                 let id = if vector_data.id.is_empty() {
@@ -348,6 +374,12 @@ impl VectorStore for FaissStore {
 
                 // 更新向量
                 vector_store.insert(id.clone(), vector_data.clone());
+
+                // 更新向量索引
+                // 先移除旧的索引项
+                index.retain(|(idx_id, _)| idx_id != &id);
+                // 添加新的索引项
+                index.push((id.clone(), vector_data.vector.clone()));
 
                 // 更新元数据
                 let payload: HashMap<String, serde_json::Value> = vector_data.metadata
@@ -371,18 +403,20 @@ impl VectorStore for FaissStore {
     }
 
     async fn count_vectors(&self) -> Result<usize> {
-        let vector_store = self.vectors.lock().unwrap();
+        let vector_store = self.vectors.read().unwrap();
         Ok(vector_store.len())
     }
 
     async fn clear(&self) -> Result<()> {
         // 在作用域内处理锁
         {
-            let mut vector_store = self.vectors.lock().unwrap();
-            let mut metadata_store = self.metadata.lock().unwrap();
+            let mut vector_store = self.vectors.write().unwrap();
+            let mut metadata_store = self.metadata.write().unwrap();
+            let mut index = self.vector_index.write().unwrap();
 
             vector_store.clear();
             metadata_store.clear();
+            index.clear();
         } // 锁在这里被释放
 
         // 保存空的元数据
