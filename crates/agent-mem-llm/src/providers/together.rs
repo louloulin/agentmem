@@ -284,7 +284,7 @@ impl LLMProvider for TogetherProvider {
         ModelInfo {
             model: self.config.model.clone(),
             provider: "together".to_string(),
-            max_tokens: self.get_model_max_tokens(),
+            max_tokens: self.get_model_max_tokens() as u32,
             supports_streaming: false, // 流式需要额外实现
             supports_functions: false, // Together 目前不支持函数调用
         }

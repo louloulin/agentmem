@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 /// Azure OpenAI 消息
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AzureMessage {
     pub role: String,
     pub content: String,
@@ -87,11 +87,12 @@ impl AzureProvider {
     /// 创建新的Azure OpenAI提供商实例
     pub fn new(config: LLMConfig) -> Result<Self> {
         // 验证必需的配置
-        let api_key = config.api_key.as_ref()
+        let _api_key = config.api_key.as_ref()
             .ok_or_else(|| AgentMemError::config_error("Azure OpenAI API key is required"))?;
 
         let base_url = config.base_url.as_ref()
-            .ok_or_else(|| AgentMemError::config_error("Azure OpenAI endpoint URL is required"))?;
+            .ok_or_else(|| AgentMemError::config_error("Azure OpenAI endpoint URL is required"))?
+            .clone();
 
         // 从模型名称中提取部署名称
         // Azure 模型格式通常是 "deployment-name" 或 "gpt-4"
@@ -111,7 +112,7 @@ impl AzureProvider {
         Ok(Self {
             config,
             client,
-            base_url: base_url.clone(),
+            base_url,
             api_version,
             deployment_name,
         })

@@ -2,10 +2,8 @@
 //!
 //! DeepSeek API 集成，提供高质量的中英文语言模型服务
 
-use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::time::Duration;
 use agent_mem_traits::{AgentMemError, Result};
 

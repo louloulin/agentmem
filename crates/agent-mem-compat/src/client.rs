@@ -20,6 +20,9 @@ use crate::{
     },
 };
 
+use agent_mem_traits::Message;
+use agent_mem_performance::batch::{BatchProcessor, BatchItem, BatchConfig};
+use async_trait::async_trait;
 use chrono::Utc;
 use dashmap::DashMap;
 use std::{collections::HashMap, sync::Arc};
@@ -29,6 +32,7 @@ use tracing::{debug, info, warn, instrument};
 #[derive(Debug, Clone)]
 pub enum Messages {
     Single(String),
+    Structured(Message),
     Multiple(Vec<String>),
 }
 
@@ -39,6 +43,13 @@ impl Messages {
                 if s.trim().is_empty() {
                     return Err(Mem0Error::InvalidContent {
                         reason: "Empty message".to_string(),
+                    });
+                }
+            }
+            Messages::Structured(msg) => {
+                if msg.content.trim().is_empty() {
+                    return Err(Mem0Error::InvalidContent {
+                        reason: "Empty structured message content".to_string(),
                     });
                 }
             }
@@ -58,6 +69,26 @@ impl Messages {
             }
         }
         Ok(())
+    }
+
+    /// Convert messages to content string for storage
+    pub fn to_content(&self) -> String {
+        match self {
+            Messages::Single(s) => s.clone(),
+            Messages::Structured(msg) => msg.content.clone(),
+            Messages::Multiple(msgs) => msgs.join("\n"),
+        }
+    }
+
+    /// Convert messages to a list of Message structs
+    pub fn to_message_list(&self) -> Vec<Message> {
+        match self {
+            Messages::Single(s) => vec![Message::user(s)],
+            Messages::Structured(msg) => vec![msg.clone()],
+            Messages::Multiple(msgs) => {
+                msgs.iter().map(|s| Message::user(s)).collect()
+            }
+        }
     }
 }
 
@@ -101,6 +132,60 @@ pub struct BatchAddResult {
     pub errors: Vec<String>,
 }
 
+/// Memory operation for batch processing
+#[derive(Debug, Clone)]
+pub struct MemoryOperation {
+    pub request: EnhancedAddRequest,
+    pub client: Arc<DashMap<String, Memory>>,
+}
+
+#[async_trait]
+impl BatchItem for MemoryOperation {
+    type Output = String;
+    type Error = crate::error::Mem0Error;
+
+    async fn process(&self) -> std::result::Result<Self::Output, Self::Error> {
+        // Generate memory ID
+        let memory_id = uuid::Uuid::new_v4().to_string();
+
+        // Convert messages to content
+        let content = self.request.messages.to_content();
+
+        // Create memory
+        let memory = Memory {
+            id: memory_id.clone(),
+            memory: content,
+            user_id: self.request.user_id.clone().unwrap_or_else(|| "default".to_string()),
+            agent_id: self.request.agent_id.clone(),
+            run_id: self.request.session_id.clone(),
+            metadata: self.request.metadata.clone().unwrap_or_default(),
+            score: None,
+            created_at: Utc::now(),
+            updated_at: Some(Utc::now()),
+        };
+
+        // Store memory
+        self.client.insert(memory_id.clone(), memory);
+
+        Ok(memory_id)
+    }
+
+    fn size(&self) -> usize {
+        self.request.messages.to_content().len()
+    }
+
+    fn priority(&self) -> u8 {
+        // Higher priority for shorter content (faster processing)
+        if self.size() < 100 {
+            10
+        } else if self.size() < 500 {
+            5
+        } else {
+            1
+        }
+    }
+}
+
 /// Enhanced Mem0 compatibility client with Mem5 features
 pub struct Mem0Client {
     /// Configuration
@@ -111,6 +196,9 @@ pub struct Mem0Client {
 
     /// Memory history cache
     history_cache: Arc<DashMap<String, Vec<MemoryHistory>>>,
+
+    /// Batch processor for concurrent operations
+    batch_processor: Option<Arc<BatchProcessor>>,
 }
 
 impl Mem0Client {
@@ -131,10 +219,30 @@ impl Mem0Client {
 
         info!("Mem0Client initialized successfully");
 
+        // Initialize batch processor for concurrent operations
+        let batch_config = BatchConfig {
+            max_batch_size: 50,
+            max_wait_time_ms: 100,
+            concurrency: 4,
+            buffer_size: 1000,
+            enable_compression: false,
+            retry_attempts: 3,
+            retry_delay_ms: 50,
+        };
+
+        let batch_processor = match BatchProcessor::new(batch_config).await {
+            Ok(processor) => Some(Arc::new(processor)),
+            Err(e) => {
+                warn!("Failed to initialize batch processor: {}, falling back to sequential processing", e);
+                None
+            }
+        };
+
         Ok(Self {
             config,
             memories: Arc::new(DashMap::new()),
             history_cache: Arc::new(DashMap::new()),
+            batch_processor,
         })
     }
     
@@ -505,10 +613,7 @@ impl Mem0Client {
         request.messages.validate()?;
 
         // Convert messages to string content
-        let content = match &request.messages {
-            Messages::Single(s) => s.clone(),
-            Messages::Multiple(msgs) => msgs.join("\n"),
-        };
+        let content = request.messages.to_content();
 
         // Create traditional add request
         let add_request = AddMemoryRequest {

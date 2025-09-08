@@ -8,7 +8,6 @@ use async_trait::async_trait;
 use futures::Stream;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::pin::Pin;
 use std::time::Duration;
 
 /// Bedrock 请求消息
@@ -336,7 +335,7 @@ impl LLMProvider for BedrockProvider {
         }
     }
 
-    async fn generate_stream(&self, _messages: &[Message]) -> Result<Pin<Box<dyn Stream<Item = Result<String>> + Send + Unpin>>> {
+    async fn generate_stream(&self, _messages: &[Message]) -> Result<Box<dyn Stream<Item = Result<String>> + Send + Unpin>> {
         // Bedrock 流式生成需要额外的实现
         // 目前返回错误，表示不支持
         Err(AgentMemError::llm_error("Streaming not yet implemented for Bedrock"))

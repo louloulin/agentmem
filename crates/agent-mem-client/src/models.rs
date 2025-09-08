@@ -37,6 +37,29 @@ pub struct UpdateMemoryRequest {
     pub importance: Option<f32>,
 }
 
+/// Batch update request item
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchUpdateItem {
+    /// Memory ID to update
+    pub memory_id: String,
+
+    /// User ID
+    pub user_id: String,
+
+    /// Update request
+    pub update_request: UpdateMemoryRequest,
+}
+
+/// Batch delete request item
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchDeleteItem {
+    /// Memory ID to delete
+    pub memory_id: String,
+
+    /// User ID
+    pub user_id: String,
+}
+
 /// Response for memory operations
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MemoryResponse {
