@@ -754,7 +754,7 @@ print(f"找到 {len(results)} 条相关记忆")`}
             <CardContent>
               <div className="bg-slate-900 p-4 rounded-lg overflow-x-auto">
                 <pre className="text-sm text-green-400 whitespace-pre-wrap">
-                  <code>{demoConfigs[activeDemo as keyof typeof demoConfigs].code}</code>
+                  <code>{demoConfigs[activeDemo as keyof typeof demoConfigs]?.code || '// 选择一个演示查看代码'}</code>
                 </pre>
               </div>
             </CardContent>
