@@ -54,6 +54,7 @@ tokio-test = "0.4"
 default = ["memory"]
 
 # 向量存储后端
+azure-ai-search = [] # Azure AI Search 企业级搜索
 chroma = []
 faiss = [] # 本地高性能向量搜索
 lancedb = [] # 使用HTTP实现，暂不依赖原生SDK
@@ -77,7 +78,7 @@ memory = ["dep:dashmap"]
 
 # 所有后端
 all-backends = [
-    "chroma", "faiss", "lancedb", "mongodb", "qdrant", "pinecone",
+    "azure-ai-search", "chroma", "faiss", "lancedb", "mongodb", "qdrant", "pinecone",
     "elasticsearch", "milvus", "weaviate",
     "neo4j", "memgraph",
     "sled", "rocksdb", "memory"

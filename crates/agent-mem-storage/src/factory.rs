@@ -1,7 +1,7 @@
 //! 存储工厂模式实现
 
 use crate::backends::{
-    ChromaStore, ElasticsearchStore, FaissStore, LanceDBStore, MemoryVectorStore,
+    AzureAISearchStore, ChromaStore, ElasticsearchStore, FaissStore, LanceDBStore, MemoryVectorStore,
     MilvusStore, MongoDBStore, PineconeStore, QdrantStore, WeaviateStore
 };
 use agent_mem_traits::{AgentMemError, Result, VectorStore, VectorStoreConfig};
@@ -12,6 +12,8 @@ use std::sync::Arc;
 pub enum VectorStoreEnum {
     Memory(MemoryVectorStore),
     Chroma(ChromaStore),
+    #[cfg(feature = "azure-ai-search")]
+    AzureAISearch(AzureAISearchStore),
     #[cfg(feature = "faiss")]
     Faiss(FaissStore),
     #[cfg(feature = "mongodb")]
@@ -36,6 +38,8 @@ impl VectorStore for VectorStoreEnum {
         match self {
             VectorStoreEnum::Memory(store) => store.add_vectors(vectors).await,
             VectorStoreEnum::Chroma(store) => store.add_vectors(vectors).await,
+            #[cfg(feature = "azure-ai-search")]
+            VectorStoreEnum::AzureAISearch(store) => store.add_vectors(vectors).await,
             #[cfg(feature = "faiss")]
             VectorStoreEnum::Faiss(store) => store.add_vectors(vectors).await,
             #[cfg(feature = "mongodb")]
@@ -66,6 +70,10 @@ impl VectorStore for VectorStoreEnum {
                 store.search_vectors(query_vector, limit, threshold).await
             }
             VectorStoreEnum::Chroma(store) => {
+                store.search_vectors(query_vector, limit, threshold).await
+            }
+            #[cfg(feature = "azure-ai-search")]
+            VectorStoreEnum::AzureAISearch(store) => {
                 store.search_vectors(query_vector, limit, threshold).await
             }
             #[cfg(feature = "faiss")]
@@ -107,6 +115,8 @@ impl VectorStore for VectorStoreEnum {
         match self {
             VectorStoreEnum::Memory(store) => store.delete_vectors(ids).await,
             VectorStoreEnum::Chroma(store) => store.delete_vectors(ids).await,
+            #[cfg(feature = "azure-ai-search")]
+            VectorStoreEnum::AzureAISearch(store) => store.delete_vectors(ids).await,
             #[cfg(feature = "faiss")]
             VectorStoreEnum::Faiss(store) => store.delete_vectors(ids).await,
             #[cfg(feature = "mongodb")]
@@ -130,6 +140,8 @@ impl VectorStore for VectorStoreEnum {
         match self {
             VectorStoreEnum::Memory(store) => store.update_vectors(vectors).await,
             VectorStoreEnum::Chroma(store) => store.update_vectors(vectors).await,
+            #[cfg(feature = "azure-ai-search")]
+            VectorStoreEnum::AzureAISearch(store) => store.update_vectors(vectors).await,
             #[cfg(feature = "faiss")]
             VectorStoreEnum::Faiss(store) => store.update_vectors(vectors).await,
             #[cfg(feature = "mongodb")]
@@ -153,6 +165,8 @@ impl VectorStore for VectorStoreEnum {
         match self {
             VectorStoreEnum::Memory(store) => store.get_vector(id).await,
             VectorStoreEnum::Chroma(store) => store.get_vector(id).await,
+            #[cfg(feature = "azure-ai-search")]
+            VectorStoreEnum::AzureAISearch(store) => store.get_vector(id).await,
             #[cfg(feature = "faiss")]
             VectorStoreEnum::Faiss(store) => store.get_vector(id).await,
             #[cfg(feature = "mongodb")]
@@ -176,6 +190,8 @@ impl VectorStore for VectorStoreEnum {
         match self {
             VectorStoreEnum::Memory(store) => store.count_vectors().await,
             VectorStoreEnum::Chroma(store) => store.count_vectors().await,
+            #[cfg(feature = "azure-ai-search")]
+            VectorStoreEnum::AzureAISearch(store) => store.count_vectors().await,
             #[cfg(feature = "faiss")]
             VectorStoreEnum::Faiss(store) => store.count_vectors().await,
             #[cfg(feature = "mongodb")]
@@ -199,6 +215,8 @@ impl VectorStore for VectorStoreEnum {
         match self {
             VectorStoreEnum::Memory(store) => store.clear().await,
             VectorStoreEnum::Chroma(store) => store.clear().await,
+            #[cfg(feature = "azure-ai-search")]
+            VectorStoreEnum::AzureAISearch(store) => store.clear().await,
             #[cfg(feature = "faiss")]
             VectorStoreEnum::Faiss(store) => store.clear().await,
             #[cfg(feature = "mongodb")]
@@ -235,6 +253,27 @@ impl StorageFactory {
             "chroma" => {
                 let store = ChromaStore::new(config.clone()).await?;
                 VectorStoreEnum::Chroma(store)
+            }
+            "azure-ai-search" => {
+                #[cfg(feature = "azure-ai-search")]
+                {
+                    use crate::backends::azure_ai_search::AzureAISearchConfig;
+                    let azure_config = AzureAISearchConfig {
+                        service_name: config.url.clone().unwrap_or_else(|| "your-search-service".to_string()),
+                        api_key: config.api_key.clone().unwrap_or_else(|| "your-api-key".to_string()),
+                        index_name: config.index_name.clone().unwrap_or_else(|| "agentmem-vectors".to_string()),
+                        vector_dimension: config.dimension.unwrap_or(1536),
+                        ..Default::default()
+                    };
+                    let store = AzureAISearchStore::new(azure_config).await?;
+                    VectorStoreEnum::AzureAISearch(store)
+                }
+                #[cfg(not(feature = "azure-ai-search"))]
+                {
+                    return Err(AgentMemError::unsupported_provider(
+                        "Azure AI Search feature not enabled",
+                    ));
+                }
             }
             "faiss" => {
                 #[cfg(feature = "faiss")]

@@ -1,5 +1,8 @@
 //! 存储后端实现模块
 
+pub mod azure_ai_search;
+#[cfg(test)]
+mod azure_ai_search_test;
 pub mod chroma;
 pub mod elasticsearch;
 pub mod faiss;
@@ -15,6 +18,7 @@ pub mod pinecone;
 pub mod qdrant;
 pub mod weaviate;
 
+pub use azure_ai_search::AzureAISearchStore;
 pub use chroma::ChromaStore;
 pub use elasticsearch::ElasticsearchStore;
 pub use faiss::FaissStore;
