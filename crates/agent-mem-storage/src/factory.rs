@@ -2,7 +2,7 @@
 
 use crate::backends::{
     AzureAISearchStore, ChromaStore, ElasticsearchStore, FaissStore, LanceDBStore, MemoryVectorStore,
-    MilvusStore, MongoDBStore, PineconeStore, QdrantStore, SupabaseStore, WeaviateStore
+    MilvusStore, MongoDBStore, PineconeStore, QdrantStore, RedisStore, SupabaseStore, WeaviateStore
 };
 use agent_mem_traits::{AgentMemError, Result, VectorStore, VectorStoreConfig};
 use async_trait::async_trait;
@@ -28,6 +28,8 @@ pub enum VectorStoreEnum {
     LanceDB(LanceDBStore),
     #[cfg(feature = "milvus")]
     Milvus(MilvusStore),
+    #[cfg(feature = "redis")]
+    Redis(RedisStore),
     #[cfg(feature = "supabase")]
     Supabase(SupabaseStore),
     #[cfg(feature = "weaviate")]
@@ -56,6 +58,8 @@ impl VectorStore for VectorStoreEnum {
             VectorStoreEnum::LanceDB(store) => store.add_vectors(vectors).await,
             #[cfg(feature = "milvus")]
             VectorStoreEnum::Milvus(store) => store.add_vectors(vectors).await,
+            #[cfg(feature = "redis")]
+            VectorStoreEnum::Redis(store) => store.add_vectors(vectors).await,
             #[cfg(feature = "supabase")]
             VectorStoreEnum::Supabase(store) => store.add_vectors(vectors).await,
             #[cfg(feature = "weaviate")]
@@ -108,6 +112,10 @@ impl VectorStore for VectorStoreEnum {
             VectorStoreEnum::Milvus(store) => {
                 store.search_vectors(query_vector, limit, threshold).await
             }
+            #[cfg(feature = "redis")]
+            VectorStoreEnum::Redis(store) => {
+                store.search_vectors(query_vector, limit, threshold).await
+            }
             #[cfg(feature = "supabase")]
             VectorStoreEnum::Supabase(store) => {
                 store.search_vectors(query_vector, limit, threshold).await
@@ -139,6 +147,8 @@ impl VectorStore for VectorStoreEnum {
             VectorStoreEnum::LanceDB(store) => store.delete_vectors(ids).await,
             #[cfg(feature = "milvus")]
             VectorStoreEnum::Milvus(store) => store.delete_vectors(ids).await,
+            #[cfg(feature = "redis")]
+            VectorStoreEnum::Redis(store) => store.delete_vectors(ids).await,
             #[cfg(feature = "supabase")]
             VectorStoreEnum::Supabase(store) => store.delete_vectors(ids).await,
             #[cfg(feature = "weaviate")]

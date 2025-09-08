@@ -19,21 +19,27 @@ export default function HomePage() {
               <Brain className="h-8 w-8 text-purple-400" />
               <span className="ml-2 text-xl font-bold text-white">AgentMem</span>
             </div>
-            <div className="flex items-center space-x-8">
+            <div className="hidden md:flex items-center space-x-8">
               <Link href="#features" className="text-slate-300 hover:text-white transition-colors">
                 特性
               </Link>
               <Link href="#architecture" className="text-slate-300 hover:text-white transition-colors">
                 架构
               </Link>
-              <Link href="#demo" className="text-slate-300 hover:text-white transition-colors">
+              <Link href="/demo" className="text-slate-300 hover:text-white transition-colors">
                 演示
               </Link>
-              <Link href="#docs" className="text-slate-300 hover:text-white transition-colors">
+              <Link href="/docs" className="text-slate-300 hover:text-white transition-colors">
                 文档
               </Link>
               <Button variant="outline" className="border-purple-400 text-purple-400 hover:bg-purple-400 hover:text-white">
                 开始使用
+              </Button>
+            </div>
+            {/* 移动端菜单按钮 */}
+            <div className="md:hidden flex items-center">
+              <Button variant="outline" size="sm" className="border-purple-400 text-purple-400">
+                菜单
               </Button>
             </div>
           </div>

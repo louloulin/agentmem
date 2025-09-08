@@ -16,6 +16,7 @@ pub mod mongodb;
 mod mongodb_test;
 pub mod pinecone;
 pub mod qdrant;
+pub mod redis;
 pub mod supabase;
 #[cfg(test)]
 mod supabase_test;
@@ -31,5 +32,6 @@ pub use milvus::MilvusStore;
 pub use mongodb::MongoDBStore;
 pub use pinecone::PineconeStore;
 pub use qdrant::QdrantStore;
+pub use redis::RedisStore;
 pub use supabase::SupabaseStore;
 pub use weaviate::WeaviateStore;
