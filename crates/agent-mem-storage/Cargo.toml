@@ -63,6 +63,7 @@ qdrant = [] # 使用HTTP实现
 pinecone = [] # 使用HTTP实现
 elasticsearch = [] # 使用HTTP实现
 milvus = [] # 使用HTTP实现
+supabase = [] # Supabase PostgreSQL + 向量扩展
 weaviate = [] # 使用HTTP实现
 
 # 图存储后端
@@ -79,7 +80,7 @@ memory = ["dep:dashmap"]
 # 所有后端
 all-backends = [
     "azure-ai-search", "chroma", "faiss", "lancedb", "mongodb", "qdrant", "pinecone",
-    "elasticsearch", "milvus", "weaviate",
+    "elasticsearch", "milvus", "supabase", "weaviate",
     "neo4j", "memgraph",
     "sled", "rocksdb", "memory"
 ]

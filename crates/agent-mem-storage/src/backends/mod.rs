@@ -16,6 +16,9 @@ pub mod mongodb;
 mod mongodb_test;
 pub mod pinecone;
 pub mod qdrant;
+pub mod supabase;
+#[cfg(test)]
+mod supabase_test;
 pub mod weaviate;
 
 pub use azure_ai_search::AzureAISearchStore;
@@ -28,4 +31,5 @@ pub use milvus::MilvusStore;
 pub use mongodb::MongoDBStore;
 pub use pinecone::PineconeStore;
 pub use qdrant::QdrantStore;
+pub use supabase::SupabaseStore;
 pub use weaviate::WeaviateStore;

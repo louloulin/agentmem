@@ -2,7 +2,7 @@
 
 use crate::backends::{
     AzureAISearchStore, ChromaStore, ElasticsearchStore, FaissStore, LanceDBStore, MemoryVectorStore,
-    MilvusStore, MongoDBStore, PineconeStore, QdrantStore, WeaviateStore
+    MilvusStore, MongoDBStore, PineconeStore, QdrantStore, SupabaseStore, WeaviateStore
 };
 use agent_mem_traits::{AgentMemError, Result, VectorStore, VectorStoreConfig};
 use async_trait::async_trait;
@@ -28,6 +28,8 @@ pub enum VectorStoreEnum {
     LanceDB(LanceDBStore),
     #[cfg(feature = "milvus")]
     Milvus(MilvusStore),
+    #[cfg(feature = "supabase")]
+    Supabase(SupabaseStore),
     #[cfg(feature = "weaviate")]
     Weaviate(WeaviateStore),
 }
@@ -54,6 +56,8 @@ impl VectorStore for VectorStoreEnum {
             VectorStoreEnum::LanceDB(store) => store.add_vectors(vectors).await,
             #[cfg(feature = "milvus")]
             VectorStoreEnum::Milvus(store) => store.add_vectors(vectors).await,
+            #[cfg(feature = "supabase")]
+            VectorStoreEnum::Supabase(store) => store.add_vectors(vectors).await,
             #[cfg(feature = "weaviate")]
             VectorStoreEnum::Weaviate(store) => store.add_vectors(vectors).await,
         }
@@ -104,6 +108,10 @@ impl VectorStore for VectorStoreEnum {
             VectorStoreEnum::Milvus(store) => {
                 store.search_vectors(query_vector, limit, threshold).await
             }
+            #[cfg(feature = "supabase")]
+            VectorStoreEnum::Supabase(store) => {
+                store.search_vectors(query_vector, limit, threshold).await
+            }
             #[cfg(feature = "weaviate")]
             VectorStoreEnum::Weaviate(store) => {
                 store.search_vectors(query_vector, limit, threshold).await
@@ -131,6 +139,8 @@ impl VectorStore for VectorStoreEnum {
             VectorStoreEnum::LanceDB(store) => store.delete_vectors(ids).await,
             #[cfg(feature = "milvus")]
             VectorStoreEnum::Milvus(store) => store.delete_vectors(ids).await,
+            #[cfg(feature = "supabase")]
+            VectorStoreEnum::Supabase(store) => store.delete_vectors(ids).await,
             #[cfg(feature = "weaviate")]
             VectorStoreEnum::Weaviate(store) => store.delete_vectors(ids).await,
         }
@@ -156,6 +166,8 @@ impl VectorStore for VectorStoreEnum {
             VectorStoreEnum::LanceDB(store) => store.update_vectors(vectors).await,
             #[cfg(feature = "milvus")]
             VectorStoreEnum::Milvus(store) => store.update_vectors(vectors).await,
+            #[cfg(feature = "supabase")]
+            VectorStoreEnum::Supabase(store) => store.update_vectors(vectors).await,
             #[cfg(feature = "weaviate")]
             VectorStoreEnum::Weaviate(store) => store.update_vectors(vectors).await,
         }
@@ -181,6 +193,8 @@ impl VectorStore for VectorStoreEnum {
             VectorStoreEnum::LanceDB(store) => store.get_vector(id).await,
             #[cfg(feature = "milvus")]
             VectorStoreEnum::Milvus(store) => store.get_vector(id).await,
+            #[cfg(feature = "supabase")]
+            VectorStoreEnum::Supabase(store) => store.get_vector(id).await,
             #[cfg(feature = "weaviate")]
             VectorStoreEnum::Weaviate(store) => store.get_vector(id).await,
         }
@@ -206,6 +220,8 @@ impl VectorStore for VectorStoreEnum {
             VectorStoreEnum::LanceDB(store) => store.count_vectors().await,
             #[cfg(feature = "milvus")]
             VectorStoreEnum::Milvus(store) => store.count_vectors().await,
+            #[cfg(feature = "supabase")]
+            VectorStoreEnum::Supabase(store) => store.count_vectors().await,
             #[cfg(feature = "weaviate")]
             VectorStoreEnum::Weaviate(store) => store.count_vectors().await,
         }
@@ -231,6 +247,8 @@ impl VectorStore for VectorStoreEnum {
             VectorStoreEnum::LanceDB(store) => store.clear().await,
             #[cfg(feature = "milvus")]
             VectorStoreEnum::Milvus(store) => store.clear().await,
+            #[cfg(feature = "supabase")]
+            VectorStoreEnum::Supabase(store) => store.clear().await,
             #[cfg(feature = "weaviate")]
             VectorStoreEnum::Weaviate(store) => store.clear().await,
         }
@@ -375,6 +393,27 @@ impl StorageFactory {
                 {
                     return Err(AgentMemError::unsupported_provider(
                         "Milvus feature not enabled",
+                    ));
+                }
+            }
+            "supabase" => {
+                #[cfg(feature = "supabase")]
+                {
+                    use crate::backends::supabase::SupabaseConfig;
+                    let supabase_config = SupabaseConfig {
+                        project_url: config.url.clone().unwrap_or_else(|| "https://your-project.supabase.co".to_string()),
+                        api_key: config.api_key.clone().unwrap_or_else(|| "your-anon-key".to_string()),
+                        table_name: config.index_name.clone().unwrap_or_else(|| "agentmem_vectors".to_string()),
+                        vector_dimension: config.dimension.unwrap_or(1536),
+                        ..Default::default()
+                    };
+                    let store = SupabaseStore::new(supabase_config).await?;
+                    VectorStoreEnum::Supabase(store)
+                }
+                #[cfg(not(feature = "supabase"))]
+                {
+                    return Err(AgentMemError::unsupported_provider(
+                        "Supabase feature not enabled",
                     ));
                 }
             }
