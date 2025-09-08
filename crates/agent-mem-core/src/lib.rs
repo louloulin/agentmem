@@ -19,6 +19,7 @@ pub mod manager;
 pub mod history;
 pub mod operations;
 pub mod types;
+pub mod client;
 
 // Re-export core types
 pub use engine::{MemoryEngine, MemoryEngineConfig};

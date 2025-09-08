@@ -1,8 +1,8 @@
 //! 存储工厂模式实现
 
 use crate::backends::{
-    ChromaStore, ElasticsearchStore, LanceDBStore, MemoryVectorStore,
-    MilvusStore, PineconeStore, QdrantStore, WeaviateStore
+    ChromaStore, ElasticsearchStore, FaissStore, LanceDBStore, MemoryVectorStore,
+    MilvusStore, MongoDBStore, PineconeStore, QdrantStore, WeaviateStore
 };
 use agent_mem_traits::{AgentMemError, Result, VectorStore, VectorStoreConfig};
 use async_trait::async_trait;
@@ -12,6 +12,10 @@ use std::sync::Arc;
 pub enum VectorStoreEnum {
     Memory(MemoryVectorStore),
     Chroma(ChromaStore),
+    #[cfg(feature = "faiss")]
+    Faiss(FaissStore),
+    #[cfg(feature = "mongodb")]
+    MongoDB(MongoDBStore),
     #[cfg(feature = "qdrant")]
     Qdrant(QdrantStore),
     #[cfg(feature = "pinecone")]
@@ -32,6 +36,10 @@ impl VectorStore for VectorStoreEnum {
         match self {
             VectorStoreEnum::Memory(store) => store.add_vectors(vectors).await,
             VectorStoreEnum::Chroma(store) => store.add_vectors(vectors).await,
+            #[cfg(feature = "faiss")]
+            VectorStoreEnum::Faiss(store) => store.add_vectors(vectors).await,
+            #[cfg(feature = "mongodb")]
+            VectorStoreEnum::MongoDB(store) => store.add_vectors(vectors).await,
             #[cfg(feature = "qdrant")]
             VectorStoreEnum::Qdrant(store) => store.add_vectors(vectors).await,
             #[cfg(feature = "pinecone")]
@@ -58,6 +66,14 @@ impl VectorStore for VectorStoreEnum {
                 store.search_vectors(query_vector, limit, threshold).await
             }
             VectorStoreEnum::Chroma(store) => {
+                store.search_vectors(query_vector, limit, threshold).await
+            }
+            #[cfg(feature = "faiss")]
+            VectorStoreEnum::Faiss(store) => {
+                store.search_vectors(query_vector, limit, threshold).await
+            }
+            #[cfg(feature = "mongodb")]
+            VectorStoreEnum::MongoDB(store) => {
                 store.search_vectors(query_vector, limit, threshold).await
             }
             #[cfg(feature = "qdrant")]
@@ -91,6 +107,10 @@ impl VectorStore for VectorStoreEnum {
         match self {
             VectorStoreEnum::Memory(store) => store.delete_vectors(ids).await,
             VectorStoreEnum::Chroma(store) => store.delete_vectors(ids).await,
+            #[cfg(feature = "faiss")]
+            VectorStoreEnum::Faiss(store) => store.delete_vectors(ids).await,
+            #[cfg(feature = "mongodb")]
+            VectorStoreEnum::MongoDB(store) => store.delete_vectors(ids).await,
             #[cfg(feature = "qdrant")]
             VectorStoreEnum::Qdrant(store) => store.delete_vectors(ids).await,
             #[cfg(feature = "pinecone")]
@@ -110,6 +130,10 @@ impl VectorStore for VectorStoreEnum {
         match self {
             VectorStoreEnum::Memory(store) => store.update_vectors(vectors).await,
             VectorStoreEnum::Chroma(store) => store.update_vectors(vectors).await,
+            #[cfg(feature = "faiss")]
+            VectorStoreEnum::Faiss(store) => store.update_vectors(vectors).await,
+            #[cfg(feature = "mongodb")]
+            VectorStoreEnum::MongoDB(store) => store.update_vectors(vectors).await,
             #[cfg(feature = "qdrant")]
             VectorStoreEnum::Qdrant(store) => store.update_vectors(vectors).await,
             #[cfg(feature = "pinecone")]
@@ -129,6 +153,10 @@ impl VectorStore for VectorStoreEnum {
         match self {
             VectorStoreEnum::Memory(store) => store.get_vector(id).await,
             VectorStoreEnum::Chroma(store) => store.get_vector(id).await,
+            #[cfg(feature = "faiss")]
+            VectorStoreEnum::Faiss(store) => store.get_vector(id).await,
+            #[cfg(feature = "mongodb")]
+            VectorStoreEnum::MongoDB(store) => store.get_vector(id).await,
             #[cfg(feature = "qdrant")]
             VectorStoreEnum::Qdrant(store) => store.get_vector(id).await,
             #[cfg(feature = "pinecone")]
@@ -148,6 +176,10 @@ impl VectorStore for VectorStoreEnum {
         match self {
             VectorStoreEnum::Memory(store) => store.count_vectors().await,
             VectorStoreEnum::Chroma(store) => store.count_vectors().await,
+            #[cfg(feature = "faiss")]
+            VectorStoreEnum::Faiss(store) => store.count_vectors().await,
+            #[cfg(feature = "mongodb")]
+            VectorStoreEnum::MongoDB(store) => store.count_vectors().await,
             #[cfg(feature = "qdrant")]
             VectorStoreEnum::Qdrant(store) => store.count_vectors().await,
             #[cfg(feature = "pinecone")]
@@ -167,6 +199,10 @@ impl VectorStore for VectorStoreEnum {
         match self {
             VectorStoreEnum::Memory(store) => store.clear().await,
             VectorStoreEnum::Chroma(store) => store.clear().await,
+            #[cfg(feature = "faiss")]
+            VectorStoreEnum::Faiss(store) => store.clear().await,
+            #[cfg(feature = "mongodb")]
+            VectorStoreEnum::MongoDB(store) => store.clear().await,
             #[cfg(feature = "qdrant")]
             VectorStoreEnum::Qdrant(store) => store.clear().await,
             #[cfg(feature = "pinecone")]
@@ -199,6 +235,44 @@ impl StorageFactory {
             "chroma" => {
                 let store = ChromaStore::new(config.clone()).await?;
                 VectorStoreEnum::Chroma(store)
+            }
+            "faiss" => {
+                #[cfg(feature = "faiss")]
+                {
+                    use crate::backends::faiss::FaissConfig;
+                    let faiss_config = FaissConfig {
+                        dimension: config.dimension.unwrap_or(1536),
+                        ..Default::default()
+                    };
+                    let store = FaissStore::new(faiss_config).await?;
+                    VectorStoreEnum::Faiss(store)
+                }
+                #[cfg(not(feature = "faiss"))]
+                {
+                    return Err(AgentMemError::unsupported_provider(
+                        "FAISS feature not enabled",
+                    ));
+                }
+            }
+            "mongodb" => {
+                #[cfg(feature = "mongodb")]
+                {
+                    use crate::backends::mongodb::MongoDBConfig;
+                    let mongodb_config = MongoDBConfig {
+                        connection_string: config.url.clone().unwrap_or_else(|| "mongodb://localhost:27017".to_string()),
+                        database_name: config.table_name.clone(),
+                        collection_name: config.collection_name.clone().unwrap_or_else(|| "vectors".to_string()),
+                        ..Default::default()
+                    };
+                    let store = MongoDBStore::new(mongodb_config).await?;
+                    VectorStoreEnum::MongoDB(store)
+                }
+                #[cfg(not(feature = "mongodb"))]
+                {
+                    return Err(AgentMemError::unsupported_provider(
+                        "MongoDB feature not enabled",
+                    ));
+                }
             }
             "qdrant" => {
                 #[cfg(feature = "qdrant")]

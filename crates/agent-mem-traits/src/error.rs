@@ -147,4 +147,8 @@ impl AgentMemError {
     pub fn not_found(msg: impl Into<String>) -> Self {
         Self::NotFound(msg.into())
     }
+
+    pub fn internal_error(msg: impl Into<String>) -> Self {
+        Self::ProcessingError(msg.into())
+    }
 }
