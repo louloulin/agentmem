@@ -17,6 +17,8 @@ mod mongodb_test;
 pub mod pinecone;
 pub mod qdrant;
 pub mod redis;
+#[cfg(test)]
+mod redis_test;
 pub mod supabase;
 #[cfg(test)]
 mod supabase_test;

@@ -2,7 +2,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Brain, Zap, Shield, Database, Cpu, Network, Code, Rocket } from "lucide-react";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { SearchDialog } from "@/components/ui/search";
+import { FadeIn, SlideIn, ScaleIn, FloatingCard, GradientText, TypeWriter } from "@/components/ui/animations";
+import { Brain, Zap, Shield, Database, Cpu, Network, Code, Rocket, Github, Star, Users, Download } from "lucide-react";
 import Link from "next/link";
 
 /**
@@ -12,14 +15,15 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       {/* 导航栏 */}
-      <nav className="border-b border-slate-800 bg-slate-900/50 backdrop-blur-sm">
+      <nav className="border-b border-slate-800 bg-slate-900/50 backdrop-blur-sm sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center">
-              <Brain className="h-8 w-8 text-purple-400" />
+              <Brain className="h-8 w-8 text-purple-400 animate-pulse-glow" />
               <span className="ml-2 text-xl font-bold text-white">AgentMem</span>
             </div>
-            <div className="hidden md:flex items-center space-x-8">
+            <div className="hidden md:flex items-center space-x-6">
+              <SearchDialog />
               <Link href="#features" className="text-slate-300 hover:text-white transition-colors">
                 特性
               </Link>
@@ -32,13 +36,16 @@ export default function HomePage() {
               <Link href="/docs" className="text-slate-300 hover:text-white transition-colors">
                 文档
               </Link>
-              <Button variant="outline" className="border-purple-400 text-purple-400 hover:bg-purple-400 hover:text-white">
-                开始使用
+              <ThemeToggle />
+              <Button variant="outline" className="border-purple-400 text-purple-400 hover:bg-purple-400 hover:text-white transition-all duration-300">
+                <Github className="mr-2 h-4 w-4" />
+                GitHub
               </Button>
             </div>
             {/* 移动端菜单按钮 */}
-            <div className="md:hidden flex items-center">
-              <Button variant="outline" size="sm" className="border-purple-400 text-purple-400">
+            <div className="md:hidden flex items-center space-x-2">
+              <ThemeToggle />
+              <Button variant="outline" size="sm" className="border-slate-600">
                 菜单
               </Button>
             </div>
@@ -47,158 +54,248 @@ export default function HomePage() {
       </nav>
 
       {/* 英雄区域 */}
-      <section className="relative py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto text-center">
-          <div className="mb-8">
-            <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 mb-4">
-              🚀 v2.0 - 智能推理引擎已发布
-            </Badge>
+      <section className="relative overflow-hidden">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
+          <div className="text-center">
+            <FadeIn>
+              <h1 className="text-4xl md:text-6xl font-bold text-white mb-6">
+                <TypeWriter text="智能记忆管理" speed={100} />
+                <br />
+                <GradientText className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
+                  新时代
+                </GradientText>
+              </h1>
+            </FadeIn>
+            <SlideIn direction="up" delay={300}>
+              <p className="text-xl text-slate-300 mb-8 max-w-3xl mx-auto">
+                AgentMem 是基于 Rust 构建的下一代智能记忆管理平台，集成 DeepSeek 推理引擎，
+                为 AI 应用提供高性能、可扩展的记忆存储与检索解决方案。
+              </p>
+            </SlideIn>
+            <SlideIn direction="up" delay={600}>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
+                <Button size="lg" className="bg-purple-600 hover:bg-purple-700 text-white transition-all duration-300 hover:scale-105">
+                  <Rocket className="mr-2 h-5 w-5" />
+                  立即开始
+                </Button>
+                <Button size="lg" variant="outline" className="border-slate-600 text-slate-300 hover:bg-slate-800 transition-all duration-300">
+                  <Code className="mr-2 h-5 w-5" />
+                  查看文档
+                </Button>
+              </div>
+            </SlideIn>
+            {/* 统计数据 */}
+            <SlideIn direction="up" delay={900}>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto">
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-purple-400 mb-2">
+                    <TypeWriter text="13" speed={200} delay={1000} />
+                  </div>
+                  <div className="text-slate-400">核心模块</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-purple-400 mb-2">
+                    <TypeWriter text="99.9%" speed={50} delay={1200} />
+                  </div>
+                  <div className="text-slate-400">可用性</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-purple-400 mb-2">
+                    <TypeWriter text="<1ms" speed={100} delay={1400} />
+                  </div>
+                  <div className="text-slate-400">响应时间</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-purple-400 mb-2">
+                    <TypeWriter text="1000+" speed={30} delay={1600} />
+                  </div>
+                  <div className="text-slate-400">开发者</div>
+                </div>
+              </div>
+            </SlideIn>
           </div>
-          <h1 className="text-5xl md:text-7xl font-bold text-white mb-6">
-            智能记忆管理
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
-              平台
-            </span>
-          </h1>
-          <p className="text-xl text-slate-300 mb-8 max-w-3xl mx-auto">
-            为 AI 代理提供先进的记忆处理能力。基于 Rust 的模块化架构，集成 DeepSeek 智能推理引擎，
-            支持多存储后端，100% Mem0 兼容。
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" className="bg-purple-600 hover:bg-purple-700 text-white">
-              <Rocket className="mr-2 h-5 w-5" />
-              快速开始
-            </Button>
-            <Button size="lg" variant="outline" className="border-slate-600 text-slate-300 hover:bg-slate-800">
-              <Code className="mr-2 h-5 w-5" />
-              查看代码
-            </Button>
-          </div>
+        </div>
+        {/* 背景装饰 */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-500/20 rounded-full blur-3xl animate-float"></div>
+          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-pink-500/20 rounded-full blur-3xl animate-float" style={{animationDelay: '2s'}}></div>
         </div>
       </section>
 
       {/* 核心特性 */}
-      <section id="features" className="py-20 px-4 sm:px-6 lg:px-8">
+      <section id="features" className="py-20 px-4 sm:px-6 lg:px-8 relative">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-white mb-4">核心特性</h2>
-            <p className="text-xl text-slate-300">企业级智能记忆管理解决方案</p>
-          </div>
+          <FadeIn>
+            <div className="text-center mb-16">
+              <h2 className="text-4xl font-bold text-white mb-4">
+                <GradientText>核心特性</GradientText>
+              </h2>
+              <p className="text-xl text-slate-300">企业级智能记忆管理解决方案</p>
+            </div>
+          </FadeIn>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {/* 智能推理引擎 */}
-            <Card className="bg-slate-800/50 border-slate-700 hover:border-purple-500/50 transition-colors">
-              <CardHeader>
-                <Brain className="h-12 w-12 text-purple-400 mb-4" />
-                <CardTitle className="text-white">智能推理引擎</CardTitle>
-                <CardDescription className="text-slate-300">
-                  DeepSeek 驱动的事实提取和记忆决策
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="text-slate-300">
-                <ul className="space-y-2">
-                  <li>• 自动事实提取</li>
-                  <li>• 智能冲突解决</li>
-                  <li>• 上下文感知搜索</li>
-                  <li>• 动态重要性评估</li>
-                </ul>
-              </CardContent>
-            </Card>
+            <SlideIn direction="up" delay={100}>
+              <FloatingCard className="bg-slate-800/50 border-slate-700 hover:border-purple-500/50 transition-all duration-300 group">
+                <CardHeader>
+                  <div className="p-2 bg-purple-500/20 rounded-lg group-hover:bg-purple-500/30 transition-colors w-fit">
+                    <Brain className="h-8 w-8 text-purple-400 group-hover:scale-110 transition-transform" />
+                  </div>
+                  <CardTitle className="text-white mt-4">智能推理引擎</CardTitle>
+                  <CardDescription className="text-slate-300">
+                    DeepSeek 驱动的事实提取和记忆决策
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="text-slate-300">
+                  <ul className="space-y-2">
+                    <li>• 自动事实提取</li>
+                    <li>• 智能冲突解决</li>
+                    <li>• 上下文感知搜索</li>
+                    <li>• 动态重要性评估</li>
+                  </ul>
+                  <div className="mt-4 flex items-center text-sm text-purple-400">
+                    <Zap className="h-4 w-4 mr-1" />
+                    AI 驱动
+                  </div>
+                </CardContent>
+              </FloatingCard>
+            </SlideIn>
 
             {/* 模块化架构 */}
-            <Card className="bg-slate-800/50 border-slate-700 hover:border-purple-500/50 transition-colors">
-              <CardHeader>
-                <Cpu className="h-12 w-12 text-blue-400 mb-4" />
-                <CardTitle className="text-white">模块化架构</CardTitle>
-                <CardDescription className="text-slate-300">
-                  13个专业化 Crate，职责清晰分离
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="text-slate-300">
-                <ul className="space-y-2">
-                  <li>• 核心记忆引擎</li>
-                  <li>• 智能处理模块</li>
-                  <li>• 多存储后端</li>
-                  <li>• LLM 集成层</li>
-                </ul>
-              </CardContent>
-            </Card>
+            <SlideIn direction="up" delay={200}>
+              <FloatingCard className="bg-slate-800/50 border-slate-700 hover:border-blue-500/50 transition-all duration-300 group">
+                <CardHeader>
+                  <div className="p-2 bg-blue-500/20 rounded-lg group-hover:bg-blue-500/30 transition-colors w-fit">
+                    <Cpu className="h-8 w-8 text-blue-400 group-hover:scale-110 transition-transform" />
+                  </div>
+                  <CardTitle className="text-white mt-4">模块化架构</CardTitle>
+                  <CardDescription className="text-slate-300">
+                    13个专业化 Crate，职责清晰分离
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="text-slate-300">
+                  <ul className="space-y-2">
+                    <li>• 核心记忆引擎</li>
+                    <li>• 智能处理模块</li>
+                    <li>• 多存储后端</li>
+                    <li>• LLM 集成层</li>
+                  </ul>
+                  <div className="mt-4 flex items-center text-sm text-blue-400">
+                    <Code className="h-4 w-4 mr-1" />
+                    13 个模块
+                  </div>
+                </CardContent>
+              </FloatingCard>
+            </SlideIn>
 
             {/* 高性能架构 */}
-            <Card className="bg-slate-800/50 border-slate-700 hover:border-purple-500/50 transition-colors">
-              <CardHeader>
-                <Zap className="h-12 w-12 text-yellow-400 mb-4" />
-                <CardTitle className="text-white">高性能架构</CardTitle>
-                <CardDescription className="text-slate-300">
-                  基于 Tokio 的异步优先设计
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="text-slate-300">
-                <ul className="space-y-2">
-                  <li>• 多级缓存系统</li>
-                  <li>• 批量处理优化</li>
-                  <li>• 实时性能监控</li>
-                  <li>• 自适应优化</li>
-                </ul>
-              </CardContent>
-            </Card>
+            <SlideIn direction="up" delay={300}>
+              <FloatingCard className="bg-slate-800/50 border-slate-700 hover:border-yellow-500/50 transition-all duration-300 group">
+                <CardHeader>
+                  <div className="p-2 bg-yellow-500/20 rounded-lg group-hover:bg-yellow-500/30 transition-colors w-fit">
+                    <Zap className="h-8 w-8 text-yellow-400 group-hover:scale-110 transition-transform" />
+                  </div>
+                  <CardTitle className="text-white mt-4">高性能架构</CardTitle>
+                  <CardDescription className="text-slate-300">
+                    基于 Tokio 的异步优先设计
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="text-slate-300">
+                  <ul className="space-y-2">
+                    <li>• 多级缓存系统</li>
+                    <li>• 批量处理优化</li>
+                    <li>• 实时性能监控</li>
+                    <li>• 自适应优化</li>
+                  </ul>
+                  <div className="mt-4 flex items-center text-sm text-yellow-400">
+                    <Cpu className="h-4 w-4 mr-1" />
+                    &lt;1ms 响应
+                  </div>
+                </CardContent>
+              </FloatingCard>
+            </SlideIn>
 
             {/* 多存储后端 */}
-            <Card className="bg-slate-800/50 border-slate-700 hover:border-purple-500/50 transition-colors">
-              <CardHeader>
-                <Database className="h-12 w-12 text-green-400 mb-4" />
-                <CardTitle className="text-white">多存储后端</CardTitle>
-                <CardDescription className="text-slate-300">
-                  支持8+种向量数据库和图数据库
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="text-slate-300">
-                <ul className="space-y-2">
-                  <li>• Pinecone, Qdrant, Chroma</li>
-                  <li>• PostgreSQL, Redis</li>
-                  <li>• Neo4j, Memgraph</li>
-                  <li>• 内存存储优化</li>
-                </ul>
-              </CardContent>
-            </Card>
+            <SlideIn direction="up" delay={400}>
+              <FloatingCard className="bg-slate-800/50 border-slate-700 hover:border-green-500/50 transition-all duration-300 group">
+                <CardHeader>
+                  <div className="p-2 bg-green-500/20 rounded-lg group-hover:bg-green-500/30 transition-colors w-fit">
+                    <Database className="h-8 w-8 text-green-400 group-hover:scale-110 transition-transform" />
+                  </div>
+                  <CardTitle className="text-white mt-4">多存储后端</CardTitle>
+                  <CardDescription className="text-slate-300">
+                    支持8+种向量数据库和图数据库
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="text-slate-300">
+                  <ul className="space-y-2">
+                    <li>• Pinecone, Qdrant, Chroma</li>
+                    <li>• PostgreSQL, Redis</li>
+                    <li>• Neo4j, Memgraph</li>
+                    <li>• 内存存储优化</li>
+                  </ul>
+                  <div className="mt-4 flex items-center text-sm text-green-400">
+                    <Database className="h-4 w-4 mr-1" />
+                    8+ 存储引擎
+                  </div>
+                </CardContent>
+              </FloatingCard>
+            </SlideIn>
 
             {/* 企业级特性 */}
-            <Card className="bg-slate-800/50 border-slate-700 hover:border-purple-500/50 transition-colors">
-              <CardHeader>
-                <Shield className="h-12 w-12 text-red-400 mb-4" />
-                <CardTitle className="text-white">企业级特性</CardTitle>
-                <CardDescription className="text-slate-300">
-                  生产就绪的安全和可靠性保障
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="text-slate-300">
-                <ul className="space-y-2">
-                  <li>• 类型安全保证</li>
-                  <li>• 完整测试覆盖</li>
-                  <li>• 分布式支持</li>
-                  <li>• 监控和遥测</li>
-                </ul>
-              </CardContent>
-            </Card>
+            <SlideIn direction="up" delay={500}>
+              <FloatingCard className="bg-slate-800/50 border-slate-700 hover:border-red-500/50 transition-all duration-300 group">
+                <CardHeader>
+                  <div className="p-2 bg-red-500/20 rounded-lg group-hover:bg-red-500/30 transition-colors w-fit">
+                    <Shield className="h-8 w-8 text-red-400 group-hover:scale-110 transition-transform" />
+                  </div>
+                  <CardTitle className="text-white mt-4">企业级特性</CardTitle>
+                  <CardDescription className="text-slate-300">
+                    生产就绪的安全和可靠性保障
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="text-slate-300">
+                  <ul className="space-y-2">
+                    <li>• 类型安全保证</li>
+                    <li>• 完整测试覆盖</li>
+                    <li>• 分布式支持</li>
+                    <li>• 监控和遥测</li>
+                  </ul>
+                  <div className="mt-4 flex items-center text-sm text-red-400">
+                    <Shield className="h-4 w-4 mr-1" />
+                    军用级安全
+                  </div>
+                </CardContent>
+              </FloatingCard>
+            </SlideIn>
 
             {/* Mem0 兼容 */}
-            <Card className="bg-slate-800/50 border-slate-700 hover:border-purple-500/50 transition-colors">
-              <CardHeader>
-                <Network className="h-12 w-12 text-indigo-400 mb-4" />
-                <CardTitle className="text-white">Mem0 兼容</CardTitle>
-                <CardDescription className="text-slate-300">
-                  100% API 兼容，支持无缝迁移
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="text-slate-300">
-                <ul className="space-y-2">
-                  <li>• 完整 API 兼容</li>
-                  <li>• 零代码迁移</li>
-                  <li>• 性能提升</li>
-                  <li>• 扩展功能</li>
-                </ul>
-              </CardContent>
-            </Card>
+            <SlideIn direction="up" delay={600}>
+              <FloatingCard className="bg-slate-800/50 border-slate-700 hover:border-indigo-500/50 transition-all duration-300 group">
+                <CardHeader>
+                  <div className="p-2 bg-indigo-500/20 rounded-lg group-hover:bg-indigo-500/30 transition-colors w-fit">
+                    <Network className="h-8 w-8 text-indigo-400 group-hover:scale-110 transition-transform" />
+                  </div>
+                  <CardTitle className="text-white mt-4">Mem0 兼容</CardTitle>
+                  <CardDescription className="text-slate-300">
+                    100% API 兼容，支持无缝迁移
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="text-slate-300">
+                  <ul className="space-y-2">
+                    <li>• 完整 API 兼容</li>
+                    <li>• 零代码迁移</li>
+                    <li>• 性能提升</li>
+                    <li>• 扩展功能</li>
+                  </ul>
+                  <div className="mt-4 flex items-center text-sm text-indigo-400">
+                    <Network className="h-4 w-4 mr-1" />
+                    100% 兼容
+                  </div>
+                </CardContent>
+              </FloatingCard>
+            </SlideIn>
           </div>
         </div>
       </section>

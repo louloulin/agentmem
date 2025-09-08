@@ -176,6 +176,8 @@ impl VectorStore for VectorStoreEnum {
             VectorStoreEnum::LanceDB(store) => store.update_vectors(vectors).await,
             #[cfg(feature = "milvus")]
             VectorStoreEnum::Milvus(store) => store.update_vectors(vectors).await,
+            #[cfg(feature = "redis")]
+            VectorStoreEnum::Redis(store) => store.update_vectors(vectors).await,
             #[cfg(feature = "supabase")]
             VectorStoreEnum::Supabase(store) => store.update_vectors(vectors).await,
             #[cfg(feature = "weaviate")]
@@ -203,6 +205,8 @@ impl VectorStore for VectorStoreEnum {
             VectorStoreEnum::LanceDB(store) => store.get_vector(id).await,
             #[cfg(feature = "milvus")]
             VectorStoreEnum::Milvus(store) => store.get_vector(id).await,
+            #[cfg(feature = "redis")]
+            VectorStoreEnum::Redis(store) => store.get_vector(id).await,
             #[cfg(feature = "supabase")]
             VectorStoreEnum::Supabase(store) => store.get_vector(id).await,
             #[cfg(feature = "weaviate")]
@@ -230,6 +234,8 @@ impl VectorStore for VectorStoreEnum {
             VectorStoreEnum::LanceDB(store) => store.count_vectors().await,
             #[cfg(feature = "milvus")]
             VectorStoreEnum::Milvus(store) => store.count_vectors().await,
+            #[cfg(feature = "redis")]
+            VectorStoreEnum::Redis(store) => store.count_vectors().await,
             #[cfg(feature = "supabase")]
             VectorStoreEnum::Supabase(store) => store.count_vectors().await,
             #[cfg(feature = "weaviate")]
@@ -257,6 +263,8 @@ impl VectorStore for VectorStoreEnum {
             VectorStoreEnum::LanceDB(store) => store.clear().await,
             #[cfg(feature = "milvus")]
             VectorStoreEnum::Milvus(store) => store.clear().await,
+            #[cfg(feature = "redis")]
+            VectorStoreEnum::Redis(store) => store.clear().await,
             #[cfg(feature = "supabase")]
             VectorStoreEnum::Supabase(store) => store.clear().await,
             #[cfg(feature = "weaviate")]
@@ -406,6 +414,26 @@ impl StorageFactory {
                     ));
                 }
             }
+            "redis" => {
+                #[cfg(feature = "redis")]
+                {
+                    use crate::backends::redis::RedisConfig;
+                    let redis_config = RedisConfig {
+                        connection_url: config.url.clone().unwrap_or_else(|| "redis://localhost:6379".to_string()),
+                        key_prefix: config.index_name.clone().unwrap_or_else(|| "agentmem".to_string()),
+                        vector_dimension: config.dimension.unwrap_or(1536),
+                        ..Default::default()
+                    };
+                    let store = RedisStore::new(redis_config).await?;
+                    VectorStoreEnum::Redis(store)
+                }
+                #[cfg(not(feature = "redis"))]
+                {
+                    return Err(AgentMemError::unsupported_provider(
+                        "Redis feature not enabled",
+                    ));
+                }
+            }
             "supabase" => {
                 #[cfg(feature = "supabase")]
                 {
@@ -465,6 +493,9 @@ impl StorageFactory {
 
         #[cfg(feature = "milvus")]
         providers.push("milvus");
+
+        #[cfg(feature = "redis")]
+        providers.push("redis");
 
         #[cfg(feature = "weaviate")]
         providers.push("weaviate");
