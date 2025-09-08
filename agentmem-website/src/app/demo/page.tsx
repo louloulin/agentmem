@@ -9,10 +9,47 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CodeBlock, InlineCode } from "@/components/ui/code-block";
 import { FadeIn, SlideIn, TypeWriter } from "@/components/ui/animations";
 import { LoadingSpinner, ContentLoading } from "@/components/ui/loading";
-import { Brain, Play, Code, Zap, Database, MessageSquare, ArrowRight, Copy, Check, Terminal, Cpu, Network } from "lucide-react";
+import { 
+  Brain, 
+  Play, 
+  Code, 
+  Zap, 
+  Database, 
+  MessageSquare, 
+  ArrowRight, 
+  Copy, 
+  Check, 
+  Terminal, 
+  Cpu, 
+  Network,
+  Settings,
+  BarChart3,
+  Activity,
+  Clock,
+  Users,
+  Globe,
+  Sparkles,
+  RefreshCw,
+  Download,
+  Upload,
+  Eye,
+  Trash2,
+  Edit3,
+  Search,
+  Filter,
+  TrendingUp,
+  Target,
+  ExternalLink,
+  Send,
+  Shield,
+  AlertTriangle,
+  CheckCircle
+} from "lucide-react";
 import Link from "next/link";
 
 /**
@@ -67,8 +104,41 @@ export default function DemoPage() {
     totalMemories: 1247,
     avgResponseTime: "12ms",
     activeConnections: 23,
-    memoryHits: 98.7
+    memoryHits: 98.7,
+    dailyQueries: 15420,
+    storageUsed: 2.3,
+    uptime: 99.9
   });
+  const [selectedDemo, setSelectedDemo] = useState('interactive');
+  const [memoryList, setMemoryList] = useState([
+    {
+      id: 'mem_001',
+      content: '用户喜欢在周末进行户外活动，特别是徒步和骑行',
+      category: 'preferences',
+      importance: 0.9,
+      created_at: '2024-01-15T10:30:00Z',
+      user_id: 'user_123'
+    },
+    {
+      id: 'mem_002', 
+      content: '用户对环保话题很感兴趣，经常参与相关讨论',
+      category: 'interests',
+      importance: 0.8,
+      created_at: '2024-01-14T15:45:00Z',
+      user_id: 'user_123'
+    },
+    {
+      id: 'mem_003',
+      content: '用户是一名软件工程师，专注于 AI 和机器学习',
+      category: 'professional',
+      importance: 0.95,
+      created_at: '2024-01-13T09:20:00Z', 
+      user_id: 'user_123'
+    }
+  ]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [demoOutput, setDemoOutput] = useState("");
   const [copiedCode, setCopiedCode] = useState("");
@@ -79,13 +149,81 @@ export default function DemoPage() {
       setRealTimeStats(prev => ({
         totalMemories: prev.totalMemories + Math.floor(Math.random() * 3),
         avgResponseTime: `${Math.floor(Math.random() * 20 + 10)}ms`,
-        activeConnections: prev.activeConnections + Math.floor(Math.random() * 5 - 2),
-        memoryHits: Math.min(99.9, prev.memoryHits + (Math.random() - 0.5) * 0.1)
+        activeConnections: Math.max(1, prev.activeConnections + Math.floor(Math.random() * 5 - 2)),
+        memoryHits: Math.min(99.9, prev.memoryHits + (Math.random() - 0.5) * 0.1),
+        dailyQueries: prev.dailyQueries + Math.floor(Math.random() * 10),
+        storageUsed: Math.min(10, prev.storageUsed + (Math.random() - 0.5) * 0.1),
+        uptime: Math.max(99.0, prev.uptime + (Math.random() - 0.5) * 0.01)
       }));
     }, 3000);
 
     return () => clearInterval(interval);
   }, []);
+
+  // 模拟搜索功能
+  const handleSearch = async (query: string) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    
+    setIsSearching(true);
+    
+    // 模拟搜索延迟
+    setTimeout(() => {
+      const results = memoryList.filter(memory => 
+        memory.content.toLowerCase().includes(query.toLowerCase()) ||
+        memory.category.toLowerCase().includes(query.toLowerCase())
+      ).map(memory => ({
+        ...memory,
+        relevance: Math.random() * 0.3 + 0.7 // 0.7-1.0 的相关性分数
+      })).sort((a, b) => b.relevance - a.relevance);
+      
+      setSearchResults(results);
+      setIsSearching(false);
+    }, 800);
+  };
+
+  // 添加新记忆
+  const addMemory = (content: string, userId: string = 'user_123') => {
+    const newMemory = {
+      id: `mem_${Date.now()}`,
+      content,
+      category: 'user_input',
+      importance: Math.random() * 0.3 + 0.7,
+      created_at: new Date().toISOString(),
+      user_id: userId
+    };
+    
+    setMemoryList(prev => [newMemory, ...prev]);
+    return newMemory;
+  };
+
+  // 删除记忆
+  const deleteMemory = (id: string) => {
+    setMemoryList(prev => prev.filter(memory => memory.id !== id));
+  };
+
+  // 执行搜索
+  const performSearch = () => {
+    if (!searchQuery.trim()) return;
+    
+    setIsLoading(true);
+    
+    // 模拟搜索延迟
+    setTimeout(() => {
+      const results = memoryList.filter(memory => 
+        memory.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        memory.category.toLowerCase().includes(searchQuery.toLowerCase())
+      ).map(memory => ({
+        ...memory,
+        relevance: Math.random() * 0.3 + 0.7 // 0.7-1.0 的相关性分数
+      })).sort((a, b) => b.relevance - a.relevance);
+      
+      setSearchResults(results);
+      setIsLoading(false);
+    }, 800);
+  };
 
   /**
    * 模拟 API 调用
@@ -362,41 +500,96 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         {/* 实时统计面板 */}
         <SlideIn direction="up" delay={300}>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            <Card className="bg-slate-800/50 border-slate-700">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-8">
+            <Card className="bg-slate-800/50 border-slate-700 hover:border-purple-500/50 transition-all duration-300">
               <CardContent className="p-4 text-center">
                 <div className="flex items-center justify-center mb-2">
                   <Database className="h-5 w-5 text-blue-400 mr-2" />
-                  <span className="text-2xl font-bold text-white">{realTimeStats.totalMemories}</span>
+                  <span className="text-2xl font-bold text-white">{realTimeStats.totalMemories.toLocaleString()}</span>
                 </div>
                 <p className="text-sm text-slate-400">总记忆数</p>
+                <div className="mt-1">
+                  <TrendingUp className="h-3 w-3 text-green-400 inline mr-1" />
+                  <span className="text-xs text-green-400">+{Math.floor(Math.random() * 10 + 5)}</span>
+                </div>
               </CardContent>
             </Card>
-            <Card className="bg-slate-800/50 border-slate-700">
+            <Card className="bg-slate-800/50 border-slate-700 hover:border-yellow-500/50 transition-all duration-300">
               <CardContent className="p-4 text-center">
                 <div className="flex items-center justify-center mb-2">
                   <Zap className="h-5 w-5 text-yellow-400 mr-2" />
                   <span className="text-2xl font-bold text-white">{realTimeStats.avgResponseTime}</span>
                 </div>
                 <p className="text-sm text-slate-400">平均响应</p>
+                <div className="mt-1">
+                  <Activity className="h-3 w-3 text-yellow-400 inline mr-1" />
+                  <span className="text-xs text-yellow-400">实时</span>
+                </div>
               </CardContent>
             </Card>
-            <Card className="bg-slate-800/50 border-slate-700">
+            <Card className="bg-slate-800/50 border-slate-700 hover:border-green-500/50 transition-all duration-300">
               <CardContent className="p-4 text-center">
                 <div className="flex items-center justify-center mb-2">
                   <Network className="h-5 w-5 text-green-400 mr-2" />
                   <span className="text-2xl font-bold text-white">{realTimeStats.activeConnections}</span>
                 </div>
                 <p className="text-sm text-slate-400">活跃连接</p>
+                <div className="mt-1">
+                  <Users className="h-3 w-3 text-green-400 inline mr-1" />
+                  <span className="text-xs text-green-400">在线</span>
+                </div>
               </CardContent>
             </Card>
-            <Card className="bg-slate-800/50 border-slate-700">
+            <Card className="bg-slate-800/50 border-slate-700 hover:border-purple-500/50 transition-all duration-300">
               <CardContent className="p-4 text-center">
                 <div className="flex items-center justify-center mb-2">
                   <Cpu className="h-5 w-5 text-purple-400 mr-2" />
                   <span className="text-2xl font-bold text-white">{realTimeStats.memoryHits.toFixed(1)}%</span>
                 </div>
                 <p className="text-sm text-slate-400">命中率</p>
+                <div className="mt-1">
+                  <BarChart3 className="h-3 w-3 text-purple-400 inline mr-1" />
+                  <span className="text-xs text-purple-400">优秀</span>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-slate-800/50 border-slate-700 hover:border-indigo-500/50 transition-all duration-300">
+              <CardContent className="p-4 text-center">
+                <div className="flex items-center justify-center mb-2">
+                  <Globe className="h-5 w-5 text-indigo-400 mr-2" />
+                  <span className="text-2xl font-bold text-white">{realTimeStats.dailyQueries.toLocaleString()}</span>
+                </div>
+                <p className="text-sm text-slate-400">日查询量</p>
+                <div className="mt-1">
+                  <TrendingUp className="h-3 w-3 text-indigo-400 inline mr-1" />
+                  <span className="text-xs text-indigo-400">+12%</span>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-slate-800/50 border-slate-700 hover:border-orange-500/50 transition-all duration-300">
+              <CardContent className="p-4 text-center">
+                <div className="flex items-center justify-center mb-2">
+                  <Database className="h-5 w-5 text-orange-400 mr-2" />
+                  <span className="text-2xl font-bold text-white">{realTimeStats.storageUsed.toFixed(1)}GB</span>
+                </div>
+                <p className="text-sm text-slate-400">存储使用</p>
+                <div className="mt-1">
+                  <Activity className="h-3 w-3 text-orange-400 inline mr-1" />
+                  <span className="text-xs text-orange-400">正常</span>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-slate-800/50 border-slate-700 hover:border-emerald-500/50 transition-all duration-300">
+              <CardContent className="p-4 text-center">
+                <div className="flex items-center justify-center mb-2">
+                  <Clock className="h-5 w-5 text-emerald-400 mr-2" />
+                  <span className="text-2xl font-bold text-white">{realTimeStats.uptime.toFixed(1)}%</span>
+                </div>
+                <p className="text-sm text-slate-400">系统可用性</p>
+                <div className="mt-1">
+                  <Check className="h-3 w-3 text-emerald-400 inline mr-1" />
+                  <span className="text-xs text-emerald-400">稳定</span>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -404,22 +597,278 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         {/* 演示选择 */}
         <SlideIn direction="up" delay={600}>
-          <Tabs value={activeDemo} onValueChange={setActiveDemo} className="mb-8">
-            <TabsList className="grid w-full grid-cols-3 bg-slate-800 border-slate-700">
-              <TabsTrigger value="add" className="data-[state=active]:bg-purple-600">
-                <Brain className="mr-2 h-4 w-4" />
-                添加记忆
+          <Tabs value={selectedDemo} onValueChange={setSelectedDemo} className="mb-8">
+            <TabsList className="grid w-full grid-cols-5 bg-slate-800 border-slate-700">
+              <TabsTrigger value="interactive" className="data-[state=active]:bg-purple-600">
+                <Sparkles className="mr-2 h-4 w-4" />
+                交互演示
+              </TabsTrigger>
+              <TabsTrigger value="memory-manager" className="data-[state=active]:bg-purple-600">
+                <Database className="mr-2 h-4 w-4" />
+                记忆管理
               </TabsTrigger>
               <TabsTrigger value="search" className="data-[state=active]:bg-purple-600">
-                <Database className="mr-2 h-4 w-4" />
+                <Search className="mr-2 h-4 w-4" />
                 智能搜索
               </TabsTrigger>
               <TabsTrigger value="api" className="data-[state=active]:bg-purple-600">
                 <Code className="mr-2 h-4 w-4" />
-                API 示例
+                API 测试
+              </TabsTrigger>
+              <TabsTrigger value="performance" className="data-[state=active]:bg-purple-600">
+                <BarChart3 className="mr-2 h-4 w-4" />
+                性能监控
               </TabsTrigger>
             </TabsList>
             
+            {/* 交互演示 */}
+            <TabsContent value="interactive" className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* 快速体验 */}
+                <Card className="bg-slate-800/50 border-slate-700">
+                  <CardHeader>
+                    <CardTitle className="text-white flex items-center">
+                      <Sparkles className="mr-2 h-5 w-5 text-purple-400" />
+                      快速体验
+                    </CardTitle>
+                    <CardDescription className="text-slate-300">
+                      输入任何内容，体验 AgentMem 的智能记忆功能
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <Label htmlFor="quickInput" className="text-slate-300">输入内容</Label>
+                      <Textarea
+                        id="quickInput"
+                        rows={3}
+                        placeholder="例如：我是张三，来自北京，喜欢编程和阅读..."
+                        className="bg-slate-700 border-slate-600 text-white resize-none"
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button 
+                        className="flex-1 bg-purple-600 hover:bg-purple-700"
+                        onClick={() => {
+                          if (input.trim()) {
+                            addMemory(input);
+                            setInput('');
+                            simulateAPICall('add');
+                          }
+                        }}
+                        disabled={isLoading || !input.trim()}
+                      >
+                        {isLoading ? (
+                          <>
+                            <LoadingSpinner className="mr-2" />
+                            处理中...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="mr-2 h-4 w-4" />
+                            添加记忆
+                          </>
+                        )}
+                      </Button>
+                      <Button 
+                        variant="outline"
+                        className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                        onClick={() => setInput('')}
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* 实时结果 */}
+                <Card className="bg-slate-800/50 border-slate-700">
+                  <CardHeader>
+                    <CardTitle className="text-white flex items-center">
+                      <Activity className="mr-2 h-5 w-5 text-green-400" />
+                      实时结果
+                    </CardTitle>
+                    <CardDescription className="text-slate-300">
+                      查看 AgentMem 的处理结果和提取的信息
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {isLoading ? (
+                      <ContentLoading />
+                    ) : output ? (
+                      <CodeBlock
+                        language="json"
+                        code={output}
+                      />
+                    ) : (
+                      <div className="text-center py-8 text-slate-400">
+                        <Brain className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                        <p>等待输入内容...</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            {/* 记忆管理 */}
+            <TabsContent value="memory-manager" className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* 记忆列表 */}
+                <div className="lg:col-span-2">
+                  <Card className="bg-slate-800/50 border-slate-700">
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <CardTitle className="text-white flex items-center">
+                            <Database className="mr-2 h-5 w-5 text-blue-400" />
+                            记忆库
+                          </CardTitle>
+                          <CardDescription className="text-slate-300">
+                            管理和查看所有存储的记忆
+                          </CardDescription>
+                        </div>
+                        <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
+                          {memoryList.length} 条记忆
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3 max-h-96 overflow-y-auto">
+                        {memoryList.map((memory, index) => (
+                          <SlideIn key={memory.id} direction="up" delay={index * 50}>
+                            <div className="p-4 bg-slate-700/50 rounded-lg border border-slate-600 hover:border-purple-500/50 transition-all duration-300">
+                              <div className="flex items-start justify-between mb-2">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Badge className={`text-xs ${
+                                      memory.category === 'preferences' ? 'bg-green-500/20 text-green-400 border-green-500/30' :
+                                      memory.category === 'interests' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' :
+                                      memory.category === 'professional' ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' :
+                                      'bg-gray-500/20 text-gray-400 border-gray-500/30'
+                                    }`}>
+                                      {memory.category}
+                                    </Badge>
+                                    <Badge variant="outline" className="text-xs">
+                                      重要性: {(memory.importance * 100).toFixed(0)}%
+                                    </Badge>
+                                  </div>
+                                  <p className="text-slate-300 text-sm mb-2">{memory.content}</p>
+                                  <div className="flex items-center gap-4 text-xs text-slate-400">
+                                    <span className="flex items-center">
+                                      <Clock className="h-3 w-3 mr-1" />
+                                      {new Date(memory.created_at).toLocaleDateString()}
+                                    </span>
+                                    <span className="flex items-center">
+                                      <Users className="h-3 w-3 mr-1" />
+                                      {memory.user_id}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 ml-4">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-8 w-8 p-0 text-slate-400 hover:text-blue-400"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-8 w-8 p-0 text-slate-400 hover:text-yellow-400"
+                                  >
+                                    <Edit3 className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-8 w-8 p-0 text-slate-400 hover:text-red-400"
+                                    onClick={() => deleteMemory(memory.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          </SlideIn>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* 记忆统计 */}
+                <div>
+                  <Card className="bg-slate-800/50 border-slate-700 mb-6">
+                    <CardHeader>
+                      <CardTitle className="text-white flex items-center">
+                        <BarChart3 className="mr-2 h-5 w-5 text-purple-400" />
+                        统计信息
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-300 text-sm">总记忆数</span>
+                        <span className="text-white font-semibold">{memoryList.length}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-300 text-sm">平均重要性</span>
+                        <span className="text-white font-semibold">
+                          {(memoryList.reduce((acc, m) => acc + m.importance, 0) / memoryList.length * 100).toFixed(0)}%
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-300 text-sm">分类数量</span>
+                        <span className="text-white font-semibold">
+                          {new Set(memoryList.map(m => m.category)).size}
+                        </span>
+                      </div>
+                      <Separator className="bg-slate-700" />
+                      <div className="space-y-2">
+                        <h4 className="text-white text-sm font-semibold">分类分布</h4>
+                        {Object.entries(
+                          memoryList.reduce((acc, memory) => {
+                            acc[memory.category] = (acc[memory.category] || 0) + 1;
+                            return acc;
+                          }, {} as Record<string, number>)
+                        ).map(([category, count]) => (
+                          <div key={category} className="flex items-center justify-between">
+                            <span className="text-slate-400 text-xs capitalize">{category}</span>
+                            <span className="text-slate-300 text-xs">{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="bg-slate-800/50 border-slate-700">
+                    <CardHeader>
+                      <CardTitle className="text-white flex items-center">
+                        <Settings className="mr-2 h-5 w-5 text-gray-400" />
+                        快速操作
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <Button className="w-full bg-blue-600 hover:bg-blue-700" size="sm">
+                        <Download className="mr-2 h-4 w-4" />
+                        导出记忆
+                      </Button>
+                      <Button className="w-full bg-green-600 hover:bg-green-700" size="sm">
+                        <Upload className="mr-2 h-4 w-4" />
+                        导入记忆
+                      </Button>
+                      <Button className="w-full bg-red-600 hover:bg-red-700" size="sm">
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        清空记忆
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            </TabsContent>
+
             <TabsContent value="add" className="space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* 输入区域 */}
@@ -647,6 +1096,207 @@ print(f"找到 {len(results)} 条相关记忆")`}
                   </div>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            {/* 性能监控 */}
+            <TabsContent value="performance" className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* 实时性能指标 */}
+                <div className="lg:col-span-2">
+                  <Card className="bg-slate-800/50 border-slate-700">
+                    <CardHeader>
+                      <CardTitle className="text-white flex items-center">
+                        <Activity className="mr-2 h-5 w-5 text-green-400" />
+                        实时性能监控
+                      </CardTitle>
+                      <CardDescription className="text-slate-300">
+                        监控系统性能和资源使用情况
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 gap-4 mb-6">
+                        {/* CPU 使用率 */}
+                        <div className="p-4 bg-slate-700/50 rounded-lg">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-slate-300 text-sm">CPU 使用率</span>
+                            <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+                              {Math.floor(Math.random() * 30 + 15)}%
+                            </Badge>
+                          </div>
+                          <div className="w-full bg-slate-600 rounded-full h-2">
+                            <div 
+                              className="bg-green-400 h-2 rounded-full transition-all duration-1000"
+                              style={{ width: `${Math.floor(Math.random() * 30 + 15)}%` }}
+                            ></div>
+                          </div>
+                        </div>
+
+                        {/* 内存使用率 */}
+                        <div className="p-4 bg-slate-700/50 rounded-lg">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-slate-300 text-sm">内存使用率</span>
+                            <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
+                              {Math.floor(Math.random() * 40 + 30)}%
+                            </Badge>
+                          </div>
+                          <div className="w-full bg-slate-600 rounded-full h-2">
+                            <div 
+                              className="bg-blue-400 h-2 rounded-full transition-all duration-1000"
+                              style={{ width: `${Math.floor(Math.random() * 40 + 30)}%` }}
+                            ></div>
+                          </div>
+                        </div>
+
+                        {/* 网络延迟 */}
+                        <div className="p-4 bg-slate-700/50 rounded-lg">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-slate-300 text-sm">网络延迟</span>
+                            <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
+                              {Math.floor(Math.random() * 50 + 20)}ms
+                            </Badge>
+                          </div>
+                          <div className="w-full bg-slate-600 rounded-full h-2">
+                            <div 
+                              className="bg-yellow-400 h-2 rounded-full transition-all duration-1000"
+                              style={{ width: `${Math.floor(Math.random() * 30 + 20)}%` }}
+                            ></div>
+                          </div>
+                        </div>
+
+                        {/* 磁盘 I/O */}
+                        <div className="p-4 bg-slate-700/50 rounded-lg">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-slate-300 text-sm">磁盘 I/O</span>
+                            <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30">
+                              {Math.floor(Math.random() * 20 + 5)}%
+                            </Badge>
+                          </div>
+                          <div className="w-full bg-slate-600 rounded-full h-2">
+                            <div 
+                              className="bg-purple-400 h-2 rounded-full transition-all duration-1000"
+                              style={{ width: `${Math.floor(Math.random() * 20 + 5)}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 性能图表 */}
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-white font-semibold">响应时间趋势</h4>
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="outline" className="text-xs border-slate-600 text-slate-300">
+                              1小时
+                            </Button>
+                            <Button size="sm" variant="outline" className="text-xs border-slate-600 text-slate-300 bg-slate-700">
+                              24小时
+                            </Button>
+                            <Button size="sm" variant="outline" className="text-xs border-slate-600 text-slate-300">
+                              7天
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="h-32 bg-slate-900 rounded-lg p-4 flex items-end justify-between">
+                          {Array.from({ length: 20 }, (_, i) => (
+                            <div
+                              key={i}
+                              className="bg-green-400 w-2 rounded-t transition-all duration-500"
+                              style={{ 
+                                height: `${Math.floor(Math.random() * 80 + 20)}%`,
+                                animationDelay: `${i * 50}ms`
+                              }}
+                            ></div>
+                          ))}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* 系统状态 */}
+                <div>
+                  <Card className="bg-slate-800/50 border-slate-700 mb-6">
+                    <CardHeader>
+                      <CardTitle className="text-white flex items-center">
+                        <Shield className="mr-2 h-5 w-5 text-green-400" />
+                        系统状态
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-300 text-sm">服务状态</span>
+                        <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+                          <div className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></div>
+                          正常
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-300 text-sm">数据库连接</span>
+                        <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+                          活跃
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-300 text-sm">缓存状态</span>
+                        <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+                          命中率 95%
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-300 text-sm">API 限流</span>
+                        <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
+                          正常
+                        </Badge>
+                      </div>
+                      <Separator className="bg-slate-700" />
+                      <div className="space-y-2">
+                        <h4 className="text-white text-sm font-semibold">运行时间</h4>
+                        <div className="text-slate-300 text-sm">
+                          <div className="flex justify-between">
+                            <span>启动时间:</span>
+                            <span>2024-01-15 09:00:00</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>运行时长:</span>
+                            <span className="text-green-400">15天 6小时</span>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="bg-slate-800/50 border-slate-700">
+                    <CardHeader>
+                      <CardTitle className="text-white flex items-center">
+                        <AlertTriangle className="mr-2 h-5 w-5 text-yellow-400" />
+                        告警信息
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                        <div className="flex items-center gap-2 mb-1">
+                          <AlertTriangle className="h-4 w-4 text-yellow-400" />
+                          <span className="text-yellow-400 text-sm font-semibold">警告</span>
+                        </div>
+                        <p className="text-slate-300 text-xs">
+                          内存使用率超过 70%，建议优化
+                        </p>
+                        <span className="text-slate-400 text-xs">5分钟前</span>
+                      </div>
+                      <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                        <div className="flex items-center gap-2 mb-1">
+                          <CheckCircle className="h-4 w-4 text-green-400" />
+                          <span className="text-green-400 text-sm font-semibold">正常</span>
+                        </div>
+                        <p className="text-slate-300 text-xs">
+                          所有服务运行正常
+                        </p>
+                        <span className="text-slate-400 text-xs">刚刚</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
             </TabsContent>
           </Tabs>
         </SlideIn>

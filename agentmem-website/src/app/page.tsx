@@ -4,12 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { SearchDialog } from "@/components/ui/search";
+import { SearchDialog, GlobalSearch, SearchTrigger } from "@/components/ui/search";
+import { LanguageSwitcher, CompactLanguageSwitcher } from "@/components/ui/language-switcher";
 import { FadeIn, SlideIn, FloatingCard, GradientText, TypeWriter } from "@/components/ui/animations";
-import { useLanguage, LanguageToggle } from "@/components/ui/language-provider";
-import { Brain, Zap, Shield, Database, Cpu, Network, Code, Rocket, Github, Menu, X } from "lucide-react";
+import { useLanguage } from "@/contexts/language-context";
+import { Brain, Zap, Shield, Database, Cpu, Network, Code, Rocket, Github, Menu, X, Star, Users, TrendingUp, Award, CheckCircle, Quote, ArrowRight, Building, Globe, Search } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import Head from "next/head";
+import { Badge } from "@/components/ui/badge";
+import { Target } from "lucide-react";
 
 /**
  * 主页组件 - 展示AgentMem的核心特性和优势
@@ -17,6 +21,7 @@ import { useState } from "react";
 export default function HomePage() {
   const { t } = useLanguage();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   /**
    * 切换移动端菜单显示状态
@@ -24,43 +29,140 @@ export default function HomePage() {
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
   };
+
+  // 键盘快捷键
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsSearchOpen(true);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // 首页结构化数据
+  const websiteData = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "AgentMem",
+    "url": "https://agentmem.ai",
+    "description": "基于 Rust 构建的下一代智能记忆管理平台，集成 DeepSeek 推理引擎",
+    "inLanguage": "zh-CN",
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": {
+        "@type": "EntryPoint",
+        "urlTemplate": "https://agentmem.ai/search?q={search_term_string}"
+      },
+      "query-input": "required name=search_term_string"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "AgentMem Team",
+      "url": "https://agentmem.ai"
+    }
+  };
+
+  const webPageData = {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "@id": "https://agentmem.ai/#webpage",
+    "url": "https://agentmem.ai",
+    "name": "AgentMem - 智能记忆管理平台",
+    "description": "基于 Rust 构建的下一代智能记忆管理平台，集成 DeepSeek 推理引擎。为 AI 代理提供强大的记忆能力，支持语义搜索、智能推理和实时学习。",
+    "inLanguage": "zh-CN",
+    "isPartOf": {
+      "@type": "WebSite",
+      "@id": "https://agentmem.ai/#website"
+    },
+    "datePublished": "2024-01-15",
+    "dateModified": "2024-01-15",
+    "breadcrumb": {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "首页",
+          "item": "https://agentmem.ai"
+        }
+      ]
+    },
+    "mainEntity": {
+      "@type": "SoftwareApplication",
+      "name": "AgentMem",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "Cross-platform",
+      "programmingLanguage": "Rust"
+    }
+  };
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
+    <>
+      <Head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(websiteData),
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(webPageData),
+          }}
+        />
+      </Head>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
       {/* 导航栏 */}
       <nav className="border-b border-slate-800 bg-slate-900/50 backdrop-blur-sm sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <Brain className="h-8 w-8 text-purple-400 animate-pulse-glow" />
-              <span className="ml-2 text-xl font-bold text-white">AgentMem</span>
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center">
+                <Brain className="h-8 w-8 text-purple-400 animate-pulse-glow" />
+                <span className="ml-2 text-xl font-bold text-white">AgentMem</span>
+              </div>
+              <div className="hidden lg:block">
+                <SearchTrigger onClick={() => setIsSearchOpen(true)} />
+              </div>
             </div>
-            <div className="hidden md:flex items-center space-x-6">
-              <SearchDialog />
-              <Link href="#features" className="text-slate-300 hover:text-white transition-colors">
-                {t('nav.features')}
+            <div className="hidden lg:flex items-center space-x-3">
+              <Link href="#features" className="text-slate-300 hover:text-white transition-colors px-2 py-1 rounded-md hover:bg-slate-800/50">
+                功能
               </Link>
-              <Link href="#architecture" className="text-slate-300 hover:text-white transition-colors">
-                {t('nav.architecture')}
+              <Link href="#architecture" className="text-slate-300 hover:text-white transition-colors px-2 py-1 rounded-md hover:bg-slate-800/50">
+                架构
               </Link>
-              <Link href="/demo" className="text-slate-300 hover:text-white transition-colors">
+              <Link href="/demo" className="text-slate-300 hover:text-white transition-colors px-2 py-1 rounded-md hover:bg-slate-800/50">
                 {t('nav.demo')}
               </Link>
-              <Link href="/docs" className="text-slate-300 hover:text-white transition-colors">
+              <Link href="/docs" className="text-slate-300 hover:text-white transition-colors px-2 py-1 rounded-md hover:bg-slate-800/50">
                 {t('nav.docs')}
               </Link>
-              <Link href="/faq" className="text-slate-300 hover:text-white transition-colors">
-                FAQ
+              <Link href="/pricing" className="text-slate-300 hover:text-white transition-colors px-2 py-1 rounded-md hover:bg-slate-800/50">
+                {t('nav.pricing')}
               </Link>
-              <LanguageToggle />
-              <ThemeToggle />
-              <Button variant="outline" className="border-purple-400 text-purple-400 hover:bg-purple-400 hover:text-white transition-all duration-300">
-                <Github className="mr-2 h-4 w-4" />
-                {t('nav.github')}
-              </Button>
+              <Link href="/blog" className="text-slate-300 hover:text-white transition-colors px-2 py-1 rounded-md hover:bg-slate-800/50">
+                {t('nav.blog')}
+              </Link>
+              <Link href="/support" className="text-slate-300 hover:text-white transition-colors px-2 py-1 rounded-md hover:bg-slate-800/50">
+                {t('nav.support')}
+              </Link>
+              <div className="flex items-center space-x-2 ml-2">
+                <LanguageSwitcher />
+                <ThemeToggle />
+                <Button variant="outline" size="sm" className="border-purple-400 text-purple-400 hover:bg-purple-400 hover:text-white transition-all duration-300">
+                  <Github className="mr-1 h-3 w-3" />
+                  <span className="hidden xl:inline">{t('nav.github')}</span>
+                </Button>
+              </div>
             </div>
             {/* 移动端菜单按钮 */}
-            <div className="md:hidden flex items-center space-x-2">
-              <LanguageToggle />
+            <div className="lg:hidden flex items-center space-x-2">
+              <CompactLanguageSwitcher />
               <ThemeToggle />
               <Button 
                 variant="outline" 
@@ -81,23 +183,23 @@ export default function HomePage() {
         
         {/* 移动端菜单 */}
         {isMobileMenuOpen && (
-          <div className="md:hidden bg-slate-900/95 backdrop-blur-sm border-t border-slate-800">
+          <div className="lg:hidden bg-slate-900/95 backdrop-blur-sm border-t border-slate-800">
             <div className="px-4 py-4 space-y-4">
-              <SearchDialog />
+              <SearchTrigger onClick={() => setIsSearchOpen(true)} />
               <div className="flex flex-col space-y-3">
                 <Link 
                   href="#features" 
                   className="text-slate-300 hover:text-white transition-colors py-2 px-3 rounded-lg hover:bg-slate-800"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
-                  {t('nav.features')}
+                  功能
                 </Link>
                 <Link 
                   href="#architecture" 
                   className="text-slate-300 hover:text-white transition-colors py-2 px-3 rounded-lg hover:bg-slate-800"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
-                  {t('nav.architecture')}
+                  架构
                 </Link>
                 <Link 
                   href="/demo" 
@@ -114,11 +216,25 @@ export default function HomePage() {
                   {t('nav.docs')}
                 </Link>
                 <Link 
-                  href="/faq" 
+                  href="/pricing" 
                   className="text-slate-300 hover:text-white transition-colors py-2 px-3 rounded-lg hover:bg-slate-800"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
-                  FAQ
+                  {t('nav.pricing')}
+                </Link>
+                <Link 
+                  href="/blog" 
+                  className="text-slate-300 hover:text-white transition-colors py-2 px-3 rounded-lg hover:bg-slate-800"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  {t('nav.blog')}
+                </Link>
+                <Link 
+                  href="/support" 
+                  className="text-slate-300 hover:text-white transition-colors py-2 px-3 rounded-lg hover:bg-slate-800"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  {t('nav.support')}
                 </Link>
                 <Button 
                   variant="outline" 
@@ -140,28 +256,28 @@ export default function HomePage() {
           <div className="text-center px-4">
             <FadeIn>
               <h1 className="text-3xl sm:text-4xl md:text-6xl font-bold text-white mb-6 leading-tight">
-                <TypeWriter text={t('hero.title')} speed={100} />
+                <TypeWriter text={t('home.title')} speed={100} />
                 <br className="hidden sm:block" />
                 <span className="sm:hidden"> </span>
                 <GradientText className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
-                  {t('hero.subtitle')}
+                  {t('home.subtitle')}
                 </GradientText>
               </h1>
             </FadeIn>
             <SlideIn direction="up" delay={300}>
               <p className="text-xl text-slate-300 mb-8 max-w-3xl mx-auto">
-                {t('hero.description')}
+                {t('home.description')}
               </p>
             </SlideIn>
             <SlideIn direction="up" delay={600}>
               <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
                 <Button size="lg" className="bg-purple-600 hover:bg-purple-700 text-white transition-all duration-300 hover:scale-105">
                   <Rocket className="mr-2 h-5 w-5" />
-                  {t('hero.getStarted')}
+                  {t('home.getStarted')}
                 </Button>
                 <Button size="lg" variant="outline" className="border-slate-600 text-slate-300 hover:bg-slate-800 transition-all duration-300">
                   <Code className="mr-2 h-5 w-5" />
-                  {t('hero.viewDocs')}
+                  {t('home.viewDocs')}
                 </Button>
               </div>
             </SlideIn>
@@ -172,25 +288,25 @@ export default function HomePage() {
                   <div className="text-2xl sm:text-3xl font-bold text-purple-400 mb-2">
                     <TypeWriter text="13" speed={200} />
                   </div>
-                  <div className="text-slate-400 text-sm sm:text-base">{t('stats.modules')}</div>
+                  <div className="text-slate-400 text-sm sm:text-base">{t('home.stats.users')}</div>
                 </div>
                 <div className="text-center p-4">
                   <div className="text-2xl sm:text-3xl font-bold text-purple-400 mb-2">
                     <TypeWriter text="99.9%" speed={50} />
                   </div>
-                  <div className="text-slate-400 text-sm sm:text-base">{t('stats.availability')}</div>
+                  <div className="text-slate-400 text-sm sm:text-base">{t('home.stats.uptime')}</div>
                 </div>
                 <div className="text-center p-4">
                   <div className="text-2xl sm:text-3xl font-bold text-purple-400 mb-2">
                     <TypeWriter text="<1ms" speed={100} />
                   </div>
-                  <div className="text-slate-400 text-sm sm:text-base">{t('stats.responseTime')}</div>
+                  <div className="text-slate-400 text-sm sm:text-base">响应时间</div>
                 </div>
                 <div className="text-center p-4">
                   <div className="text-2xl sm:text-3xl font-bold text-purple-400 mb-2">
                     <TypeWriter text="1000+" speed={30} />
                   </div>
-                  <div className="text-slate-400 text-sm sm:text-base">{t('stats.developers')}</div>
+                  <div className="text-slate-400 text-sm sm:text-base">{t('home.stats.downloads')}</div>
                 </div>
               </div>
             </SlideIn>
@@ -209,9 +325,9 @@ export default function HomePage() {
           <FadeIn>
             <div className="text-center mb-16">
               <h2 className="text-4xl font-bold text-white mb-4">
-                <GradientText>{t('features.title')}</GradientText>
+                <GradientText>{t('home.features.title')}</GradientText>
               </h2>
-              <p className="text-xl text-slate-300">{t('features.subtitle')}</p>
+              <p className="text-xl text-slate-300">{t('home.features.subtitle')}</p>
             </div>
           </FadeIn>
           
@@ -381,6 +497,167 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* 用户案例和统计 */}
+      <section className="py-20 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          <FadeIn>
+            <div className="text-center mb-16">
+              <h2 className="text-4xl font-bold text-white mb-4">
+                <GradientText>全球企业的信赖之选</GradientText>
+              </h2>
+              <p className="text-xl text-slate-300">已为全球 1000+ 企业提供智能记忆管理服务</p>
+            </div>
+          </FadeIn>
+
+          {/* 统计数据展示 */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-16">
+            <SlideIn direction="up" delay={100}>
+              <div className="text-center p-6 bg-slate-800/30 rounded-lg border border-slate-700">
+                <TrendingUp className="w-8 h-8 text-green-400 mx-auto mb-4" />
+                <div className="text-3xl font-bold text-green-400 mb-2">500%</div>
+                <div className="text-slate-300">性能提升</div>
+                <div className="text-sm text-slate-400 mt-1">相比传统方案</div>
+              </div>
+            </SlideIn>
+            <SlideIn direction="up" delay={200}>
+              <div className="text-center p-6 bg-slate-800/30 rounded-lg border border-slate-700">
+                <Users className="w-8 h-8 text-blue-400 mx-auto mb-4" />
+                <div className="text-3xl font-bold text-blue-400 mb-2">10M+</div>
+                <div className="text-slate-300">API 调用</div>
+                <div className="text-sm text-slate-400 mt-1">每日处理量</div>
+              </div>
+            </SlideIn>
+            <SlideIn direction="up" delay={300}>
+              <div className="text-center p-6 bg-slate-800/30 rounded-lg border border-slate-700">
+                <Globe className="w-8 h-8 text-purple-400 mx-auto mb-4" />
+                <div className="text-3xl font-bold text-purple-400 mb-2">50+</div>
+                <div className="text-slate-300">国家地区</div>
+                <div className="text-sm text-slate-400 mt-1">全球服务覆盖</div>
+              </div>
+            </SlideIn>
+            <SlideIn direction="up" delay={400}>
+              <div className="text-center p-6 bg-slate-800/30 rounded-lg border border-slate-700">
+                <Award className="w-8 h-8 text-yellow-400 mx-auto mb-4" />
+                <div className="text-3xl font-bold text-yellow-400 mb-2">99.99%</div>
+                <div className="text-slate-300">服务可用性</div>
+                <div className="text-sm text-slate-400 mt-1">SLA 保障</div>
+              </div>
+            </SlideIn>
+          </div>
+
+          {/* 客户案例 */}
+          <div className="grid md:grid-cols-3 gap-8 mb-16">
+            <SlideIn direction="up" delay={100}>
+              <Card className="bg-slate-800/50 border-slate-700 p-6">
+                <div className="flex items-center mb-4">
+                  <Building className="w-8 h-8 text-blue-400 mr-3" />
+                  <div>
+                    <h3 className="text-white font-semibold">金融科技公司</h3>
+                    <p className="text-slate-400 text-sm">智能客服解决方案</p>
+                  </div>
+                </div>
+                <blockquote className="text-slate-300 mb-4">
+                  <Quote className="w-4 h-4 text-purple-400 mb-2" />
+                  "AgentMem 帮助我们的客服系统记住每个客户的历史对话，客户满意度提升了 85%。"
+                </blockquote>
+                <div className="flex items-center justify-between">
+                  <div className="flex text-yellow-400">
+                    {[...Array(5)].map((_, i) => (
+                      <Star key={i} className="w-4 h-4 fill-current" />
+                    ))}
+                  </div>
+                  <span className="text-slate-400 text-sm">CTO, FinTech Corp</span>
+                </div>
+              </Card>
+            </SlideIn>
+            <SlideIn direction="up" delay={200}>
+              <Card className="bg-slate-800/50 border-slate-700 p-6">
+                <div className="flex items-center mb-4">
+                  <Building className="w-8 h-8 text-green-400 mr-3" />
+                  <div>
+                    <h3 className="text-white font-semibold">医疗健康平台</h3>
+                    <p className="text-slate-400 text-sm">AI 诊断助手</p>
+                  </div>
+                </div>
+                <blockquote className="text-slate-300 mb-4">
+                  <Quote className="w-4 h-4 text-purple-400 mb-2" />
+                  "通过 AgentMem，我们的 AI 医生能够记住患者的完整病史，诊断准确率提升了 40%。"
+                </blockquote>
+                <div className="flex items-center justify-between">
+                  <div className="flex text-yellow-400">
+                    {[...Array(5)].map((_, i) => (
+                      <Star key={i} className="w-4 h-4 fill-current" />
+                    ))}
+                  </div>
+                  <span className="text-slate-400 text-sm">首席医疗官, HealthAI</span>
+                </div>
+              </Card>
+            </SlideIn>
+            <SlideIn direction="up" delay={300}>
+              <Card className="bg-slate-800/50 border-slate-700 p-6">
+                <div className="flex items-center mb-4">
+                  <Building className="w-8 h-8 text-purple-400 mr-3" />
+                  <div>
+                    <h3 className="text-white font-semibold">教育科技公司</h3>
+                    <p className="text-slate-400 text-sm">个性化学习系统</p>
+                  </div>
+                </div>
+                <blockquote className="text-slate-300 mb-4">
+                  <Quote className="w-4 h-4 text-purple-400 mb-2" />
+                  "学生的学习进度和偏好都被完美记录，个性化推荐的准确率达到了 95%。"
+                </blockquote>
+                <div className="flex items-center justify-between">
+                  <div className="flex text-yellow-400">
+                    {[...Array(5)].map((_, i) => (
+                      <Star key={i} className="w-4 h-4 fill-current" />
+                    ))}
+                  </div>
+                  <span className="text-slate-400 text-sm">产品总监, EduTech</span>
+                </div>
+              </Card>
+            </SlideIn>
+          </div>
+
+          {/* 产品亮点 */}
+          <div className="bg-gradient-to-r from-purple-900/30 to-pink-900/30 rounded-2xl p-8 border border-purple-500/20">
+            <div className="text-center mb-12">
+              <h3 className="text-3xl font-bold text-white mb-4">为什么选择 AgentMem？</h3>
+              <p className="text-xl text-slate-300">领先的技术优势，助力您的 AI 应用更智能</p>
+            </div>
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-purple-600/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Zap className="w-8 h-8 text-purple-400" />
+                </div>
+                <h4 className="text-white font-semibold mb-2">极致性能</h4>
+                <p className="text-slate-300 text-sm">Rust 原生实现，比 Python 方案快 5 倍</p>
+              </div>
+              <div className="text-center">
+                <div className="w-16 h-16 bg-blue-600/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Shield className="w-8 h-8 text-blue-400" />
+                </div>
+                <h4 className="text-white font-semibold mb-2">企业级安全</h4>
+                <p className="text-slate-300 text-sm">端到端加密，SOC 2 合规认证</p>
+              </div>
+              <div className="text-center">
+                <div className="w-16 h-16 bg-green-600/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Network className="w-8 h-8 text-green-400" />
+                </div>
+                <h4 className="text-white font-semibold mb-2">无缝集成</h4>
+                <p className="text-slate-300 text-sm">100% Mem0 兼容，零代码迁移</p>
+              </div>
+              <div className="text-center">
+                <div className="w-16 h-16 bg-yellow-600/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Users className="w-8 h-8 text-yellow-400" />
+                </div>
+                <h4 className="text-white font-semibold mb-2">专业支持</h4>
+                <p className="text-slate-300 text-sm">24/7 技术支持，专属客户成功团队</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* 技术架构 */}
       <section id="architecture" className="py-20 px-4 sm:px-6 lg:px-8 bg-slate-800/30">
         <div className="max-w-7xl mx-auto">
@@ -533,6 +810,13 @@ export default function HomePage() {
           </div>
         </div>
       </footer>
-    </div>
+      
+      {/* 全站搜索 */}
+      <GlobalSearch 
+        isOpen={isSearchOpen} 
+        onClose={() => setIsSearchOpen(false)} 
+      />
+      </div>
+    </>
   );
 }

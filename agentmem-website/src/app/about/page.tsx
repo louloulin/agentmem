@@ -2,15 +2,35 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Brain, Users, Target, Rocket, Globe, Award, TrendingUp, Building, Mail, Github, Twitter, Linkedin } from "lucide-react";
+import { Breadcrumb, BreadcrumbContainer } from "@/components/ui/breadcrumb";
+import { 
+  ScrollToTopButton, 
+  PageNavigation, 
+  MobilePageNavigation, 
+  ScrollProgressIndicator 
+} from "@/components/ui/smooth-scroll";
+import { Brain, Users, Target, Rocket, Globe, Award, TrendingUp, Building, Mail, Github, Twitter, Linkedin, Cpu, Database, Network, Shield, Zap, Code, Settings, BarChart3, Activity } from "lucide-react";
 import Link from "next/link";
 
 /**
  * 关于页面组件 - 展示团队介绍、商业化方向和未来规划
  */
 export default function AboutPage() {
+  // 页面锚点配置
+  const pageAnchors = [
+    { id: 'company-intro', label: '公司介绍' },
+    { id: 'tech-architecture', label: '技术架构' },
+    { id: 'team', label: '团队介绍' },
+    { id: 'business', label: '商业化方向' },
+    { id: 'roadmap', label: '未来规划' },
+    { id: 'investment', label: '投资与合作' },
+    { id: 'contact', label: '联系我们' }
+  ];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+      {/* 滚动进度指示器 */}
+      <ScrollProgressIndicator />
       {/* 导航栏 */}
       <nav className="border-b border-slate-800 bg-slate-900/50 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -42,10 +62,15 @@ export default function AboutPage() {
         </div>
       </nav>
 
+      {/* 面包屑导航 */}
+      <BreadcrumbContainer>
+        <Breadcrumb />
+      </BreadcrumbContainer>
+
       {/* 页面内容 */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* 公司介绍 */}
-        <section className="mb-20">
+        <section id="company-intro" className="mb-20">
           <div className="text-center mb-16">
             <h1 className="text-5xl font-bold text-white mb-6">
               重新定义
@@ -101,8 +126,221 @@ export default function AboutPage() {
           </div>
         </section>
 
+        {/* 技术架构 */}
+        <section id="tech-architecture" className="mb-20">
+          <div className="text-center mb-12">
+            <h2 className="text-4xl font-bold text-white mb-4 flex items-center justify-center">
+              <Cpu className="h-10 w-10 text-blue-400 mr-4" />
+              技术架构
+            </h2>
+            <p className="text-xl text-slate-300">
+              基于现代化架构设计，确保高性能、高可用性和可扩展性
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
+            {/* 架构图 */}
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardHeader>
+                <CardTitle className="text-white text-2xl flex items-center">
+                  <Network className="h-6 w-6 text-purple-400 mr-2" />
+                  系统架构
+                </CardTitle>
+                <CardDescription className="text-slate-300">
+                  分层架构设计，模块化组件
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {/* 应用层 */}
+                  <div className="p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+                    <div className="flex items-center mb-2">
+                      <Code className="h-5 w-5 text-purple-400 mr-2" />
+                      <span className="text-white font-semibold">应用层</span>
+                    </div>
+                    <div className="text-sm text-slate-300 grid grid-cols-2 gap-2">
+                      <span>• REST API</span>
+                      <span>• GraphQL</span>
+                      <span>• WebSocket</span>
+                      <span>• SDK/CLI</span>
+                    </div>
+                  </div>
+
+                  {/* 服务层 */}
+                  <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                    <div className="flex items-center mb-2">
+                      <Settings className="h-5 w-5 text-blue-400 mr-2" />
+                      <span className="text-white font-semibold">服务层</span>
+                    </div>
+                    <div className="text-sm text-slate-300 grid grid-cols-2 gap-2">
+                      <span>• 记忆管理</span>
+                      <span>• 智能推理</span>
+                      <span>• 搜索引擎</span>
+                      <span>• 用户管理</span>
+                    </div>
+                  </div>
+
+                  {/* 数据层 */}
+                  <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
+                    <div className="flex items-center mb-2">
+                      <Database className="h-5 w-5 text-green-400 mr-2" />
+                      <span className="text-white font-semibold">数据层</span>
+                    </div>
+                    <div className="text-sm text-slate-300 grid grid-cols-2 gap-2">
+                      <span>• PostgreSQL</span>
+                      <span>• Qdrant</span>
+                      <span>• Redis</span>
+                      <span>• MinIO</span>
+                    </div>
+                  </div>
+
+                  {/* 基础设施层 */}
+                  <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                    <div className="flex items-center mb-2">
+                      <Shield className="h-5 w-5 text-yellow-400 mr-2" />
+                      <span className="text-white font-semibold">基础设施</span>
+                    </div>
+                    <div className="text-sm text-slate-300 grid grid-cols-2 gap-2">
+                      <span>• Kubernetes</span>
+                      <span>• Docker</span>
+                      <span>• Prometheus</span>
+                      <span>• Grafana</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* 技术特性 */}
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardHeader>
+                <CardTitle className="text-white text-2xl flex items-center">
+                  <Zap className="h-6 w-6 text-yellow-400 mr-2" />
+                  核心特性
+                </CardTitle>
+                <CardDescription className="text-slate-300">
+                  先进的技术特性和性能优势
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div>
+                  <h4 className="text-white font-semibold mb-3 flex items-center">
+                    <Activity className="h-4 w-4 text-green-400 mr-2" />
+                    高性能
+                  </h4>
+                  <div className="space-y-2 text-sm text-slate-300">
+                    <div className="flex justify-between">
+                      <span>响应时间</span>
+                      <span className="text-green-400">&lt; 50ms</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>并发处理</span>
+                      <span className="text-green-400">10K+ QPS</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>内存使用</span>
+                      <span className="text-green-400">优化 90%</span>
+                    </div>
+                  </div>
+                </div>
+
+                <Separator className="bg-slate-700" />
+
+                <div>
+                  <h4 className="text-white font-semibold mb-3 flex items-center">
+                    <Shield className="h-4 w-4 text-blue-400 mr-2" />
+                    安全性
+                  </h4>
+                  <div className="space-y-2 text-sm text-slate-300">
+                    <div className="flex items-center">
+                      <div className="w-2 h-2 bg-blue-400 rounded-full mr-2"></div>
+                      <span>端到端加密</span>
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-2 h-2 bg-blue-400 rounded-full mr-2"></div>
+                      <span>零信任架构</span>
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-2 h-2 bg-blue-400 rounded-full mr-2"></div>
+                      <span>GDPR 合规</span>
+                    </div>
+                  </div>
+                </div>
+
+                <Separator className="bg-slate-700" />
+
+                <div>
+                  <h4 className="text-white font-semibold mb-3 flex items-center">
+                    <BarChart3 className="h-4 w-4 text-purple-400 mr-2" />
+                    可扩展性
+                  </h4>
+                  <div className="space-y-2 text-sm text-slate-300">
+                    <div className="flex items-center">
+                      <div className="w-2 h-2 bg-purple-400 rounded-full mr-2"></div>
+                      <span>水平扩展</span>
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-2 h-2 bg-purple-400 rounded-full mr-2"></div>
+                      <span>微服务架构</span>
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-2 h-2 bg-purple-400 rounded-full mr-2"></div>
+                      <span>云原生设计</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* 技术栈 */}
+          <Card className="bg-slate-800/50 border-slate-700">
+            <CardHeader>
+              <CardTitle className="text-white text-2xl text-center flex items-center justify-center">
+                <Code className="h-6 w-6 text-green-400 mr-2" />
+                技术栈
+              </CardTitle>
+              <CardDescription className="text-slate-300 text-center">
+                采用业界领先的技术栈，确保系统的稳定性和先进性
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-orange-500/20 rounded-lg flex items-center justify-center mx-auto mb-3">
+                    <span className="text-2xl font-bold text-orange-400">Rs</span>
+                  </div>
+                  <h4 className="text-white font-semibold">Rust</h4>
+                  <p className="text-slate-400 text-sm">核心引擎</p>
+                </div>
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-blue-500/20 rounded-lg flex items-center justify-center mx-auto mb-3">
+                    <span className="text-2xl font-bold text-blue-400">Py</span>
+                  </div>
+                  <h4 className="text-white font-semibold">Python</h4>
+                  <p className="text-slate-400 text-sm">AI 模型</p>
+                </div>
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-green-500/20 rounded-lg flex items-center justify-center mx-auto mb-3">
+                    <span className="text-2xl font-bold text-green-400">TS</span>
+                  </div>
+                  <h4 className="text-white font-semibold">TypeScript</h4>
+                  <p className="text-slate-400 text-sm">前端界面</p>
+                </div>
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-purple-500/20 rounded-lg flex items-center justify-center mx-auto mb-3">
+                    <span className="text-2xl font-bold text-purple-400">K8s</span>
+                  </div>
+                  <h4 className="text-white font-semibold">Kubernetes</h4>
+                  <p className="text-slate-400 text-sm">容器编排</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+
         {/* 团队介绍 */}
-        <section className="mb-20">
+        <section id="team" className="mb-20">
           <div className="text-center mb-12">
             <h2 className="text-4xl font-bold text-white mb-4 flex items-center justify-center">
               <Users className="h-10 w-10 text-purple-400 mr-4" />
@@ -113,92 +351,298 @@ export default function AboutPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <Card className="bg-slate-800/50 border-slate-700">
+          {/* 核心团队 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
+            <Card className="bg-slate-800/50 border-slate-700 hover:border-purple-500/50 transition-all duration-300">
               <CardHeader className="text-center">
                 <div className="w-20 h-20 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full mx-auto mb-4 flex items-center justify-center">
                   <span className="text-2xl font-bold text-white">LZ</span>
                 </div>
                 <CardTitle className="text-white">张磊</CardTitle>
                 <CardDescription className="text-slate-300">创始人 & CEO</CardDescription>
+                <div className="flex justify-center mt-2">
+                  <Badge className="bg-purple-500/20 text-purple-300 text-xs">AI 研究专家</Badge>
+                </div>
               </CardHeader>
               <CardContent className="text-slate-300 text-center">
-                <p className="mb-4">
+                <p className="mb-4 text-sm">
                   前 Google AI 研究员，专注于大语言模型和记忆系统研究 8 年，
-                  发表顶级会议论文 20+ 篇。
+                  发表顶级会议论文 20+ 篇，拥有多项 AI 相关专利。
                 </p>
+                <div className="space-y-2 mb-4">
+                  <div className="text-xs text-slate-400">
+                    <span className="font-semibold">教育背景:</span> 清华大学计算机博士
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    <span className="font-semibold">专业领域:</span> 大语言模型、记忆系统
+                  </div>
+                </div>
                 <div className="flex justify-center space-x-3">
-                  <Button size="sm" variant="outline" className="border-slate-600">
+                  <Button size="sm" variant="outline" className="border-slate-600 hover:border-purple-400">
                     <Github className="h-4 w-4" />
                   </Button>
-                  <Button size="sm" variant="outline" className="border-slate-600">
+                  <Button size="sm" variant="outline" className="border-slate-600 hover:border-purple-400">
                     <Twitter className="h-4 w-4" />
                   </Button>
-                  <Button size="sm" variant="outline" className="border-slate-600">
+                  <Button size="sm" variant="outline" className="border-slate-600 hover:border-purple-400">
                     <Linkedin className="h-4 w-4" />
                   </Button>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-slate-800/50 border-slate-700">
+            <Card className="bg-slate-800/50 border-slate-700 hover:border-blue-500/50 transition-all duration-300">
               <CardHeader className="text-center">
                 <div className="w-20 h-20 bg-gradient-to-r from-blue-400 to-cyan-400 rounded-full mx-auto mb-4 flex items-center justify-center">
                   <span className="text-2xl font-bold text-white">WY</span>
                 </div>
                 <CardTitle className="text-white">王宇</CardTitle>
                 <CardDescription className="text-slate-300">CTO & 联合创始人</CardDescription>
+                <div className="flex justify-center mt-2">
+                  <Badge className="bg-blue-500/20 text-blue-300 text-xs">系统架构师</Badge>
+                </div>
               </CardHeader>
               <CardContent className="text-slate-300 text-center">
-                <p className="mb-4">
+                <p className="mb-4 text-sm">
                   前 OpenAI 高级工程师，Rust 生态核心贡献者，
-                  在分布式系统和高性能计算领域有丰富经验。
+                  在分布式系统和高性能计算领域有 10+ 年丰富经验。
                 </p>
+                <div className="space-y-2 mb-4">
+                  <div className="text-xs text-slate-400">
+                    <span className="font-semibold">教育背景:</span> MIT 计算机硕士
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    <span className="font-semibold">专业领域:</span> 分布式系统、高性能计算
+                  </div>
+                </div>
                 <div className="flex justify-center space-x-3">
-                  <Button size="sm" variant="outline" className="border-slate-600">
+                  <Button size="sm" variant="outline" className="border-slate-600 hover:border-blue-400">
                     <Github className="h-4 w-4" />
                   </Button>
-                  <Button size="sm" variant="outline" className="border-slate-600">
+                  <Button size="sm" variant="outline" className="border-slate-600 hover:border-blue-400">
                     <Twitter className="h-4 w-4" />
                   </Button>
-                  <Button size="sm" variant="outline" className="border-slate-600">
+                  <Button size="sm" variant="outline" className="border-slate-600 hover:border-blue-400">
                     <Linkedin className="h-4 w-4" />
                   </Button>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-slate-800/50 border-slate-700">
+            <Card className="bg-slate-800/50 border-slate-700 hover:border-green-500/50 transition-all duration-300">
               <CardHeader className="text-center">
                 <div className="w-20 h-20 bg-gradient-to-r from-green-400 to-emerald-400 rounded-full mx-auto mb-4 flex items-center justify-center">
                   <span className="text-2xl font-bold text-white">LM</span>
                 </div>
                 <CardTitle className="text-white">李明</CardTitle>
                 <CardDescription className="text-slate-300">首席科学家</CardDescription>
+                <div className="flex justify-center mt-2">
+                  <Badge className="bg-green-500/20 text-green-300 text-xs">认知科学家</Badge>
+                </div>
               </CardHeader>
               <CardContent className="text-slate-300 text-center">
-                <p className="mb-4">
+                <p className="mb-4 text-sm">
                   斯坦福大学 AI 博士，专注于认知科学和记忆模型研究，
                   在 Nature、Science 等顶级期刊发表论文 15+ 篇。
                 </p>
+                <div className="space-y-2 mb-4">
+                  <div className="text-xs text-slate-400">
+                    <span className="font-semibold">教育背景:</span> 斯坦福大学 AI 博士
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    <span className="font-semibold">专业领域:</span> 认知科学、记忆模型
+                  </div>
+                </div>
                 <div className="flex justify-center space-x-3">
-                  <Button size="sm" variant="outline" className="border-slate-600">
+                  <Button size="sm" variant="outline" className="border-slate-600 hover:border-green-400">
                     <Github className="h-4 w-4" />
                   </Button>
-                  <Button size="sm" variant="outline" className="border-slate-600">
+                  <Button size="sm" variant="outline" className="border-slate-600 hover:border-green-400">
                     <Twitter className="h-4 w-4" />
                   </Button>
-                  <Button size="sm" variant="outline" className="border-slate-600">
+                  <Button size="sm" variant="outline" className="border-slate-600 hover:border-green-400">
+                    <Linkedin className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* 新增团队成员 */}
+            <Card className="bg-slate-800/50 border-slate-700 hover:border-yellow-500/50 transition-all duration-300">
+              <CardHeader className="text-center">
+                <div className="w-20 h-20 bg-gradient-to-r from-yellow-400 to-orange-400 rounded-full mx-auto mb-4 flex items-center justify-center">
+                  <span className="text-2xl font-bold text-white">CX</span>
+                </div>
+                <CardTitle className="text-white">陈雪</CardTitle>
+                <CardDescription className="text-slate-300">产品总监</CardDescription>
+                <div className="flex justify-center mt-2">
+                  <Badge className="bg-yellow-500/20 text-yellow-300 text-xs">产品专家</Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="text-slate-300 text-center">
+                <p className="mb-4 text-sm">
+                  前腾讯高级产品经理，拥有 8 年 AI 产品设计经验，
+                  主导过多个千万级用户产品的设计和运营。
+                </p>
+                <div className="space-y-2 mb-4">
+                  <div className="text-xs text-slate-400">
+                    <span className="font-semibold">教育背景:</span> 北京大学工商管理硕士
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    <span className="font-semibold">专业领域:</span> AI 产品设计、用户体验
+                  </div>
+                </div>
+                <div className="flex justify-center space-x-3">
+                  <Button size="sm" variant="outline" className="border-slate-600 hover:border-yellow-400">
+                    <Github className="h-4 w-4" />
+                  </Button>
+                  <Button size="sm" variant="outline" className="border-slate-600 hover:border-yellow-400">
+                    <Twitter className="h-4 w-4" />
+                  </Button>
+                  <Button size="sm" variant="outline" className="border-slate-600 hover:border-yellow-400">
+                    <Linkedin className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-slate-800/50 border-slate-700 hover:border-pink-500/50 transition-all duration-300">
+              <CardHeader className="text-center">
+                <div className="w-20 h-20 bg-gradient-to-r from-pink-400 to-rose-400 rounded-full mx-auto mb-4 flex items-center justify-center">
+                  <span className="text-2xl font-bold text-white">ZH</span>
+                </div>
+                <CardTitle className="text-white">赵辉</CardTitle>
+                <CardDescription className="text-slate-300">工程总监</CardDescription>
+                <div className="flex justify-center mt-2">
+                  <Badge className="bg-pink-500/20 text-pink-300 text-xs">全栈工程师</Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="text-slate-300 text-center">
+                <p className="mb-4 text-sm">
+                  前字节跳动技术专家，全栈工程师，擅长大规模系统设计，
+                  拥有多个开源项目，GitHub 10K+ Stars。
+                </p>
+                <div className="space-y-2 mb-4">
+                  <div className="text-xs text-slate-400">
+                    <span className="font-semibold">教育背景:</span> 上海交大计算机硕士
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    <span className="font-semibold">专业领域:</span> 全栈开发、系统设计
+                  </div>
+                </div>
+                <div className="flex justify-center space-x-3">
+                  <Button size="sm" variant="outline" className="border-slate-600 hover:border-pink-400">
+                    <Github className="h-4 w-4" />
+                  </Button>
+                  <Button size="sm" variant="outline" className="border-slate-600 hover:border-pink-400">
+                    <Twitter className="h-4 w-4" />
+                  </Button>
+                  <Button size="sm" variant="outline" className="border-slate-600 hover:border-pink-400">
+                    <Linkedin className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-slate-800/50 border-slate-700 hover:border-indigo-500/50 transition-all duration-300">
+              <CardHeader className="text-center">
+                <div className="w-20 h-20 bg-gradient-to-r from-indigo-400 to-purple-400 rounded-full mx-auto mb-4 flex items-center justify-center">
+                  <span className="text-2xl font-bold text-white">WL</span>
+                </div>
+                <CardTitle className="text-white">王丽</CardTitle>
+                <CardDescription className="text-slate-300">市场总监</CardDescription>
+                <div className="flex justify-center mt-2">
+                  <Badge className="bg-indigo-500/20 text-indigo-300 text-xs">市场专家</Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="text-slate-300 text-center">
+                <p className="mb-4 text-sm">
+                  前阿里巴巴高级市场经理，拥有 10 年 B2B 市场经验，
+                  成功推广过多个企业级 AI 产品，客户遍布全球。
+                </p>
+                <div className="space-y-2 mb-4">
+                  <div className="text-xs text-slate-400">
+                    <span className="font-semibold">教育背景:</span> 复旦大学市场营销硕士
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    <span className="font-semibold">专业领域:</span> B2B 市场、品牌推广
+                  </div>
+                </div>
+                <div className="flex justify-center space-x-3">
+                  <Button size="sm" variant="outline" className="border-slate-600 hover:border-indigo-400">
+                    <Github className="h-4 w-4" />
+                  </Button>
+                  <Button size="sm" variant="outline" className="border-slate-600 hover:border-indigo-400">
+                    <Twitter className="h-4 w-4" />
+                  </Button>
+                  <Button size="sm" variant="outline" className="border-slate-600 hover:border-indigo-400">
                     <Linkedin className="h-4 w-4" />
                   </Button>
                 </div>
               </CardContent>
             </Card>
           </div>
+
+          {/* 团队文化 */}
+          <Card className="bg-gradient-to-r from-slate-800/50 to-purple-800/20 border-slate-700">
+            <CardHeader className="text-center">
+              <CardTitle className="text-white text-2xl flex items-center justify-center">
+                <Award className="h-6 w-6 text-yellow-400 mr-2" />
+                团队文化与价值观
+              </CardTitle>
+              <CardDescription className="text-slate-300">
+                我们相信优秀的文化是创新的基础
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-purple-500/20 rounded-lg flex items-center justify-center mx-auto mb-4">
+                    <Target className="h-8 w-8 text-purple-400" />
+                  </div>
+                  <h4 className="text-white font-semibold mb-2">追求卓越</h4>
+                  <p className="text-slate-300 text-sm">
+                    我们对技术和产品有着极高的标准，
+                    永远追求最佳的解决方案。
+                  </p>
+                </div>
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-blue-500/20 rounded-lg flex items-center justify-center mx-auto mb-4">
+                    <Users className="h-8 w-8 text-blue-400" />
+                  </div>
+                  <h4 className="text-white font-semibold mb-2">团队协作</h4>
+                  <p className="text-slate-300 text-sm">
+                    我们相信团队的力量，
+                    通过协作创造出更大的价值。
+                  </p>
+                </div>
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-green-500/20 rounded-lg flex items-center justify-center mx-auto mb-4">
+                    <Rocket className="h-8 w-8 text-green-400" />
+                  </div>
+                  <h4 className="text-white font-semibold mb-2">持续创新</h4>
+                  <p className="text-slate-300 text-sm">
+                    我们拥抱变化，勇于尝试新技术，
+                    不断推动行业发展。
+                  </p>
+                </div>
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-yellow-500/20 rounded-lg flex items-center justify-center mx-auto mb-4">
+                    <Globe className="h-8 w-8 text-yellow-400" />
+                  </div>
+                  <h4 className="text-white font-semibold mb-2">开放包容</h4>
+                  <p className="text-slate-300 text-sm">
+                    我们欢迎不同背景的人才，
+                    营造多元化的工作环境。
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </section>
 
         {/* 商业化方向 */}
-        <section className="mb-20">
+        <section id="business" className="mb-20">
           <div className="text-center mb-12">
             <h2 className="text-4xl font-bold text-white mb-4 flex items-center justify-center">
               <Building className="h-10 w-10 text-blue-400 mr-4" />
@@ -365,7 +809,7 @@ export default function AboutPage() {
         </section>
 
         {/* 未来规划 */}
-        <section className="mb-20">
+        <section id="roadmap" className="mb-20">
           <div className="text-center mb-12">
             <h2 className="text-4xl font-bold text-white mb-4 flex items-center justify-center">
               <TrendingUp className="h-10 w-10 text-green-400 mr-4" />
@@ -434,7 +878,7 @@ export default function AboutPage() {
         </section>
 
         {/* 投资与合作 */}
-        <section className="mb-20">
+        <section id="investment" className="mb-20">
           <Card className="bg-gradient-to-r from-purple-600/20 to-pink-600/20 border-purple-500/30">
             <CardHeader className="text-center">
               <Rocket className="h-16 w-16 text-purple-400 mx-auto mb-4" />
@@ -477,7 +921,7 @@ export default function AboutPage() {
         </section>
 
         {/* 联系我们 */}
-        <section>
+        <section id="contact">
           <div className="text-center mb-12">
             <h2 className="text-4xl font-bold text-white mb-4 flex items-center justify-center">
               <Mail className="h-10 w-10 text-blue-400 mr-4" />
@@ -531,6 +975,13 @@ export default function AboutPage() {
           </div>
         </section>
       </div>
+      
+      {/* 页面导航 */}
+      <PageNavigation anchors={pageAnchors} className="hidden lg:block" />
+      <MobilePageNavigation anchors={pageAnchors} />
+      
+      {/* 回到顶部按钮 */}
+      <ScrollToTopButton />
     </div>
   );
 }
