@@ -2,6 +2,9 @@
 
 pub mod anthropic;
 pub mod azure;
+pub mod bedrock;
+#[cfg(test)]
+mod bedrock_test;
 pub mod claude;
 pub mod cohere;
 pub mod deepseek;

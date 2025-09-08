@@ -1,7 +1,33 @@
 import type { NextConfig } from "next";
 
+/**
+ * Next.js 配置文件
+ * 支持 Turbopack 和样式优化
+ */
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Turbopack 配置
+  turbopack: {
+    root: process.cwd(),
+  },
+  // 实验性功能
+  experimental: {
+    turbo: {
+      rules: {
+        '*.svg': {
+          loaders: ['@svgr/webpack'],
+          as: '*.js',
+        },
+      },
+    },
+  },
+  // 编译器选项
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production',
+  },
+  // 图片优化
+  images: {
+    formats: ['image/webp', 'image/avif'],
+  },
 };
 
 export default nextConfig;
