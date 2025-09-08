@@ -226,7 +226,7 @@ export function GradientText({
 }) {
   return (
     <span className={cn(
-      "bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 bg-clip-text text-transparent animate-gradient-x bg-300%",
+      "bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 bg-clip-text text-transparent animate-gradient-x bg-size-300",
       className
     )}>
       {children}

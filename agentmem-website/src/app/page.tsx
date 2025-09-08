@@ -1,3 +1,5 @@
+"use client";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -5,6 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { SearchDialog } from "@/components/ui/search";
 import { FadeIn, SlideIn, ScaleIn, FloatingCard, GradientText, TypeWriter } from "@/components/ui/animations";
+import { useLanguage, LanguageToggle } from "@/components/ui/language-provider";
 import { Brain, Zap, Shield, Database, Cpu, Network, Code, Rocket, Github, Star, Users, Download } from "lucide-react";
 import Link from "next/link";
 
@@ -12,8 +15,9 @@ import Link from "next/link";
  * 主页组件 - 展示AgentMem的核心特性和优势
  */
 export default function HomePage() {
+  const { t } = useLanguage();
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
       {/* 导航栏 */}
       <nav className="border-b border-slate-800 bg-slate-900/50 backdrop-blur-sm sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -25,28 +29,35 @@ export default function HomePage() {
             <div className="hidden md:flex items-center space-x-6">
               <SearchDialog />
               <Link href="#features" className="text-slate-300 hover:text-white transition-colors">
-                特性
+                {t('nav.features')}
               </Link>
               <Link href="#architecture" className="text-slate-300 hover:text-white transition-colors">
-                架构
+                {t('nav.architecture')}
               </Link>
               <Link href="/demo" className="text-slate-300 hover:text-white transition-colors">
-                演示
+                {t('nav.demo')}
               </Link>
               <Link href="/docs" className="text-slate-300 hover:text-white transition-colors">
-                文档
+                {t('nav.docs')}
               </Link>
+              <Link href="/faq" className="text-slate-300 hover:text-white transition-colors">
+                FAQ
+              </Link>
+              <LanguageToggle />
               <ThemeToggle />
               <Button variant="outline" className="border-purple-400 text-purple-400 hover:bg-purple-400 hover:text-white transition-all duration-300">
                 <Github className="mr-2 h-4 w-4" />
-                GitHub
+                {t('nav.github')}
               </Button>
             </div>
             {/* 移动端菜单按钮 */}
             <div className="md:hidden flex items-center space-x-2">
+              <LanguageToggle />
               <ThemeToggle />
-              <Button variant="outline" size="sm" className="border-slate-600">
-                菜单
+              <Button variant="outline" size="sm" className="border-slate-600 text-slate-300 hover:bg-slate-800">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
               </Button>
             </div>
           </div>
@@ -56,60 +67,60 @@ export default function HomePage() {
       {/* 英雄区域 */}
       <section className="relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
-          <div className="text-center">
+          <div className="text-center px-4">
             <FadeIn>
-              <h1 className="text-4xl md:text-6xl font-bold text-white mb-6">
-                <TypeWriter text="智能记忆管理" speed={100} />
-                <br />
+              <h1 className="text-3xl sm:text-4xl md:text-6xl font-bold text-white mb-6 leading-tight">
+                <TypeWriter text={t('hero.title')} speed={100} />
+                <br className="hidden sm:block" />
+                <span className="sm:hidden"> </span>
                 <GradientText className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
-                  新时代
+                  {t('hero.subtitle')}
                 </GradientText>
               </h1>
             </FadeIn>
             <SlideIn direction="up" delay={300}>
               <p className="text-xl text-slate-300 mb-8 max-w-3xl mx-auto">
-                AgentMem 是基于 Rust 构建的下一代智能记忆管理平台，集成 DeepSeek 推理引擎，
-                为 AI 应用提供高性能、可扩展的记忆存储与检索解决方案。
+                {t('hero.description')}
               </p>
             </SlideIn>
             <SlideIn direction="up" delay={600}>
               <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
                 <Button size="lg" className="bg-purple-600 hover:bg-purple-700 text-white transition-all duration-300 hover:scale-105">
                   <Rocket className="mr-2 h-5 w-5" />
-                  立即开始
+                  {t('hero.getStarted')}
                 </Button>
                 <Button size="lg" variant="outline" className="border-slate-600 text-slate-300 hover:bg-slate-800 transition-all duration-300">
                   <Code className="mr-2 h-5 w-5" />
-                  查看文档
+                  {t('hero.viewDocs')}
                 </Button>
               </div>
             </SlideIn>
             {/* 统计数据 */}
             <SlideIn direction="up" delay={900}>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto">
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-purple-400 mb-2">
-                    <TypeWriter text="13" speed={200} delay={1000} />
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-8 max-w-4xl mx-auto">
+                <div className="text-center p-4">
+                  <div className="text-2xl sm:text-3xl font-bold text-purple-400 mb-2">
+                    <TypeWriter text="13" speed={200} />
                   </div>
-                  <div className="text-slate-400">核心模块</div>
+                  <div className="text-slate-400 text-sm sm:text-base">{t('stats.modules')}</div>
                 </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-purple-400 mb-2">
-                    <TypeWriter text="99.9%" speed={50} delay={1200} />
+                <div className="text-center p-4">
+                  <div className="text-2xl sm:text-3xl font-bold text-purple-400 mb-2">
+                    <TypeWriter text="99.9%" speed={50} />
                   </div>
-                  <div className="text-slate-400">可用性</div>
+                  <div className="text-slate-400 text-sm sm:text-base">{t('stats.availability')}</div>
                 </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-purple-400 mb-2">
-                    <TypeWriter text="<1ms" speed={100} delay={1400} />
+                <div className="text-center p-4">
+                  <div className="text-2xl sm:text-3xl font-bold text-purple-400 mb-2">
+                    <TypeWriter text="<1ms" speed={100} />
                   </div>
-                  <div className="text-slate-400">响应时间</div>
+                  <div className="text-slate-400 text-sm sm:text-base">{t('stats.responseTime')}</div>
                 </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-purple-400 mb-2">
-                    <TypeWriter text="1000+" speed={30} delay={1600} />
+                <div className="text-center p-4">
+                  <div className="text-2xl sm:text-3xl font-bold text-purple-400 mb-2">
+                    <TypeWriter text="1000+" speed={30} />
                   </div>
-                  <div className="text-slate-400">开发者</div>
+                  <div className="text-slate-400 text-sm sm:text-base">{t('stats.developers')}</div>
                 </div>
               </div>
             </SlideIn>
@@ -128,13 +139,13 @@ export default function HomePage() {
           <FadeIn>
             <div className="text-center mb-16">
               <h2 className="text-4xl font-bold text-white mb-4">
-                <GradientText>核心特性</GradientText>
+                <GradientText>{t('features.title')}</GradientText>
               </h2>
-              <p className="text-xl text-slate-300">企业级智能记忆管理解决方案</p>
+              <p className="text-xl text-slate-300">{t('features.subtitle')}</p>
             </div>
           </FadeIn>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 px-4">
             {/* 智能推理引擎 */}
             <SlideIn direction="up" delay={100}>
               <FloatingCard className="bg-slate-800/50 border-slate-700 hover:border-purple-500/50 transition-all duration-300 group">

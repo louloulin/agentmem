@@ -117,4 +117,91 @@ const translations = {
     'features.storage.badge': '5+ Storage Engines',
     'features.modular.title': 'Modular Design',
     'features.modular.description': '13 specialized Crate modules with clear separation of responsibilities, supporting on-demand integration and custom extensions.',
-    'features.mo
+    'features.modular.badge': '13 Modules',
+    'features.compatible.title': 'API Compatible',
+    'features.compatible.description': '100% Mem0 API compatible, seamlessly migrate existing applications while providing more powerful extension features.',
+    'features.compatible.badge': '100% Compatible',
+    
+    // Search
+    'search.placeholder': 'Search docs, API and examples...',
+    'search.noResults': 'No results found',
+    'search.docs': 'Docs',
+    'search.api': 'API',
+    'search.examples': 'Examples',
+    
+    // Theme
+    'theme.light': 'Light Mode',
+    'theme.dark': 'Dark Mode',
+    'theme.toggle': 'Toggle Theme',
+    
+    // FAQ
+    'faq.title': 'Frequently Asked Questions',
+    'faq.subtitle': 'Find answers to common questions about AgentMem. If you have other questions, please feel free to contact our support team.',
+    'faq.noAnswer': 'Didn\'t find what you\'re looking for?',
+    'faq.supportDescription': 'Our technical support team is here to help you',
+    'faq.contactSupport': 'Contact Support',
+    'faq.joinCommunity': 'Join Community',
+  }
+};
+
+export function LanguageProvider({ children }: { children: React.ReactNode }) {
+  const [language, setLanguage] = useState<Language>('zh');
+
+  // 从 localStorage 读取语言设置
+  useEffect(() => {
+    const savedLanguage = localStorage.getItem('agentmem-language') as Language;
+    if (savedLanguage && (savedLanguage === 'zh' || savedLanguage === 'en')) {
+      setLanguage(savedLanguage);
+    } else {
+      // 检测浏览器语言
+      const browserLanguage = navigator.language.toLowerCase();
+      if (browserLanguage.startsWith('zh')) {
+        setLanguage('zh');
+      } else {
+        setLanguage('en');
+      }
+    }
+  }, []);
+
+  // 保存语言设置到 localStorage
+  const handleSetLanguage = (lang: Language) => {
+    setLanguage(lang);
+    localStorage.setItem('agentmem-language', lang);
+  };
+
+  // 翻译函数
+  const t = (key: string): string => {
+    return translations[language][key as keyof typeof translations[typeof language]] || key;
+  };
+
+  return (
+    <LanguageContext.Provider value={{ language, setLanguage: handleSetLanguage, t }}>
+      {children}
+    </LanguageContext.Provider>
+  );
+}
+
+export function useLanguage() {
+  const context = useContext(LanguageContext);
+  if (context === undefined) {
+    throw new Error('useLanguage must be used within a LanguageProvider');
+  }
+  return context;
+}
+
+// 语言切换组件
+export function LanguageToggle() {
+  const { language, setLanguage } = useLanguage();
+
+  return (
+    <button
+      onClick={() => setLanguage(language === 'zh' ? 'en' : 'zh')}
+      className="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+      title="切换语言 / Switch Language"
+    >
+      <span className="text-xs font-mono">
+        {language === 'zh' ? '中' : 'EN'}
+      </span>
+    </button>
+  );
+}

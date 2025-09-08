@@ -109,10 +109,9 @@ export function ButtonLoading({
   children, 
   isLoading, 
   ...props 
-}: { 
-  children: React.ReactNode; 
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { 
+  children?: React.ReactNode; 
   isLoading: boolean; 
-  [key: string]: any; 
 }) {
   return (
     <button {...props} disabled={isLoading || props.disabled}>

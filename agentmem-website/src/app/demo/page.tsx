@@ -1,22 +1,106 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
-import { Brain, Play, Code, Zap, Database, MessageSquare, ArrowRight, Copy, Check } from "lucide-react";
+import { CodeBlock, InlineCode } from "@/components/ui/code-block";
+import { FadeIn, SlideIn, TypeWriter } from "@/components/ui/animations";
+import { LoadingSpinner, ContentLoading } from "@/components/ui/loading";
+import { Brain, Play, Code, Zap, Database, MessageSquare, ArrowRight, Copy, Check, Terminal, Cpu, Network } from "lucide-react";
 import Link from "next/link";
 
 /**
  * 演示页面组件 - 展示AgentMem的在线演示和交互式示例
  */
+// 模拟的 API 响应数据
+const mockResponses = {
+  memory_add: {
+    success: true,
+    memory_id: "mem_1234567890",
+    message: "记忆已成功添加到 AgentMem",
+    metadata: {
+      timestamp: new Date().toISOString(),
+      embedding_model: "deepseek-v2",
+      storage_backend: "qdrant",
+      processing_time: "23ms"
+    }
+  },
+  memory_search: {
+    success: true,
+    results: [
+      {
+        id: "mem_1234567890",
+        content: "用户喜欢在周末进行户外活动，特别是徒步和骑行。",
+        relevance_score: 0.95,
+        metadata: {
+          created_at: "2024-01-15T10:30:00Z",
+          category: "preferences"
+        }
+      },
+      {
+        id: "mem_0987654321",
+        content: "用户对环保话题很感兴趣，经常参与相关讨论。",
+        relevance_score: 0.87,
+        metadata: {
+          created_at: "2024-01-14T15:45:00Z",
+          category: "interests"
+        }
+      }
+    ],
+    processing_time: "15ms"
+  }
+};
+
 export default function DemoPage() {
-  const [activeDemo, setActiveDemo] = useState("memory-basic");
+  const [input, setInput] = useState("");
+  const [output, setOutput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [activeDemo, setActiveDemo] = useState("add");
+  const [realTimeStats, setRealTimeStats] = useState({
+    totalMemories: 1247,
+    avgResponseTime: "12ms",
+    activeConnections: 23,
+    memoryHits: 98.7
+  });
   const [isRunning, setIsRunning] = useState(false);
   const [demoOutput, setDemoOutput] = useState("");
   const [copiedCode, setCopiedCode] = useState("");
+
+  // 实时更新统计数据
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRealTimeStats(prev => ({
+        totalMemories: prev.totalMemories + Math.floor(Math.random() * 3),
+        avgResponseTime: `${Math.floor(Math.random() * 20 + 10)}ms`,
+        activeConnections: prev.activeConnections + Math.floor(Math.random() * 5 - 2),
+        memoryHits: Math.min(99.9, prev.memoryHits + (Math.random() - 0.5) * 0.1)
+      }));
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  /**
+   * 模拟 API 调用
+   */
+  const simulateAPICall = async (type: 'add' | 'search') => {
+    setIsLoading(true);
+    setOutput("");
+    
+    // 模拟网络延迟
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    const response = type === 'add' ? mockResponses.memory_add : mockResponses.memory_search;
+    setOutput(JSON.stringify(response, null, 2));
+    setIsLoading(false);
+  };
 
   /**
    * 运行演示代码
@@ -265,14 +349,308 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
       {/* 页面内容 */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* 页面标题 */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-white mb-4">在线演示</h1>
-          <p className="text-xl text-slate-300 max-w-3xl mx-auto">
-            体验 AgentMem 的强大功能，包括智能记忆管理、事实提取和 Mem0 兼容性
-          </p>
-        </div>
+        <FadeIn>
+          <div className="text-center mb-12">
+            <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
+              <TypeWriter text="在线演示" speed={150} />
+            </h1>
+            <p className="text-xl text-slate-300 max-w-3xl mx-auto">
+              体验 AgentMem 的强大功能，实时测试智能记忆管理和检索能力
+            </p>
+          </div>
+        </FadeIn>
+
+        {/* 实时统计面板 */}
+        <SlideIn direction="up" delay={300}>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-4 text-center">
+                <div className="flex items-center justify-center mb-2">
+                  <Database className="h-5 w-5 text-blue-400 mr-2" />
+                  <span className="text-2xl font-bold text-white">{realTimeStats.totalMemories}</span>
+                </div>
+                <p className="text-sm text-slate-400">总记忆数</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-4 text-center">
+                <div className="flex items-center justify-center mb-2">
+                  <Zap className="h-5 w-5 text-yellow-400 mr-2" />
+                  <span className="text-2xl font-bold text-white">{realTimeStats.avgResponseTime}</span>
+                </div>
+                <p className="text-sm text-slate-400">平均响应</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-4 text-center">
+                <div className="flex items-center justify-center mb-2">
+                  <Network className="h-5 w-5 text-green-400 mr-2" />
+                  <span className="text-2xl font-bold text-white">{realTimeStats.activeConnections}</span>
+                </div>
+                <p className="text-sm text-slate-400">活跃连接</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-4 text-center">
+                <div className="flex items-center justify-center mb-2">
+                  <Cpu className="h-5 w-5 text-purple-400 mr-2" />
+                  <span className="text-2xl font-bold text-white">{realTimeStats.memoryHits.toFixed(1)}%</span>
+                </div>
+                <p className="text-sm text-slate-400">命中率</p>
+              </CardContent>
+            </Card>
+          </div>
+        </SlideIn>
 
         {/* 演示选择 */}
+        <SlideIn direction="up" delay={600}>
+          <Tabs value={activeDemo} onValueChange={setActiveDemo} className="mb-8">
+            <TabsList className="grid w-full grid-cols-3 bg-slate-800 border-slate-700">
+              <TabsTrigger value="add" className="data-[state=active]:bg-purple-600">
+                <Brain className="mr-2 h-4 w-4" />
+                添加记忆
+              </TabsTrigger>
+              <TabsTrigger value="search" className="data-[state=active]:bg-purple-600">
+                <Database className="mr-2 h-4 w-4" />
+                智能搜索
+              </TabsTrigger>
+              <TabsTrigger value="api" className="data-[state=active]:bg-purple-600">
+                <Code className="mr-2 h-4 w-4" />
+                API 示例
+              </TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="add" className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* 输入区域 */}
+                <Card className="bg-slate-800/50 border-slate-700">
+                  <CardHeader>
+                    <CardTitle className="text-white flex items-center">
+                      <Brain className="mr-2 h-5 w-5 text-purple-400" />
+                      添加记忆
+                    </CardTitle>
+                    <CardDescription className="text-slate-300">
+                      输入用户信息，AgentMem 将自动提取关键事实并存储
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <Label htmlFor="userId" className="text-slate-300">用户ID</Label>
+                      <Input
+                        id="userId"
+                        placeholder="user_123"
+                        className="bg-slate-700 border-slate-600 text-white"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="memoryContent" className="text-slate-300">记忆内容</Label>
+                      <Textarea
+                        id="memoryContent"
+                        rows={4}
+                        placeholder="我喜欢在周末进行户外活动，特别是徒步和骑行..."
+                        className="bg-slate-700 border-slate-600 text-white resize-none"
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                      />
+                    </div>
+                    <Button 
+                      className="w-full bg-purple-600 hover:bg-purple-700"
+                      onClick={() => simulateAPICall('add')}
+                      disabled={isLoading || !input.trim()}
+                    >
+                      {isLoading ? (
+                        <>
+                          <LoadingSpinner className="mr-2" />
+                          处理中...
+                        </>
+                      ) : (
+                        <>
+                          <Play className="mr-2 h-4 w-4" />
+                          添加记忆
+                        </>
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                {/* 输出区域 */}
+                <Card className="bg-slate-800/50 border-slate-700">
+                  <CardHeader>
+                    <CardTitle className="text-white flex items-center">
+                      <Zap className="mr-2 h-5 w-5 text-yellow-400" />
+                      处理结果
+                    </CardTitle>
+                    <CardDescription className="text-slate-300">
+                      AgentMem 的智能处理结果和提取的事实
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {isLoading ? (
+                      <ContentLoading />
+                    ) : (
+                      <CodeBlock
+                         language="json"
+                         code={output || "等待输入..."}
+                       />
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="search" className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* 搜索区域 */}
+                <Card className="bg-slate-800/50 border-slate-700">
+                  <CardHeader>
+                    <CardTitle className="text-white flex items-center">
+                      <Database className="mr-2 h-5 w-5 text-blue-400" />
+                      智能搜索
+                    </CardTitle>
+                    <CardDescription className="text-slate-300">
+                      搜索相关记忆，体验语义理解能力
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <Label htmlFor="searchUserId" className="text-slate-300">用户ID</Label>
+                      <Input
+                        id="searchUserId"
+                        placeholder="user_123"
+                        className="bg-slate-700 border-slate-600 text-white"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="searchQuery" className="text-slate-300">搜索查询</Label>
+                      <Input
+                        id="searchQuery"
+                        placeholder="户外活动偏好"
+                        className="bg-slate-700 border-slate-600 text-white"
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                      />
+                    </div>
+                    <Button 
+                      className="w-full bg-blue-600 hover:bg-blue-700"
+                      onClick={() => simulateAPICall('search')}
+                      disabled={isLoading || !input.trim()}
+                    >
+                      {isLoading ? (
+                        <>
+                          <LoadingSpinner className="mr-2" />
+                          搜索中...
+                        </>
+                      ) : (
+                        <>
+                          <Database className="mr-2 h-4 w-4" />
+                          搜索记忆
+                        </>
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                {/* 搜索结果 */}
+                <Card className="bg-slate-800/50 border-slate-700">
+                  <CardHeader>
+                    <CardTitle className="text-white flex items-center">
+                      <MessageSquare className="mr-2 h-5 w-5 text-green-400" />
+                      搜索结果
+                    </CardTitle>
+                    <CardDescription className="text-slate-300">
+                      基于语义相似度的智能匹配结果
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {isLoading ? (
+                      <ContentLoading />
+                    ) : (
+                      <CodeBlock
+                         language="json"
+                         code={output || "等待搜索..."}
+                       />
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="api" className="space-y-6">
+              <Card className="bg-slate-800/50 border-slate-700">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center">
+                    <Code className="mr-2 h-5 w-5 text-purple-400" />
+                    API 使用示例
+                  </CardTitle>
+                  <CardDescription className="text-slate-300">
+                    快速集成 AgentMem 到您的应用中
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-6">
+                    <div>
+                      <h4 className="text-white font-semibold mb-3 flex items-center">
+                        <Terminal className="mr-2 h-4 w-4" />
+                        REST API
+                      </h4>
+                      <CodeBlock
+                         language="bash"
+                         code={`# 添加记忆
+curl -X POST https://api.agentmem.ai/v1/memories \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "user_123",
+    "content": "我喜欢在周末进行户外活动",
+    "metadata": {
+      "category": "preference"
+    }
+  }'
+
+# 搜索记忆
+curl -X GET "https://api.agentmem.ai/v1/memories/search?q=户外活动&user_id=user_123" \
+  -H "Authorization: Bearer YOUR_API_KEY"`}
+                       />
+                    </div>
+                    
+                    <Separator className="bg-slate-700" />
+                    
+                    <div>
+                      <h4 className="text-white font-semibold mb-3 flex items-center">
+                        <Code className="mr-2 h-4 w-4" />
+                        Python SDK
+                      </h4>
+                      <CodeBlock
+                         language="python"
+                         code={`from agentmem import AgentMemClient
+
+# 初始化客户端
+client = AgentMemClient(api_key="YOUR_API_KEY")
+
+# 添加记忆
+memory = await client.add_memory(
+    user_id="user_123",
+    content="我喜欢在周末进行户外活动",
+    metadata={"category": "preference"}
+)
+
+# 搜索记忆
+results = await client.search_memories(
+    query="户外活动",
+    user_id="user_123",
+    limit=10
+)
+
+print(f"找到 {len(results)} 条相关记忆")`}
+                       />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </SlideIn>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
           <Card 
             className={`cursor-pointer transition-all ${

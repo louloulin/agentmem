@@ -6,6 +6,8 @@ pub mod claude;
 pub mod cohere;
 pub mod deepseek;
 pub mod gemini;
+#[cfg(test)]
+mod gemini_test;
 pub mod litellm;
 pub mod mistral;
 pub mod ollama;
