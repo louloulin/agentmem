@@ -2,6 +2,8 @@
 
 pub mod anthropic;
 pub mod azure;
+#[cfg(test)]
+mod azure_test;
 pub mod bedrock;
 #[cfg(test)]
 mod bedrock_test;

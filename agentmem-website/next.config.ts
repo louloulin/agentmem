@@ -5,18 +5,13 @@ import type { NextConfig } from "next";
  * 支持 Turbopack 和样式优化
  */
 const nextConfig: NextConfig = {
-  // Turbopack 配置
+  // Turbopack 配置（Next.js 15.5.2 推荐方式）
   turbopack: {
     root: process.cwd(),
-  },
-  // 实验性功能
-  experimental: {
-    turbo: {
-      rules: {
-        '*.svg': {
-          loaders: ['@svgr/webpack'],
-          as: '*.js',
-        },
+    rules: {
+      '*.svg': {
+        loaders: ['@svgr/webpack'],
+        as: '*.js',
       },
     },
   },
