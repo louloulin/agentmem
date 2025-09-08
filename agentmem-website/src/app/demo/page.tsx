@@ -713,11 +713,11 @@ print(f"找到 {len(results)} 条相关记忆")`}
                 <div>
                   <CardTitle className="text-white flex items-center">
                     <Code className="h-5 w-5 mr-2" />
-                    {demoConfigs[activeDemo as keyof typeof demoConfigs].title}
+                    {demoConfigs[activeDemo as keyof typeof demoConfigs]?.title || '演示代码'}
                   </CardTitle>
                   <CardDescription className="text-slate-300">
-                    {demoConfigs[activeDemo as keyof typeof demoConfigs].description}
-                  </CardDescription>
+                {demoConfigs[activeDemo as keyof typeof demoConfigs]?.description || '选择一个演示查看详细信息'}
+              </CardDescription>
                 </div>
                 <div className="flex gap-2">
                   <Button
@@ -779,7 +779,7 @@ print(f"找到 {len(results)} 条相关记忆")`}
                   </pre>
                 ) : (
                   <div className="flex items-center justify-center h-full text-slate-500">
-                    点击"运行"按钮查看演示结果
+                    点击&quot;运行&quot;按钮查看演示结果
                   </div>
                 )}
               </div>

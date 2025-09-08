@@ -50,7 +50,7 @@ export function usePerformanceMonitor() {
         const connectionType = connection ? connection.effectiveType : undefined;
 
         const performanceMetrics: PerformanceMetrics = {
-          loadTime: navigation.loadEventEnd - navigation.navigationStart,
+          loadTime: navigation.loadEventEnd - navigation.startTime,
           firstContentfulPaint: fcp,
           largestContentfulPaint: lcp,
           cumulativeLayoutShift: 0, // 需要 PerformanceObserver 来测量

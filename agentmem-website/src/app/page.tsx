@@ -2,20 +2,28 @@
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { SearchDialog } from "@/components/ui/search";
-import { FadeIn, SlideIn, ScaleIn, FloatingCard, GradientText, TypeWriter } from "@/components/ui/animations";
+import { FadeIn, SlideIn, FloatingCard, GradientText, TypeWriter } from "@/components/ui/animations";
 import { useLanguage, LanguageToggle } from "@/components/ui/language-provider";
-import { Brain, Zap, Shield, Database, Cpu, Network, Code, Rocket, Github, Star, Users, Download } from "lucide-react";
+import { Brain, Zap, Shield, Database, Cpu, Network, Code, Rocket, Github, Menu, X } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 
 /**
  * 主页组件 - 展示AgentMem的核心特性和优势
  */
 export default function HomePage() {
   const { t } = useLanguage();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  /**
+   * 切换移动端菜单显示状态
+   */
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen(!isMobileMenuOpen);
+  };
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
       {/* 导航栏 */}
@@ -54,14 +62,76 @@ export default function HomePage() {
             <div className="md:hidden flex items-center space-x-2">
               <LanguageToggle />
               <ThemeToggle />
-              <Button variant="outline" size="sm" className="border-slate-600 text-slate-300 hover:bg-slate-800">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="border-slate-600 text-slate-300 hover:bg-slate-800"
+                onClick={toggleMobileMenu}
+                aria-label="Toggle mobile menu"
+              >
+                {isMobileMenuOpen ? (
+                  <X className="w-4 h-4" />
+                ) : (
+                  <Menu className="w-4 h-4" />
+                )}
               </Button>
             </div>
           </div>
         </div>
+        
+        {/* 移动端菜单 */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden bg-slate-900/95 backdrop-blur-sm border-t border-slate-800">
+            <div className="px-4 py-4 space-y-4">
+              <SearchDialog />
+              <div className="flex flex-col space-y-3">
+                <Link 
+                  href="#features" 
+                  className="text-slate-300 hover:text-white transition-colors py-2 px-3 rounded-lg hover:bg-slate-800"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  {t('nav.features')}
+                </Link>
+                <Link 
+                  href="#architecture" 
+                  className="text-slate-300 hover:text-white transition-colors py-2 px-3 rounded-lg hover:bg-slate-800"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  {t('nav.architecture')}
+                </Link>
+                <Link 
+                  href="/demo" 
+                  className="text-slate-300 hover:text-white transition-colors py-2 px-3 rounded-lg hover:bg-slate-800"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  {t('nav.demo')}
+                </Link>
+                <Link 
+                  href="/docs" 
+                  className="text-slate-300 hover:text-white transition-colors py-2 px-3 rounded-lg hover:bg-slate-800"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  {t('nav.docs')}
+                </Link>
+                <Link 
+                  href="/faq" 
+                  className="text-slate-300 hover:text-white transition-colors py-2 px-3 rounded-lg hover:bg-slate-800"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  FAQ
+                </Link>
+                <Button 
+                  variant="outline" 
+                  className="border-purple-400 text-purple-400 hover:bg-purple-400 hover:text-white transition-all duration-300 w-full justify-start"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <Github className="mr-2 h-4 w-4" />
+                  {t('nav.github')}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* 英雄区域 */}
