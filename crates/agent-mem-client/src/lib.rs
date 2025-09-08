@@ -9,11 +9,13 @@ pub mod config;
 pub mod error;
 pub mod models;
 pub mod retry;
+pub mod mem5_client;
 
 pub use client::{AgentMemClient, AsyncAgentMemClient};
 pub use config::ClientConfig;
 pub use error::{ClientError, ClientResult};
 pub use models::*;
+pub use mem5_client::Mem5Client;
 
 /// Re-export commonly used types
 pub use agent_mem_core::MemoryType;
