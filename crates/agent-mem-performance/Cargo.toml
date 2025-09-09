@@ -20,6 +20,7 @@ async-trait = { workspace = true }
 # Serialization
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+serde_yaml = "0.9"
 
 # Error handling
 thiserror = { workspace = true }
@@ -57,10 +58,14 @@ bytes = "1.5"
 crossbeam = "0.8"
 rayon = "1.8"
 
+# Random number generation
+fastrand = "2.0"
+
 [dev-dependencies]
 tokio-test = "0.4"
 criterion = { version = "0.5", features = ["html_reports"] }
 proptest = "1.4"
+tempfile = "3.8"
 
 
 

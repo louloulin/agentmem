@@ -40,6 +40,8 @@ members = [
     "examples/phase1-integration-demo",
     "examples/phase3-demo",
     "examples/phase4-demo",
+    "examples/phase5-production-demo",
+    "examples/phase6-optimization-demo",
     "examples/server-demo",
     "examples/client-demo",
     "examples/mem0-compat-demo",

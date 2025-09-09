@@ -8,18 +8,37 @@
 //! - Concurrency control
 
 pub mod batch;
+pub mod benchmark;
 pub mod cache;
 pub mod concurrency;
+pub mod config_manager;
+pub mod error_recovery;
 pub mod metrics;
+pub mod optimization;
 pub mod pool;
 pub mod query;
 pub mod telemetry;
 
 // Re-export main types
 pub use batch::{BatchConfig, BatchProcessor, BatchResult};
+pub use benchmark::{BenchmarkSuite, MemoryBenchmarkResults, VectorBenchmarkResults};
 pub use cache::{CacheConfig, CacheManager, CacheStats};
 pub use concurrency::{ConcurrencyConfig, ConcurrencyManager};
+pub use config_manager::{
+    UnifiedConfigManager, AgentMemConfig, LLMConfig, VectorStoreConfig,
+    GraphStoreConfig, EmbedderConfig, IntelligenceConfig,
+    TelemetryConfig as ConfigTelemetryConfig,
+    PerformanceConfig as ConfigPerformanceConfig,
+    ConfigSource, FileConfigSource, EnvConfigSource
+};
+pub use error_recovery::{
+    ProductionErrorHandler, ErrorRecoveryConfig, RetryPolicy, CircuitBreaker,
+    CircuitBreakerConfig, ErrorType, BackoffStrategy, FallbackStrategy
+};
 pub use metrics::{MetricsCollector, PerformanceMetrics};
+pub use optimization::{
+    OptimizationEngine, CachePerformanceStats, QueryPerformanceStats, OptimizationRecord
+};
 pub use pool::{MemoryPool, ObjectPool, PoolConfig};
 pub use query::{OptimizationHint, QueryOptimizer, QueryPlan};
 pub use telemetry::{
@@ -27,9 +46,8 @@ pub use telemetry::{
     AdaptiveOptimizer, MemoryEvent, EventType, TelemetryReport
 };
 
-use agent_mem_traits::{AgentMemError, Result};
+use agent_mem_traits::Result;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 
 /// Performance configuration
 #[derive(Debug, Clone)]
@@ -48,6 +66,8 @@ pub struct PerformanceConfig {
     pub enable_metrics: bool,
     /// Enable query optimization
     pub enable_query_optimization: bool,
+    /// Enable tracing
+    pub enable_tracing: bool,
 }
 
 impl Default for PerformanceConfig {
@@ -60,6 +80,7 @@ impl Default for PerformanceConfig {
             telemetry: TelemetryConfig::default(),
             enable_metrics: true,
             enable_query_optimization: true,
+            enable_tracing: true,
         }
     }
 }
@@ -87,7 +108,14 @@ impl PerformanceManager {
         let metrics_collector = Arc::new(MetricsCollector::new(config.enable_metrics)?);
         let concurrency_manager = Arc::new(ConcurrencyManager::new(config.concurrency.clone())?);
         let query_optimizer = Arc::new(QueryOptimizer::new(config.enable_query_optimization)?);
-        let telemetry_system = Arc::new(TelemetrySystem::new(config.telemetry.clone()));
+        let telemetry_config = telemetry::TelemetryConfig {
+            enabled: true,
+            max_events: 10000,
+            monitoring_interval_seconds: 30,
+            health_check_interval_seconds: 60,
+            adaptive_optimization_enabled: true,
+        };
+        let telemetry_system = Arc::new(TelemetrySystem::new(telemetry_config));
 
         Ok(Self {
             config,
