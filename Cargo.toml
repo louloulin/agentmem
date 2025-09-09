@@ -30,6 +30,10 @@ members = [
     # "tools/agent-mem-bench",
 
     # 示例
+    "examples/migration-demo",
+    "examples/performance-demo",
+
+    # 示例
     "examples/demo",
     "examples/simple-demo",
     "examples/comprehensive-test",

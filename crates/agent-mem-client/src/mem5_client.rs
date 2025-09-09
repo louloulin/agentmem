@@ -14,11 +14,13 @@ use crate::{
     retry::{RetryExecutor, RetryPolicy},
 };
 
-use agent_mem_compat::{
-    Mem0Client,
-    client::{EnhancedAddRequest, EnhancedSearchRequest, BatchAddRequest, BatchAddResult, Messages}
+use agent_mem_core::{MemoryEngine, MemoryEngineConfig};
+use agent_mem_traits::{
+    Messages, EnhancedAddRequest, EnhancedSearchRequest, MemorySearchResult,
+    BatchResult, MetadataBuilder, FilterBuilder, ProcessingOptions,
+    BatchMemoryOperations, HealthStatus, SystemMetrics, PerformanceReport,
 };
-use agent_mem_config::MemoryConfig;
+use agent_mem_config::AgentMemConfig;
 
 use serde_json::Value;
 use std::{
@@ -27,18 +29,19 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio::sync::{Semaphore, RwLock};
-use tracing::{debug, info, instrument};
+use tracing::{debug, info, instrument, error};
+use futures::future::BoxFuture;
 
 /// Mem5 Enhanced AgentMem Client
 ///
 /// This client provides full Mem0 API compatibility with enhanced performance,
 /// reliability, and production-grade features.
 pub struct Mem5Client {
-    /// Mem0 compatibility layer
-    compat_client: Arc<Mem0Client>,
+    /// Core memory engine
+    engine: Arc<MemoryEngine>,
 
     /// Configuration
-    config: MemoryConfig,
+    config: AgentMemConfig,
 
     /// Retry executor for error recovery
     retry_executor: RetryExecutor,
@@ -46,8 +49,11 @@ pub struct Mem5Client {
     /// Concurrency control
     semaphore: Arc<Semaphore>,
 
-    /// Operation counters
-    operation_counter: AtomicU64,
+    /// Telemetry system
+    telemetry: Arc<TelemetrySystem>,
+
+    /// Error recovery system
+    error_recovery: Arc<ErrorRecoverySystem>,
 
     /// Client state
     state: Arc<RwLock<ClientState>>,
@@ -61,6 +67,8 @@ pub struct ClientState {
     pub total_operations: u64,
     pub successful_operations: u64,
     pub failed_operations: u64,
+    pub average_response_time: Duration,
+    pub last_error: Option<String>,
 }
 
 impl Default for ClientState {
@@ -71,44 +79,129 @@ impl Default for ClientState {
             total_operations: 0,
             successful_operations: 0,
             failed_operations: 0,
+            average_response_time: Duration::from_millis(0),
+            last_error: None,
         }
+    }
+}
+
+/// Telemetry system for monitoring operations
+pub struct TelemetrySystem {
+    operation_counter: AtomicU64,
+    start_time: Instant,
+}
+
+impl TelemetrySystem {
+    pub fn new() -> Self {
+        Self {
+            operation_counter: AtomicU64::new(0),
+            start_time: Instant::now(),
+        }
+    }
+
+    pub async fn track_operation_start(&self, operation: &str) {
+        let operation_id = self.operation_counter.fetch_add(1, Ordering::SeqCst);
+        debug!("Starting operation {} with ID {}", operation, operation_id);
+    }
+
+    pub async fn track_operation_end(&self, operation: &str, duration: Duration, success: bool) {
+        debug!("Operation {} completed in {:?}, success: {}", operation, duration, success);
+    }
+
+    pub async fn get_metrics(&self) -> SystemMetrics {
+        SystemMetrics {
+            memory_usage: 0, // TODO: Implement actual memory tracking
+            cpu_usage: 0.0,
+            operations_per_second: self.operation_counter.load(Ordering::SeqCst) as f64 / self.start_time.elapsed().as_secs_f64(),
+            error_rate: 0.0, // TODO: Track error rate
+            average_response_time: Duration::from_millis(100), // TODO: Track actual response time
+            timestamp: chrono::Utc::now(),
+        }
+    }
+}
+
+/// Error recovery system for handling failures
+pub struct ErrorRecoverySystem {
+    retry_policy: RetryPolicy,
+}
+
+impl ErrorRecoverySystem {
+    pub fn new(retry_policy: RetryPolicy) -> Self {
+        Self { retry_policy }
+    }
+
+    pub async fn execute_with_recovery<T, F>(&self, operation: F) -> ClientResult<T>
+    where
+        F: Fn() -> BoxFuture<'_, ClientResult<T>>,
+    {
+        let mut attempt = 0;
+        let mut delay = self.retry_policy.base_delay;
+
+        loop {
+            attempt += 1;
+            
+            match operation().await {
+                Ok(result) => return Ok(result),
+                Err(e) if attempt >= self.retry_policy.max_attempts => return Err(e),
+                Err(e) if self.is_retryable(&e) => {
+                    debug!("Retrying operation after {:?}, attempt {}", delay, attempt);
+                    tokio::time::sleep(delay).await;
+                    delay = std::cmp::min(delay * 2, self.retry_policy.max_delay);
+                }
+                Err(e) => return Err(e),
+            }
+        }
+    }
+
+    fn is_retryable(&self, error: &ClientError) -> bool {
+        matches!(error,
+            ClientError::NetworkError(_) |
+            ClientError::TimeoutError(_) |
+            ClientError::InternalError(_)
+        )
     }
 }
 
 impl Mem5Client {
     /// Create a new Mem5Client with default configuration
     pub async fn new() -> ClientResult<Self> {
-        let config = MemoryConfig::default();
+        let config = AgentMemConfig::default();
         Self::with_config(config).await
     }
 
     /// Create a new Mem5Client with custom configuration
-    pub async fn with_config(config: MemoryConfig) -> ClientResult<Self> {
+    pub async fn with_config(config: AgentMemConfig) -> ClientResult<Self> {
         info!("Initializing Mem5Client with enhanced features");
 
-        // Initialize core components
-        let compat_client = Mem0Client::new()
-            .await
-            .map_err(|e| ClientError::InternalError(format!("Failed to initialize Mem0 client: {}", e)))?;
+        // Initialize core memory engine
+        let engine_config = MemoryEngineConfig::from(&config);
+        let engine = MemoryEngine::new(engine_config).await
+            .map_err(|e| ClientError::InternalError(format!("Failed to initialize memory engine: {}", e)))?;
 
-        // Create retry policy with default values
-        let retry_policy = RetryPolicy::new(3)
-            .with_base_delay(Duration::from_millis(100))
-            .with_max_delay(Duration::from_millis(5000));
+        // Create retry policy
+        let retry_policy = RetryPolicy::new(config.performance.retry_attempts.unwrap_or(3))
+            .with_base_delay(Duration::from_millis(config.performance.base_delay_ms.unwrap_or(100)))
+            .with_max_delay(Duration::from_millis(config.performance.max_delay_ms.unwrap_or(5000)));
 
-        let retry_executor = RetryExecutor::new(retry_policy);
+        let retry_executor = RetryExecutor::new(retry_policy.clone());
 
         // Create concurrency control
-        let semaphore = Arc::new(Semaphore::new(10)); // Default max concurrent operations
+        let max_concurrent = config.performance.max_concurrent_operations.unwrap_or(10);
+        let semaphore = Arc::new(Semaphore::new(max_concurrent));
 
-        info!("Mem5Client initialized successfully");
+        // Initialize telemetry and error recovery
+        let telemetry = Arc::new(TelemetrySystem::new());
+        let error_recovery = Arc::new(ErrorRecoverySystem::new(retry_policy));
+
+        info!("Mem5Client initialized successfully with max_concurrent={}", max_concurrent);
 
         Ok(Self {
-            compat_client: Arc::new(compat_client),
+            engine: Arc::new(engine),
             config,
             retry_executor,
             semaphore,
-            operation_counter: AtomicU64::new(0),
+            telemetry,
+            error_recovery,
             state: Arc::new(RwLock::new(ClientState::default())),
         })
     }
@@ -126,15 +219,16 @@ impl Mem5Client {
         memory_type: Option<String>,
         prompt: Option<String>,
     ) -> ClientResult<String> {
-        let operation_id = self.operation_counter.fetch_add(1, Ordering::SeqCst);
         let start_time = Instant::now();
         
-        debug!("Starting add operation {}", operation_id);
+        // Track operation start
+        self.telemetry.track_operation_start("add_memory").await;
         
         // Acquire semaphore permit for concurrency control
         let _permit = self.semaphore.acquire().await
             .map_err(|e| ClientError::InternalError(format!("Failed to acquire semaphore: {}", e)))?;
         
+        // Create enhanced request
         let request = EnhancedAddRequest {
             messages,
             user_id,
@@ -146,29 +240,48 @@ impl Mem5Client {
             prompt,
         };
         
-        let result = self.retry_executor.execute(|| {
-            let compat_client = self.compat_client.clone();
+        // Validate request
+        request.validate()
+            .map_err(|e| ClientError::ValidationError(format!("Request validation failed: {}", e)))?;
+        
+        // Execute with error recovery
+        let result = self.error_recovery.execute_with_recovery(|| {
+            let engine = self.engine.clone();
             let request = request.clone();
             Box::pin(async move {
-                compat_client.add_enhanced(request).await
-                    .map_err(|e| ClientError::InternalError(format!("Mem0 add failed: {}", e)))
+                // Convert to processing options
+                let options = ProcessingOptions {
+                    extract_facts: infer,
+                    update_existing: true,
+                    resolve_conflicts: true,
+                    calculate_importance: true,
+                };
+                
+                engine.add_memory_with_processing(
+                    request.messages,
+                    request.metadata.unwrap_or_default(),
+                    options,
+                ).await
+                .map_err(|e| ClientError::InternalError(format!("Memory engine error: {}", e)))
             })
         }).await;
         
-        // Update metrics
+        // Update metrics and state
         let duration = start_time.elapsed();
-        debug!("Add operation completed in {:?}", duration);
+        self.telemetry.track_operation_end("add_memory", duration, result.is_ok()).await;
         
-        // Update state
         let mut state = self.state.write().await;
         state.total_operations += 1;
         if result.is_ok() {
             state.successful_operations += 1;
         } else {
             state.failed_operations += 1;
+            if let Err(ref e) = result {
+                state.last_error = Some(e.to_string());
+            }
         }
         
-        debug!("Completed add operation {} in {:?}", operation_id, duration);
+        debug!("Add operation completed in {:?}", duration);
         result
     }
     
@@ -183,15 +296,16 @@ impl Mem5Client {
         limit: usize,
         filters: Option<HashMap<String, Value>>,
         threshold: Option<f32>,
-    ) -> ClientResult<Vec<Memory>> {
-        let operation_id = self.operation_counter.fetch_add(1, Ordering::SeqCst);
+    ) -> ClientResult<Vec<MemorySearchResult>> {
         let start_time = Instant::now();
         
-        debug!("Starting search operation {}", operation_id);
+        // Track operation start
+        self.telemetry.track_operation_start("search_memories").await;
         
         let _permit = self.semaphore.acquire().await
             .map_err(|e| ClientError::InternalError(format!("Failed to acquire semaphore: {}", e)))?;
         
+        // Create enhanced search request
         let request = EnhancedSearchRequest {
             query,
             user_id,
@@ -202,31 +316,28 @@ impl Mem5Client {
             threshold,
         };
         
-        let result = self.retry_executor.execute(|| {
-            let compat_client = self.compat_client.clone();
+        // Validate request
+        request.validate()
+            .map_err(|e| ClientError::ValidationError(format!("Search request validation failed: {}", e)))?;
+        
+        // Execute with error recovery
+        let result = self.error_recovery.execute_with_recovery(|| {
+            let engine = self.engine.clone();
             let request = request.clone();
             Box::pin(async move {
-                let search_result = compat_client.search_enhanced(request).await
-                    .map_err(|e| ClientError::InternalError(format!("Mem0 search failed: {}", e)))?;
-                
-                // Convert to client Memory format
-                let memories: Vec<Memory> = search_result.memories.into_iter().map(|m| Memory {
-                    id: m.id,
-                    agent_id: m.agent_id.unwrap_or_default(),
-                    user_id: m.user_id.into(),
-                    content: m.memory,
-                    memory_type: None, // TODO: Map memory type
-                    importance: m.score,
-                    created_at: m.created_at,
-                    metadata: Some(m.metadata.into_iter().map(|(k, v)| (k, v.to_string())).collect()),
-                }).collect();
-                
-                Ok(memories)
+                engine.search_memories(
+                    &request.query,
+                    request.limit,
+                    request.filters.unwrap_or_default(),
+                    request.threshold,
+                ).await
+                .map_err(|e| ClientError::InternalError(format!("Memory engine search error: {}", e)))
             })
         }).await;
         
+        // Update metrics and state
         let duration = start_time.elapsed();
-        debug!("Search operation completed in {:?}", duration);
+        self.telemetry.track_operation_end("search_memories", duration, result.is_ok()).await;
         
         let mut state = self.state.write().await;
         state.total_operations += 1;
@@ -234,9 +345,12 @@ impl Mem5Client {
             state.successful_operations += 1;
         } else {
             state.failed_operations += 1;
+            if let Err(ref e) = result {
+                state.last_error = Some(e.to_string());
+            }
         }
         
-        debug!("Completed search operation {} in {:?}", operation_id, duration);
+        debug!("Search operation completed in {:?}", duration);
         result
     }
     

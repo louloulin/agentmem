@@ -271,6 +271,157 @@ impl VectorStore for VectorStoreEnum {
             VectorStoreEnum::Weaviate(store) => store.clear().await,
         }
     }
+
+    async fn search_with_filters(
+        &self,
+        query_vector: Vec<f32>,
+        limit: usize,
+        filters: &std::collections::HashMap<String, serde_json::Value>,
+        threshold: Option<f32>,
+    ) -> Result<Vec<agent_mem_traits::VectorSearchResult>> {
+        match self {
+            VectorStoreEnum::Memory(store) => store.search_with_filters(query_vector, limit, filters, threshold).await,
+            VectorStoreEnum::Chroma(store) => store.search_with_filters(query_vector, limit, filters, threshold).await,
+            #[cfg(feature = "azure-ai-search")]
+            VectorStoreEnum::AzureAISearch(store) => store.search_with_filters(query_vector, limit, filters, threshold).await,
+            #[cfg(feature = "faiss")]
+            VectorStoreEnum::Faiss(store) => store.search_with_filters(query_vector, limit, filters, threshold).await,
+            #[cfg(feature = "mongodb")]
+            VectorStoreEnum::MongoDB(store) => store.search_with_filters(query_vector, limit, filters, threshold).await,
+            #[cfg(feature = "qdrant")]
+            VectorStoreEnum::Qdrant(store) => store.search_with_filters(query_vector, limit, filters, threshold).await,
+            #[cfg(feature = "pinecone")]
+            VectorStoreEnum::Pinecone(store) => store.search_with_filters(query_vector, limit, filters, threshold).await,
+            #[cfg(feature = "elasticsearch")]
+            VectorStoreEnum::Elasticsearch(store) => store.search_with_filters(query_vector, limit, filters, threshold).await,
+            #[cfg(feature = "lancedb")]
+            VectorStoreEnum::LanceDB(store) => store.search_with_filters(query_vector, limit, filters, threshold).await,
+            #[cfg(feature = "milvus")]
+            VectorStoreEnum::Milvus(store) => store.search_with_filters(query_vector, limit, filters, threshold).await,
+            #[cfg(feature = "redis")]
+            VectorStoreEnum::Redis(store) => store.search_with_filters(query_vector, limit, filters, threshold).await,
+            #[cfg(feature = "supabase")]
+            VectorStoreEnum::Supabase(store) => store.search_with_filters(query_vector, limit, filters, threshold).await,
+            #[cfg(feature = "weaviate")]
+            VectorStoreEnum::Weaviate(store) => store.search_with_filters(query_vector, limit, filters, threshold).await,
+        }
+    }
+
+    async fn health_check(&self) -> Result<agent_mem_traits::HealthStatus> {
+        match self {
+            VectorStoreEnum::Memory(store) => store.health_check().await,
+            VectorStoreEnum::Chroma(store) => store.health_check().await,
+            #[cfg(feature = "azure-ai-search")]
+            VectorStoreEnum::AzureAISearch(store) => store.health_check().await,
+            #[cfg(feature = "faiss")]
+            VectorStoreEnum::Faiss(store) => store.health_check().await,
+            #[cfg(feature = "mongodb")]
+            VectorStoreEnum::MongoDB(store) => store.health_check().await,
+            #[cfg(feature = "qdrant")]
+            VectorStoreEnum::Qdrant(store) => store.health_check().await,
+            #[cfg(feature = "pinecone")]
+            VectorStoreEnum::Pinecone(store) => store.health_check().await,
+            #[cfg(feature = "elasticsearch")]
+            VectorStoreEnum::Elasticsearch(store) => store.health_check().await,
+            #[cfg(feature = "lancedb")]
+            VectorStoreEnum::LanceDB(store) => store.health_check().await,
+            #[cfg(feature = "milvus")]
+            VectorStoreEnum::Milvus(store) => store.health_check().await,
+            #[cfg(feature = "redis")]
+            VectorStoreEnum::Redis(store) => store.health_check().await,
+            #[cfg(feature = "supabase")]
+            VectorStoreEnum::Supabase(store) => store.health_check().await,
+            #[cfg(feature = "weaviate")]
+            VectorStoreEnum::Weaviate(store) => store.health_check().await,
+        }
+    }
+
+    async fn get_stats(&self) -> Result<agent_mem_traits::VectorStoreStats> {
+        match self {
+            VectorStoreEnum::Memory(store) => store.get_stats().await,
+            VectorStoreEnum::Chroma(store) => store.get_stats().await,
+            #[cfg(feature = "azure-ai-search")]
+            VectorStoreEnum::AzureAISearch(store) => store.get_stats().await,
+            #[cfg(feature = "faiss")]
+            VectorStoreEnum::Faiss(store) => store.get_stats().await,
+            #[cfg(feature = "mongodb")]
+            VectorStoreEnum::MongoDB(store) => store.get_stats().await,
+            #[cfg(feature = "qdrant")]
+            VectorStoreEnum::Qdrant(store) => store.get_stats().await,
+            #[cfg(feature = "pinecone")]
+            VectorStoreEnum::Pinecone(store) => store.get_stats().await,
+            #[cfg(feature = "elasticsearch")]
+            VectorStoreEnum::Elasticsearch(store) => store.get_stats().await,
+            #[cfg(feature = "lancedb")]
+            VectorStoreEnum::LanceDB(store) => store.get_stats().await,
+            #[cfg(feature = "milvus")]
+            VectorStoreEnum::Milvus(store) => store.get_stats().await,
+            #[cfg(feature = "redis")]
+            VectorStoreEnum::Redis(store) => store.get_stats().await,
+            #[cfg(feature = "supabase")]
+            VectorStoreEnum::Supabase(store) => store.get_stats().await,
+            #[cfg(feature = "weaviate")]
+            VectorStoreEnum::Weaviate(store) => store.get_stats().await,
+        }
+    }
+
+    async fn add_vectors_batch(&self, batches: Vec<Vec<agent_mem_traits::VectorData>>) -> Result<Vec<Vec<String>>> {
+        match self {
+            VectorStoreEnum::Memory(store) => store.add_vectors_batch(batches).await,
+            VectorStoreEnum::Chroma(store) => store.add_vectors_batch(batches).await,
+            #[cfg(feature = "azure-ai-search")]
+            VectorStoreEnum::AzureAISearch(store) => store.add_vectors_batch(batches).await,
+            #[cfg(feature = "faiss")]
+            VectorStoreEnum::Faiss(store) => store.add_vectors_batch(batches).await,
+            #[cfg(feature = "mongodb")]
+            VectorStoreEnum::MongoDB(store) => store.add_vectors_batch(batches).await,
+            #[cfg(feature = "qdrant")]
+            VectorStoreEnum::Qdrant(store) => store.add_vectors_batch(batches).await,
+            #[cfg(feature = "pinecone")]
+            VectorStoreEnum::Pinecone(store) => store.add_vectors_batch(batches).await,
+            #[cfg(feature = "elasticsearch")]
+            VectorStoreEnum::Elasticsearch(store) => store.add_vectors_batch(batches).await,
+            #[cfg(feature = "lancedb")]
+            VectorStoreEnum::LanceDB(store) => store.add_vectors_batch(batches).await,
+            #[cfg(feature = "milvus")]
+            VectorStoreEnum::Milvus(store) => store.add_vectors_batch(batches).await,
+            #[cfg(feature = "redis")]
+            VectorStoreEnum::Redis(store) => store.add_vectors_batch(batches).await,
+            #[cfg(feature = "supabase")]
+            VectorStoreEnum::Supabase(store) => store.add_vectors_batch(batches).await,
+            #[cfg(feature = "weaviate")]
+            VectorStoreEnum::Weaviate(store) => store.add_vectors_batch(batches).await,
+        }
+    }
+
+    async fn delete_vectors_batch(&self, id_batches: Vec<Vec<String>>) -> Result<Vec<bool>> {
+        match self {
+            VectorStoreEnum::Memory(store) => store.delete_vectors_batch(id_batches).await,
+            VectorStoreEnum::Chroma(store) => store.delete_vectors_batch(id_batches).await,
+            #[cfg(feature = "azure-ai-search")]
+            VectorStoreEnum::AzureAISearch(store) => store.delete_vectors_batch(id_batches).await,
+            #[cfg(feature = "faiss")]
+            VectorStoreEnum::Faiss(store) => store.delete_vectors_batch(id_batches).await,
+            #[cfg(feature = "mongodb")]
+            VectorStoreEnum::MongoDB(store) => store.delete_vectors_batch(id_batches).await,
+            #[cfg(feature = "qdrant")]
+            VectorStoreEnum::Qdrant(store) => store.delete_vectors_batch(id_batches).await,
+            #[cfg(feature = "pinecone")]
+            VectorStoreEnum::Pinecone(store) => store.delete_vectors_batch(id_batches).await,
+            #[cfg(feature = "elasticsearch")]
+            VectorStoreEnum::Elasticsearch(store) => store.delete_vectors_batch(id_batches).await,
+            #[cfg(feature = "lancedb")]
+            VectorStoreEnum::LanceDB(store) => store.delete_vectors_batch(id_batches).await,
+            #[cfg(feature = "milvus")]
+            VectorStoreEnum::Milvus(store) => store.delete_vectors_batch(id_batches).await,
+            #[cfg(feature = "redis")]
+            VectorStoreEnum::Redis(store) => store.delete_vectors_batch(id_batches).await,
+            #[cfg(feature = "supabase")]
+            VectorStoreEnum::Supabase(store) => store.delete_vectors_batch(id_batches).await,
+            #[cfg(feature = "weaviate")]
+            VectorStoreEnum::Weaviate(store) => store.delete_vectors_batch(id_batches).await,
+        }
+    }
 }
 
 /// 存储工厂，用于创建不同的存储后端实例

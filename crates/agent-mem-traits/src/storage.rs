@@ -47,6 +47,15 @@ pub trait VectorStore: Send + Sync {
         threshold: Option<f32>,
     ) -> Result<Vec<VectorSearchResult>>;
 
+    /// Search with advanced filters and threshold
+    async fn search_with_filters(
+        &self,
+        query_vector: Vec<f32>,
+        limit: usize,
+        filters: &std::collections::HashMap<String, serde_json::Value>,
+        threshold: Option<f32>,
+    ) -> Result<Vec<VectorSearchResult>>;
+
     /// Delete vectors by IDs
     async fn delete_vectors(&self, ids: Vec<String>) -> Result<()>;
 
@@ -61,6 +70,18 @@ pub trait VectorStore: Send + Sync {
 
     /// Clear all vectors from the store
     async fn clear(&self) -> Result<()>;
+
+    /// Health check for the vector store
+    async fn health_check(&self) -> Result<crate::HealthStatus>;
+
+    /// Get vector store statistics
+    async fn get_stats(&self) -> Result<VectorStoreStats>;
+
+    /// Batch operations for vectors
+    async fn add_vectors_batch(&self, batches: Vec<Vec<VectorData>>) -> Result<Vec<Vec<String>>>;
+
+    /// Delete vectors by batch
+    async fn delete_vectors_batch(&self, id_batches: Vec<Vec<String>>) -> Result<Vec<bool>>;
 }
 
 /// Embedding-focused vector store trait

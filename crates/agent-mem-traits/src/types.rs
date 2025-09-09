@@ -3,6 +3,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::time::Duration;
 use uuid::Uuid;
 
 /// A message in a conversation
@@ -11,6 +12,78 @@ pub struct Message {
     pub role: MessageRole,
     pub content: String,
     pub timestamp: Option<DateTime<Utc>>,
+}
+
+/// Messages type supporting multiple input formats (Mem5 compatibility)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum Messages {
+    /// Single string message
+    Single(String),
+    /// Structured message with role
+    Structured(Message),
+    /// Multiple messages
+    Multiple(Vec<Message>),
+}
+
+impl Messages {
+    /// Validate messages content
+    pub fn validate(&self) -> crate::Result<()> {
+        match self {
+            Messages::Single(s) => {
+                if s.trim().is_empty() {
+                    return Err(crate::AgentMemError::ValidationError("Empty message".to_string()));
+                }
+            }
+            Messages::Structured(msg) => {
+                if msg.content.trim().is_empty() {
+                    return Err(crate::AgentMemError::ValidationError("Empty message content".to_string()));
+                }
+            }
+            Messages::Multiple(msgs) => {
+                if msgs.is_empty() {
+                    return Err(crate::AgentMemError::ValidationError("Empty message list".to_string()));
+                }
+                for msg in msgs {
+                    if msg.content.trim().is_empty() {
+                        return Err(crate::AgentMemError::ValidationError("Empty message content in list".to_string()));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Convert to message list
+    pub fn to_message_list(&self) -> Vec<Message> {
+        match self {
+            Messages::Single(s) => vec![Message::user(s)],
+            Messages::Structured(msg) => vec![msg.clone()],
+            Messages::Multiple(msgs) => msgs.clone(),
+        }
+    }
+
+    /// Convert to content string
+    pub fn to_content_string(&self) -> String {
+        match self {
+            Messages::Single(s) => s.clone(),
+            Messages::Structured(msg) => msg.content.clone(),
+            Messages::Multiple(msgs) => {
+                msgs.iter()
+                    .map(|m| m.content.clone())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            }
+        }
+    }
+
+    /// Get message count
+    pub fn get_message_count(&self) -> usize {
+        match self {
+            Messages::Single(_) => 1,
+            Messages::Structured(_) => 1,
+            Messages::Multiple(msgs) => msgs.len(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -43,6 +116,14 @@ impl Message {
             content: content.to_string(),
             timestamp: Some(Utc::now()),
         }
+    }
+
+    /// Validate message content
+    pub fn validate(&self) -> crate::Result<()> {
+        if self.content.trim().is_empty() {
+            return Err(crate::AgentMemError::ValidationError("Empty message content".to_string()));
+        }
+        Ok(())
     }
 }
 
@@ -210,6 +291,217 @@ pub enum MemoryEvent {
 /// Configuration types
 pub type Metadata = HashMap<String, serde_json::Value>;
 
+/// Enhanced request types for Mem5 compatibility
+
+/// Enhanced add request with all Mem0 compatible parameters
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnhancedAddRequest {
+    pub messages: Messages,
+    pub user_id: Option<String>,
+    pub agent_id: Option<String>,
+    pub run_id: Option<String>,
+    pub metadata: Option<HashMap<String, serde_json::Value>>,
+    pub infer: bool,
+    pub memory_type: Option<String>,
+    pub prompt: Option<String>,
+}
+
+impl EnhancedAddRequest {
+    pub fn new(messages: Messages) -> Self {
+        Self {
+            messages,
+            user_id: None,
+            agent_id: None,
+            run_id: None,
+            metadata: None,
+            infer: true,
+            memory_type: None,
+            prompt: None,
+        }
+    }
+
+    pub fn with_user_id(mut self, user_id: Option<String>) -> Self {
+        self.user_id = user_id;
+        self
+    }
+
+    pub fn with_agent_id(mut self, agent_id: Option<String>) -> Self {
+        self.agent_id = agent_id;
+        self
+    }
+
+    pub fn with_metadata(mut self, metadata: Option<HashMap<String, serde_json::Value>>) -> Self {
+        self.metadata = metadata;
+        self
+    }
+
+    /// Validate the request
+    pub fn validate(&self) -> crate::Result<()> {
+        self.messages.validate()?;
+        Ok(())
+    }
+}
+
+/// Enhanced search request with all Mem0 compatible parameters
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnhancedSearchRequest {
+    pub query: String,
+    pub user_id: Option<String>,
+    pub agent_id: Option<String>,
+    pub run_id: Option<String>,
+    pub limit: usize,
+    pub filters: Option<HashMap<String, serde_json::Value>>,
+    pub threshold: Option<f32>,
+}
+
+impl EnhancedSearchRequest {
+    pub fn new(query: String) -> Self {
+        Self {
+            query,
+            user_id: None,
+            agent_id: None,
+            run_id: None,
+            limit: 100,
+            filters: None,
+            threshold: None,
+        }
+    }
+
+    /// Validate the search request
+    pub fn validate(&self) -> crate::Result<()> {
+        if self.query.trim().is_empty() {
+            return Err(crate::AgentMemError::ValidationError("Empty search query".to_string()));
+        }
+        if self.limit == 0 {
+            return Err(crate::AgentMemError::ValidationError("Limit must be greater than 0".to_string()));
+        }
+        Ok(())
+    }
+}
+
+/// Memory search result compatible with Mem0
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemorySearchResult {
+    pub id: String,
+    pub content: String,
+    pub importance: Option<f64>,
+    pub score: f32,
+    pub metadata: HashMap<String, serde_json::Value>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Batch operation result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchResult {
+    pub successful: usize,
+    pub failed: usize,
+    pub results: Vec<String>,
+    pub errors: Vec<String>,
+    pub execution_time: Duration,
+}
+
+/// Metadata builder for easy metadata construction
+#[derive(Debug, Clone)]
+pub struct MetadataBuilder {
+    data: HashMap<String, serde_json::Value>,
+}
+
+impl MetadataBuilder {
+    pub fn new() -> Self {
+        Self {
+            data: HashMap::new(),
+        }
+    }
+
+    pub fn user_id(mut self, user_id: String) -> Self {
+        self.data.insert("user_id".to_string(), serde_json::Value::String(user_id));
+        self
+    }
+
+    pub fn agent_id(mut self, agent_id: String) -> Self {
+        self.data.insert("agent_id".to_string(), serde_json::Value::String(agent_id));
+        self
+    }
+
+    pub fn memory_type(mut self, memory_type: MemoryType) -> Self {
+        self.data.insert("memory_type".to_string(), serde_json::Value::String(memory_type.to_string()));
+        self
+    }
+
+    pub fn importance(mut self, score: f64) -> Self {
+        self.data.insert("importance".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(score).unwrap_or_else(|| serde_json::Number::from(0))));
+        self
+    }
+
+    pub fn custom<T: Serialize>(mut self, key: String, value: T) -> crate::Result<Self> {
+        let value = serde_json::to_value(value)
+            .map_err(|e| crate::AgentMemError::SerializationError(e))?;
+        self.data.insert(key, value);
+        Ok(self)
+    }
+
+    pub fn build(self) -> HashMap<String, serde_json::Value> {
+        self.data
+    }
+}
+
+impl Default for MetadataBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Filter builder for search operations
+#[derive(Debug, Clone)]
+pub struct FilterBuilder {
+    filters: HashMap<String, serde_json::Value>,
+}
+
+impl FilterBuilder {
+    pub fn new() -> Self {
+        Self {
+            filters: HashMap::new(),
+        }
+    }
+
+    pub fn user_id(mut self, user_id: String) -> Self {
+        self.filters.insert("user_id".to_string(), serde_json::Value::String(user_id));
+        self
+    }
+
+    pub fn agent_id(mut self, agent_id: String) -> Self {
+        self.filters.insert("agent_id".to_string(), serde_json::Value::String(agent_id));
+        self
+    }
+
+    pub fn date_range(mut self, start: DateTime<Utc>, end: DateTime<Utc>) -> Self {
+        self.filters.insert("created_at_gte".to_string(), serde_json::Value::String(start.to_rfc3339()));
+        self.filters.insert("created_at_lte".to_string(), serde_json::Value::String(end.to_rfc3339()));
+        self
+    }
+
+    pub fn memory_type(mut self, memory_type: MemoryType) -> Self {
+        self.filters.insert("memory_type".to_string(), serde_json::Value::String(memory_type.to_string()));
+        self
+    }
+
+    pub fn importance_range(mut self, min: f64, max: f64) -> Self {
+        self.filters.insert("importance_gte".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(min).unwrap_or_else(|| serde_json::Number::from(0))));
+        self.filters.insert("importance_lte".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(max).unwrap_or_else(|| serde_json::Number::from(1))));
+        self
+    }
+
+    pub fn build(self) -> HashMap<String, serde_json::Value> {
+        self.filters
+    }
+}
+
+impl Default for FilterBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// LLM configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LLMConfig {
@@ -286,4 +578,126 @@ pub struct VectorSearchResult {
     pub metadata: std::collections::HashMap<String, String>,
     pub similarity: f32,
     pub distance: f32,
+}
+
+impl std::fmt::Display for MemoryType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MemoryType::Factual => write!(f, "factual"),
+            MemoryType::Episodic => write!(f, "episodic"),
+            MemoryType::Procedural => write!(f, "procedural"),
+            MemoryType::Semantic => write!(f, "semantic"),
+            MemoryType::Working => write!(f, "working"),
+        }
+    }
+}
+
+impl std::str::FromStr for MemoryType {
+    type Err = crate::AgentMemError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "factual" => Ok(MemoryType::Factual),
+            "episodic" => Ok(MemoryType::Episodic),
+            "procedural" => Ok(MemoryType::Procedural),
+            "semantic" => Ok(MemoryType::Semantic),
+            "working" => Ok(MemoryType::Working),
+            _ => Err(crate::AgentMemError::ValidationError(format!("Invalid memory type: {}", s))),
+        }
+    }
+}
+
+impl Default for MemoryType {
+    fn default() -> Self {
+        MemoryType::Episodic
+    }
+}
+
+/// Processing options for memory operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProcessingOptions {
+    pub extract_facts: bool,
+    pub update_existing: bool,
+    pub resolve_conflicts: bool,
+    pub calculate_importance: bool,
+}
+
+impl Default for ProcessingOptions {
+    fn default() -> Self {
+        Self {
+            extract_facts: true,
+            update_existing: true,
+            resolve_conflicts: true,
+            calculate_importance: true,
+        }
+    }
+}
+
+/// Processing result from intelligent memory operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProcessingResult {
+    pub memory_id: String,
+    pub facts_extracted: Vec<ExtractedFact>,
+    pub conflicts_resolved: Vec<String>,
+    pub importance_score: f64,
+    pub confidence: f64,
+}
+
+/// Health status for system components
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HealthStatus {
+    pub status: String,
+    pub message: String,
+    pub timestamp: DateTime<Utc>,
+    pub details: HashMap<String, serde_json::Value>,
+}
+
+impl HealthStatus {
+    pub fn healthy() -> Self {
+        Self {
+            status: "healthy".to_string(),
+            message: "All systems operational".to_string(),
+            timestamp: Utc::now(),
+            details: HashMap::new(),
+        }
+    }
+
+    pub fn unhealthy(message: &str) -> Self {
+        Self {
+            status: "unhealthy".to_string(),
+            message: message.to_string(),
+            timestamp: Utc::now(),
+            details: HashMap::new(),
+        }
+    }
+
+    pub fn with_details(mut self, details: HashMap<String, serde_json::Value>) -> Self {
+        self.details = details;
+        self
+    }
+}
+
+/// System metrics for monitoring
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SystemMetrics {
+    pub memory_usage: u64,
+    pub cpu_usage: f64,
+    pub operations_per_second: f64,
+    pub error_rate: f64,
+    pub average_response_time: Duration,
+    pub timestamp: DateTime<Utc>,
+}
+
+/// Performance report
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PerformanceReport {
+    pub period_start: DateTime<Utc>,
+    pub period_end: DateTime<Utc>,
+    pub total_operations: u64,
+    pub successful_operations: u64,
+    pub failed_operations: u64,
+    pub average_latency: Duration,
+    pub p95_latency: Duration,
+    pub p99_latency: Duration,
+    pub throughput: f64,
 }

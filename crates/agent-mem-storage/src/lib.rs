@@ -10,8 +10,11 @@
 //! - 特性门控支持
 
 pub mod backends;
+pub mod cache;
 pub mod factory;
 pub mod graph;
+pub mod performance;
+pub mod utils;
 pub mod vector;
 
 pub use factory::StorageFactory;
