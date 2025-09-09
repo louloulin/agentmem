@@ -5,6 +5,8 @@
 //! - Performance monitoring
 //! - Adaptive optimization
 //! - Real-time metrics collection
+//! - Production-grade monitoring with Prometheus and Jaeger integration
+//! - Structured logging and intelligent alerting
 
 use agent_mem_traits::Result;
 use chrono::{DateTime, Utc};
@@ -13,7 +15,15 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
+
+
+
+#[cfg(feature = "jaeger")]
+use opentelemetry::{global, trace::Tracer, KeyValue};
+
+#[cfg(feature = "jaeger")]
+use tracing_opentelemetry::OpenTelemetryLayer;
 
 /// Memory event types for tracking
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -109,10 +119,16 @@ impl MemoryEvent {
         self
     }
 
-    /// Set error status
+    /// Set success status
+    pub fn with_success(mut self, success: bool) -> Self {
+        self.success = success;
+        self
+    }
+
+    /// Set error message
     pub fn with_error(mut self, error_message: String) -> Self {
-        self.success = false;
         self.error_message = Some(error_message);
+        self.success = false;
         self
     }
 }
@@ -122,6 +138,7 @@ pub struct EventTracker {
     events: Arc<RwLock<Vec<MemoryEvent>>>,
     max_events: usize,
     enabled: bool,
+    start_time: Instant,
 }
 
 impl EventTracker {
@@ -131,6 +148,7 @@ impl EventTracker {
             events: Arc::new(RwLock::new(Vec::new())),
             max_events,
             enabled,
+            start_time: Instant::now(),
         }
     }
 
@@ -205,6 +223,7 @@ impl EventTracker {
             total_events,
             event_counts,
             error_count,
+            error_events: error_count,
             error_rate: if total_events > 0 {
                 error_count as f64 / total_events as f64
             } else {
@@ -220,6 +239,17 @@ impl EventTracker {
         events.clear();
         info!("Event tracker cleared");
     }
+
+    /// Get telemetry report
+    pub async fn get_telemetry_report(&self) -> SimpleTelemetryReport {
+        let event_stats = self.get_event_stats().await;
+        let uptime_seconds = self.start_time.elapsed().as_secs_f64();
+
+        SimpleTelemetryReport {
+            event_stats,
+            uptime_seconds,
+        }
+    }
 }
 
 /// Event statistics
@@ -228,8 +258,16 @@ pub struct EventStats {
     pub total_events: usize,
     pub event_counts: HashMap<String, usize>,
     pub error_count: usize,
+    pub error_events: usize,
     pub error_rate: f64,
     pub average_duration: Option<Duration>,
+}
+
+/// Simple telemetry report
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SimpleTelemetryReport {
+    pub event_stats: EventStats,
+    pub uptime_seconds: f64,
 }
 
 /// Performance monitor for real-time monitoring
@@ -250,6 +288,17 @@ pub struct MonitoringMetrics {
     pub average_response_time_ms: f64,
     pub error_rate: f64,
     pub cache_hit_rate: f64,
+}
+
+/// Performance report
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PerformanceReport {
+    pub average_response_time_ms: f64,
+    pub throughput_requests_per_second: f64,
+    pub memory_usage_bytes: usize,
+    pub cache_hit_rate: f64,
+    pub error_rate: f64,
+    pub uptime_seconds: f64,
 }
 
 impl Default for MonitoringMetrics {
@@ -303,10 +352,50 @@ impl PerformanceMonitor {
         metrics
     }
 
+    /// Record a request
+    pub async fn record_request(&self, duration: Duration, success: bool) {
+        if !self.enabled {
+            return;
+        }
+
+        let mut metrics = self.metrics.write().await;
+
+        // Update response time (simple moving average)
+        let duration_ms = duration.as_millis() as f64;
+        if metrics.average_response_time_ms == 0.0 {
+            metrics.average_response_time_ms = duration_ms;
+        } else {
+            metrics.average_response_time_ms = (metrics.average_response_time_ms * 0.9) + (duration_ms * 0.1);
+        }
+
+        // Update error rate
+        if !success {
+            metrics.error_rate = (metrics.error_rate * 0.9) + 0.1;
+        } else {
+            metrics.error_rate = metrics.error_rate * 0.9;
+        }
+
+        debug!("Request recorded: duration={:?}, success={}", duration, success);
+    }
+
+    /// Get performance report
+    pub async fn get_performance_report(&self) -> PerformanceReport {
+        let metrics = self.get_metrics().await;
+
+        PerformanceReport {
+            average_response_time_ms: metrics.average_response_time_ms,
+            throughput_requests_per_second: metrics.requests_per_second,
+            memory_usage_bytes: metrics.memory_usage_bytes,
+            cache_hit_rate: metrics.cache_hit_rate,
+            error_rate: metrics.error_rate,
+            uptime_seconds: metrics.uptime_seconds as f64,
+        }
+    }
+
     /// Check if system is healthy
     pub async fn is_healthy(&self) -> bool {
         let metrics = self.get_metrics().await;
-        
+
         // Define health thresholds
         metrics.cpu_usage_percent < 90.0
             && metrics.error_rate < 0.05  // Less than 5% error rate
@@ -777,4 +866,227 @@ mod tests {
         let stats = optimizer.get_optimization_stats().await;
         assert!(stats.total_optimizations > 0);
     }
+}
+
+/// Production-grade telemetry system with Prometheus and Jaeger integration
+pub struct ProductionTelemetrySystem {
+    /// Event tracker
+    event_tracker: Arc<EventTracker>,
+    /// Performance monitor
+    performance_monitor: Arc<PerformanceMonitor>,
+    /// Adaptive optimizer
+    adaptive_optimizer: Arc<AdaptiveOptimizer>,
+    /// Prometheus metrics enabled
+    prometheus_enabled: bool,
+    /// Jaeger tracing enabled
+    jaeger_enabled: bool,
+}
+
+impl ProductionTelemetrySystem {
+    /// Create a new production telemetry system
+    pub async fn new(config: ProductionTelemetryConfig) -> Result<Self> {
+        let event_tracker = Arc::new(EventTracker::new(1000, config.enabled));
+        let performance_monitor = Arc::new(PerformanceMonitor::new(config.enabled));
+        let adaptive_optimizer = Arc::new(AdaptiveOptimizer::new(config.enabled));
+
+        let system = Self {
+            event_tracker,
+            performance_monitor,
+            adaptive_optimizer,
+            prometheus_enabled: config.prometheus_enabled,
+            jaeger_enabled: config.jaeger_enabled,
+        };
+
+        // Initialize Prometheus metrics if enabled
+        if system.prometheus_enabled {
+            system.initialize_prometheus().await?;
+        }
+
+        // Initialize Jaeger tracing if enabled
+        if system.jaeger_enabled {
+            system.initialize_jaeger().await?;
+        }
+
+        info!("Production telemetry system initialized");
+        Ok(system)
+    }
+
+    /// Initialize Prometheus metrics
+    #[cfg(feature = "prometheus")]
+    async fn initialize_prometheus(&self) -> Result<()> {
+        use metrics_exporter_prometheus::PrometheusBuilder;
+
+        let builder = PrometheusBuilder::new();
+        builder.install().map_err(|e| {
+            agent_mem_traits::AgentMemError::internal_error(format!("Failed to initialize Prometheus: {}", e))
+        })?;
+
+        // Register core metrics
+        metrics::describe_counter!("agentmem_requests_total", "Total number of requests");
+        metrics::describe_counter!("agentmem_errors_total", "Total number of errors");
+        metrics::describe_histogram!("agentmem_request_duration_seconds", "Request duration in seconds");
+        metrics::describe_gauge!("agentmem_memory_usage_bytes", "Memory usage in bytes");
+        metrics::describe_gauge!("agentmem_cache_hit_rate", "Cache hit rate");
+        metrics::describe_gauge!("agentmem_active_connections", "Number of active connections");
+
+        info!("Prometheus metrics initialized");
+        Ok(())
+    }
+
+    #[cfg(not(feature = "prometheus"))]
+    async fn initialize_prometheus(&self) -> Result<()> {
+        debug!("Prometheus feature not enabled, skipping initialization");
+        Ok(())
+    }
+
+    /// Initialize Jaeger tracing
+    #[cfg(feature = "jaeger")]
+    async fn initialize_jaeger(&self) -> Result<()> {
+        use opentelemetry::global;
+        use opentelemetry_jaeger::new_agent_pipeline;
+        use tracing_subscriber::{layer::SubscriberExt, Registry};
+
+        let tracer = new_agent_pipeline()
+            .with_service_name("agentmem")
+            .install_simple()
+            .map_err(|e| {
+                agent_mem_traits::AgentMemError::internal_error(format!("Failed to initialize Jaeger: {}", e))
+            })?;
+
+        let telemetry = OpenTelemetryLayer::new(tracer);
+        let subscriber = Registry::default().with(telemetry);
+
+        // Try to set global default, but ignore error if already set
+        if let Err(_) = tracing::subscriber::set_global_default(subscriber) {
+            tracing::warn!("Tracing subscriber already initialized, skipping Jaeger setup");
+        }
+
+        info!("Jaeger tracing initialized");
+        Ok(())
+    }
+
+    #[cfg(not(feature = "jaeger"))]
+    async fn initialize_jaeger(&self) -> Result<()> {
+        debug!("Jaeger feature not enabled, skipping initialization");
+        Ok(())
+    }
+
+    /// Track a memory operation
+    pub async fn track_memory_operation(
+        &self,
+        operation: &str,
+        user_id: Option<&str>,
+        duration: Duration,
+        success: bool,
+    ) {
+        // Track event
+        let event = MemoryEvent::new(EventType::Custom(operation.to_string()))
+            .with_duration(duration)
+            .with_success(success);
+
+        let event = if let Some(user_id) = user_id {
+            event.with_user_id(user_id.to_string())
+        } else {
+            event
+        };
+
+        self.event_tracker.track_event(event).await;
+
+        // Record performance metrics
+        self.performance_monitor.record_request(duration, success).await;
+
+        // Update Prometheus metrics if enabled
+        #[cfg(feature = "prometheus")]
+        if self.prometheus_enabled {
+            metrics::increment_counter!("agentmem_requests_total");
+            if !success {
+                metrics::increment_counter!("agentmem_errors_total");
+            }
+            metrics::histogram!("agentmem_request_duration_seconds", duration.as_secs_f64());
+        }
+
+        // Create Jaeger span if enabled
+        #[cfg(feature = "jaeger")]
+        if self.jaeger_enabled {
+            let span = tracing::info_span!(
+                "memory_operation",
+                operation = operation,
+                user_id = user_id,
+                duration_ms = duration.as_millis(),
+                success = success
+            );
+            let _enter = span.enter();
+            info!("Memory operation completed");
+        }
+    }
+
+    /// Collect system metrics
+    pub async fn collect_system_metrics(&self) -> SystemMetrics {
+        let telemetry_report = self.event_tracker.get_telemetry_report().await;
+        let performance_report = self.performance_monitor.get_performance_report().await;
+
+        SystemMetrics {
+            total_requests: telemetry_report.event_stats.total_events as u64,
+            error_rate: if telemetry_report.event_stats.total_events > 0 {
+                telemetry_report.event_stats.error_events as f64 / telemetry_report.event_stats.total_events as f64
+            } else {
+                0.0
+            },
+            average_response_time_ms: performance_report.average_response_time_ms,
+            throughput_rps: performance_report.throughput_requests_per_second,
+            memory_usage_bytes: performance_report.memory_usage_bytes,
+            cache_hit_rate: performance_report.cache_hit_rate,
+            uptime_seconds: telemetry_report.uptime_seconds,
+        }
+    }
+
+    /// Get health status
+    pub async fn get_health_status(&self) -> ProductionHealthStatus {
+        let metrics = self.collect_system_metrics().await;
+
+        let status = if metrics.error_rate > 0.1 {
+            "unhealthy"
+        } else if metrics.error_rate > 0.05 {
+            "degraded"
+        } else {
+            "healthy"
+        };
+
+        ProductionHealthStatus {
+            status: status.to_string(),
+            timestamp: Utc::now(),
+            metrics: Some(metrics),
+        }
+    }
+}
+
+/// System metrics for monitoring
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SystemMetrics {
+    pub total_requests: u64,
+    pub error_rate: f64,
+    pub average_response_time_ms: f64,
+    pub throughput_rps: f64,
+    pub memory_usage_bytes: usize,
+    pub cache_hit_rate: f64,
+    pub uptime_seconds: f64,
+}
+
+/// Production health status for monitoring
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProductionHealthStatus {
+    pub status: String,
+    pub timestamp: DateTime<Utc>,
+    pub metrics: Option<SystemMetrics>,
+}
+
+/// Production telemetry configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProductionTelemetryConfig {
+    pub enabled: bool,
+    pub prometheus_enabled: bool,
+    pub jaeger_enabled: bool,
+    pub jaeger_endpoint: Option<String>,
+    pub prometheus_port: Option<u16>,
+    pub service_name: String,
 }

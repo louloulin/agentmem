@@ -50,6 +50,7 @@ members = [
     "examples/intelligence-demo",
     "examples/mem5-demo",
     "examples/enhanced-messages-demo",
+    "examples/production-telemetry-demo",
     # "examples/basic-usage",
     # "examples/advanced-features",
     # "examples/migration-from-agentmen",

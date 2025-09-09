@@ -43,6 +43,13 @@ parking_lot = "0.12"
 metrics = { version = "0.21", optional = true }
 metrics-exporter-prometheus = { version = "0.12", optional = true }
 
+# OpenTelemetry and Jaeger tracing
+opentelemetry = { version = "0.20", optional = true }
+opentelemetry-jaeger = { version = "0.19", optional = true }
+opentelemetry-otlp = { version = "0.13", optional = true }
+tracing-opentelemetry = { version = "0.21", optional = true }
+tracing-subscriber = { version = "0.3", optional = true, features = ["env-filter", "json"] }
+
 # Memory management
 bytes = "1.5"
 
@@ -60,5 +67,8 @@ proptest = "1.4"
 [features]
 default = ["metrics"]
 metrics = ["dep:metrics", "dep:metrics-exporter-prometheus"]
+prometheus = ["metrics", "dep:metrics-exporter-prometheus"]
+jaeger = ["dep:opentelemetry", "dep:opentelemetry-jaeger", "dep:tracing-opentelemetry", "dep:tracing-subscriber"]
+telemetry = ["prometheus", "jaeger", "dep:opentelemetry-otlp"]
 profiling = []
 skip-performance-tests = []
