@@ -29,6 +29,7 @@ chrono.workspace = true
 tracing.workspace = true
 base64 = "0.21"
 regex = "1.0"
+futures = "0.3"
 
 # 数学和统计计算
 nalgebra = { version = "0.32", optional = true }

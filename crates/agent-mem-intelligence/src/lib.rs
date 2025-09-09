@@ -20,6 +20,10 @@ pub mod fact_extraction;
 pub mod decision_engine;
 pub mod intelligent_processor;
 
+// Mem5 增强模块
+pub mod conflict_resolution;
+pub mod importance_evaluator;
+
 // 多模态内容处理模块
 pub mod multimodal;
 
@@ -34,6 +38,8 @@ pub use reasoning::MemoryReasoner;
 pub use similarity::SemanticSimilarity;
 
 // 导出新的智能推理模块
-pub use fact_extraction::{FactExtractor, ExtractedFact, Message, FactCategory};
-pub use decision_engine::{MemoryDecisionEngine, MemoryDecision, MemoryAction, ExistingMemory};
-pub use intelligent_processor::{IntelligentMemoryProcessor, IntelligentProcessingResult, MemoryHealthReport};
+pub use fact_extraction::{FactExtractor, ExtractedFact, FactCategory, AdvancedFactExtractor, StructuredFact, Entity, Relation, EntityType, RelationType};
+pub use decision_engine::{MemoryDecisionEngine, MemoryDecision, MemoryAction, ExistingMemory, EnhancedDecisionEngine, DecisionContext, DecisionResult};
+pub use intelligent_processor::{IntelligentMemoryProcessor, IntelligentProcessingResult, MemoryHealthReport, EnhancedIntelligentProcessor, EnhancedProcessingResult};
+pub use conflict_resolution::{ConflictResolver, ConflictDetection, ConflictResolution, ConflictType, ResolutionStrategy};
+pub use importance_evaluator::{ImportanceEvaluator as EnhancedImportanceEvaluator, ImportanceEvaluation, ImportanceFactors};

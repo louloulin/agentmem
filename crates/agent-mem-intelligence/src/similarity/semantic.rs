@@ -75,6 +75,25 @@ impl SemanticSimilarity {
         Self::new(SemanticSimilarityConfig::default())
     }
 
+    /// 计算两个文本的语义相似度
+    pub async fn calculate_similarity(&self, text1: &str, text2: &str) -> Result<f32> {
+        // 简化的相似度计算实现
+        // 在实际应用中，这里会使用嵌入模型计算语义相似度
+
+        // 基于词汇重叠的简单相似度计算
+        let words1: std::collections::HashSet<&str> = text1.split_whitespace().collect();
+        let words2: std::collections::HashSet<&str> = text2.split_whitespace().collect();
+
+        let intersection = words1.intersection(&words2).count();
+        let union = words1.union(&words2).count();
+
+        if union > 0 {
+            Ok(intersection as f32 / union as f32)
+        } else {
+            Ok(0.0)
+        }
+    }
+
     /// 检测两个向量的相似性
     pub fn detect_similarity(&self, vector1: &[f32], vector2: &[f32]) -> Result<SimilarityResult> {
         if vector1.len() != vector2.len() {

@@ -21,6 +21,8 @@ struct OllamaRequest {
 struct OllamaMessage {
     role: String,
     content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thinking: Option<String>,
 }
 
 /// Ollama选项
@@ -42,13 +44,19 @@ struct OllamaResponse {
     message: OllamaMessage,
     done: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
+    done_reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     total_duration: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     load_duration: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     prompt_eval_count: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    prompt_eval_duration: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     eval_count: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    eval_duration: Option<u64>,
 }
 
 /// Ollama提供商实现
@@ -94,6 +102,7 @@ impl OllamaProvider {
                 OllamaMessage {
                     role: role.to_string(),
                     content: msg.content.clone(),
+                    thinking: None,
                 }
             })
             .collect()
@@ -150,12 +159,27 @@ impl LLMProvider for OllamaProvider {
             )));
         }
 
-        let ollama_response: OllamaResponse = response
-            .json()
+        // 获取响应文本
+        let response_text = response
+            .text()
             .await
+            .map_err(|e| AgentMemError::llm_error(format!("Failed to read response: {}", e)))?;
+
+        let ollama_response: OllamaResponse = serde_json::from_str(&response_text)
             .map_err(|e| AgentMemError::llm_error(format!("Failed to parse response: {}", e)))?;
 
-        Ok(ollama_response.message.content)
+        // 如果 content 为空但有 thinking，使用 thinking 内容
+        let content = if ollama_response.message.content.is_empty() {
+            if let Some(thinking) = &ollama_response.message.thinking {
+                thinking.clone()
+            } else {
+                return Err(AgentMemError::llm_error("Empty response from Ollama".to_string()));
+            }
+        } else {
+            ollama_response.message.content
+        };
+
+        Ok(content)
     }
 
     async fn generate_stream(

@@ -1,12 +1,22 @@
-//! 记忆决策引擎
+//! 智能决策引擎
 //!
 //! 基于提取的事实和现有记忆，智能决策记忆操作（添加、更新、删除、合并）
+//!
+//! Mem5 增强功能：
+//! - 基于事实的智能决策制定
+//! - 多维度决策评估
+//! - 自适应决策策略
+//! - 决策置信度评估
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use agent_mem_traits::{AgentMemError, Result};
-use agent_mem_llm::providers::deepseek::DeepSeekProvider;
-use crate::fact_extraction::ExtractedFact;
+use std::sync::Arc;
+use agent_mem_traits::{Result, Message};
+use agent_mem_llm::LLMProvider;
+use agent_mem_core::Memory;
+use crate::fact_extraction::{ExtractedFact, StructuredFact};
+use crate::importance_evaluator::ImportanceEvaluation;
+use tracing::{debug, info, warn};
 
 /// 记忆操作决策
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -117,7 +127,7 @@ pub enum ConflictResolutionStrategy {
 
 /// 记忆决策引擎（增强版本）
 pub struct MemoryDecisionEngine {
-    llm: DeepSeekProvider,
+    llm: Arc<dyn LLMProvider + Send + Sync>,
     similarity_threshold: f32,
     confidence_threshold: f32,
     conflict_detection_enabled: bool,
@@ -127,34 +137,32 @@ pub struct MemoryDecisionEngine {
 
 impl MemoryDecisionEngine {
     /// 创建新的决策引擎
-    pub fn new(api_key: String) -> Result<Self> {
-        let llm = DeepSeekProvider::with_api_key(api_key)?;
-        Ok(Self {
+    pub fn new(llm: Arc<dyn LLMProvider + Send + Sync>) -> Self {
+        Self {
             llm,
             similarity_threshold: 0.7,
             confidence_threshold: 0.5,
             conflict_detection_enabled: true,
             importance_weight: 0.3,
             temporal_weight: 0.2,
-        })
+        }
     }
 
     /// 创建带自定义配置的决策引擎
     pub fn with_config(
-        api_key: String,
+        llm: Arc<dyn LLMProvider + Send + Sync>,
         similarity_threshold: f32,
         confidence_threshold: f32,
         conflict_detection_enabled: bool,
-    ) -> Result<Self> {
-        let llm = DeepSeekProvider::with_api_key(api_key)?;
-        Ok(Self {
+    ) -> Self {
+        Self {
             llm,
             similarity_threshold,
             confidence_threshold,
             conflict_detection_enabled,
             importance_weight: 0.3,
             temporal_weight: 0.2,
-        })
+        }
     }
 
     /// 设置相似度阈值
@@ -188,7 +196,15 @@ impl MemoryDecisionEngine {
         }
 
         let prompt = self.build_decision_prompt(new_facts, existing_memories);
-        let response = self.llm.generate_json::<DecisionResponse>(&prompt).await?;
+        let messages = vec![Message {
+            role: agent_mem_traits::MessageRole::User,
+            content: prompt,
+            timestamp: Some(chrono::Utc::now()),
+        }];
+        let response_text = self.llm.generate(&messages).await?;
+        let cleaned_json = self.extract_json_from_response(&response_text)?;
+        let response: DecisionResponse = serde_json::from_str(&cleaned_json)
+            .map_err(|e| agent_mem_traits::AgentMemError::SerializationError(e))?;
 
         // 过滤低置信度的决策
         let filtered_decisions = response
@@ -217,7 +233,14 @@ impl MemoryDecisionEngine {
         }
 
         let prompt = self.build_conflict_detection_prompt(fact, existing_memories);
-        let response = self.llm.generate_json::<ConflictDetection>(&prompt).await?;
+        let messages = vec![Message {
+            role: agent_mem_traits::MessageRole::User,
+            content: prompt,
+            timestamp: Some(chrono::Utc::now()),
+        }];
+        let response_text = self.llm.generate(&messages).await?;
+        let response: ConflictDetection = serde_json::from_str(&response_text)
+            .map_err(|e| agent_mem_traits::AgentMemError::SerializationError(e))?;
 
         Ok(response)
     }
@@ -293,6 +316,28 @@ impl MemoryDecisionEngine {
         importance.clamp(0.0, 1.0)
     }
 
+    /// 从响应中提取 JSON 部分
+    fn extract_json_from_response(&self, response: &str) -> Result<String> {
+        // 尝试直接解析
+        if response.trim().starts_with('{') {
+            return Ok(response.to_string());
+        }
+
+        // 查找 JSON 块
+        if let Some(start) = response.find('{') {
+            if let Some(end) = response.rfind('}') {
+                if end > start {
+                    return Ok(response[start..=end].to_string());
+                }
+            }
+        }
+
+        // 如果找不到 JSON，返回错误
+        Err(agent_mem_traits::AgentMemError::internal_error(
+            "No valid JSON found in response".to_string()
+        ))
+    }
+
     /// 构建决策提示
     fn build_decision_prompt(
         &self,
@@ -333,11 +378,18 @@ Decide memory operations:
     "reasoning": "summary"
 }}
 
-Actions: Add, Update, Delete, Merge, NoAction
+Action Examples:
+- Add: {{"Add": {{"content": "text", "importance": 0.8, "metadata": {{}}}}}}
+- Update: {{"Update": {{"memory_id": "mem123", "new_content": "updated text", "merge_strategy": "Replace", "change_reason": "new info"}}}}
+- Delete: {{"Delete": {{"memory_id": "mem123", "deletion_reason": "Outdated"}}}}
+- Merge: {{"Merge": {{"primary_memory_id": "mem1", "secondary_memory_ids": ["mem2"], "merged_content": "combined text"}}}}
+- NoAction: {{"NoAction": {{"reason": "no changes needed"}}}}
+
+Rules:
 - Add new facts as memories (importance 0.3-1.0)
-- Update if fact conflicts with existing memory
-- Delete outdated/contradicted memories
-- Merge similar memories
+- Update if fact conflicts with existing memory (provide memory_id)
+- Delete outdated/contradicted memories (provide memory_id)
+- Merge similar memories (provide memory_ids)
 - NoAction if no changes needed
 
 Keep reasoning brief. Max 3 decisions."#,
@@ -645,4 +697,386 @@ mod tests {
         // 需要创建 MemoryDecisionEngine 实例来测试 evaluate_importance
         // 预期重要性会基于类别、实体和时间信息进行调整
     }
+}
+
+/// 增强决策引擎 (Mem5 版本)
+///
+/// 按照 Mem5 计划实现的智能决策引擎，支持：
+/// - 基于事实的智能决策制定
+/// - 多维度决策评估
+/// - 自适应决策策略
+/// - 决策置信度评估
+pub struct EnhancedDecisionEngine {
+    llm: Arc<dyn LLMProvider + Send + Sync>,
+    config: DecisionEngineConfig,
+}
+
+/// 决策引擎配置
+#[derive(Debug, Clone)]
+pub struct DecisionEngineConfig {
+    /// 决策置信度阈值
+    pub confidence_threshold: f32,
+    /// 自动执行阈值
+    pub auto_execution_threshold: f32,
+    /// 最大考虑记忆数量
+    pub max_consideration_memories: usize,
+    /// 决策超时时间（秒）
+    pub decision_timeout_seconds: u64,
+}
+
+impl Default for DecisionEngineConfig {
+    fn default() -> Self {
+        Self {
+            confidence_threshold: 0.7,
+            auto_execution_threshold: 0.8,
+            max_consideration_memories: 50,
+            decision_timeout_seconds: 30,
+        }
+    }
+}
+
+/// 决策上下文
+#[derive(Debug, Clone)]
+pub struct DecisionContext {
+    /// 新的结构化事实
+    pub new_facts: Vec<StructuredFact>,
+    /// 现有记忆
+    pub existing_memories: Vec<Memory>,
+    /// 重要性评估结果
+    pub importance_evaluations: Vec<ImportanceEvaluation>,
+    /// 冲突检测结果
+    pub conflict_detections: Vec<crate::conflict_resolution::ConflictDetection>,
+    /// 用户偏好
+    pub user_preferences: HashMap<String, String>,
+}
+
+/// 决策结果
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DecisionResult {
+    /// 决策ID
+    pub decision_id: String,
+    /// 推荐的操作
+    pub recommended_actions: Vec<MemoryAction>,
+    /// 决策置信度
+    pub confidence: f32,
+    /// 决策原因
+    pub reasoning: String,
+    /// 预期影响
+    pub expected_impact: DecisionImpact,
+    /// 决策时间
+    pub decided_at: chrono::DateTime<chrono::Utc>,
+    /// 是否需要人工确认
+    pub requires_confirmation: bool,
+}
+
+/// 决策影响
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DecisionImpact {
+    /// 影响的记忆数量
+    pub affected_memory_count: usize,
+    /// 预期性能影响
+    pub performance_impact: f32,
+    /// 预期存储影响
+    pub storage_impact: f32,
+    /// 预期用户体验影响
+    pub user_experience_impact: f32,
+}
+
+impl EnhancedDecisionEngine {
+    /// 创建新的增强决策引擎
+    pub fn new(
+        llm: Arc<dyn LLMProvider + Send + Sync>,
+        config: DecisionEngineConfig,
+    ) -> Self {
+        Self { llm, config }
+    }
+
+    /// 制定智能决策
+    pub async fn make_decisions(
+        &self,
+        context: &DecisionContext,
+    ) -> Result<DecisionResult> {
+        info!("开始制定智能决策，事实数量: {}, 记忆数量: {}",
+              context.new_facts.len(), context.existing_memories.len());
+
+        // 1. 分析决策上下文
+        let analysis = self.analyze_decision_context(context).await?;
+
+        // 2. 生成候选操作
+        let candidate_actions = self.generate_candidate_actions(context, &analysis).await?;
+
+        // 3. 评估候选操作
+        let evaluated_actions = self.evaluate_candidate_actions(&candidate_actions, context).await?;
+
+        // 4. 选择最佳操作
+        let selected_actions = self.select_best_actions(&evaluated_actions);
+
+        // 5. 计算决策置信度
+        let confidence = self.calculate_decision_confidence(&selected_actions, &analysis);
+
+        // 6. 生成决策原因
+        let reasoning = self.generate_decision_reasoning(&selected_actions, &analysis).await?;
+
+        // 7. 评估决策影响
+        let impact = self.assess_decision_impact(&selected_actions, context);
+
+        let decision_result = DecisionResult {
+            decision_id: format!("decision_{}", chrono::Utc::now().timestamp()),
+            recommended_actions: selected_actions,
+            confidence,
+            reasoning,
+            expected_impact: impact,
+            decided_at: chrono::Utc::now(),
+            requires_confirmation: confidence < self.config.auto_execution_threshold,
+        };
+
+        info!("决策制定完成，置信度: {:.2}, 操作数量: {}",
+              decision_result.confidence, decision_result.recommended_actions.len());
+
+        Ok(decision_result)
+    }
+
+    /// 分析决策上下文
+    async fn analyze_decision_context(&self, context: &DecisionContext) -> Result<ContextAnalysis> {
+        let mut analysis = ContextAnalysis::default();
+
+        // 分析事实质量
+        analysis.fact_quality = self.analyze_fact_quality(&context.new_facts);
+
+        // 分析记忆状态
+        analysis.memory_state = self.analyze_memory_state(&context.existing_memories);
+
+        // 分析冲突情况
+        analysis.conflict_severity = self.analyze_conflict_severity(&context.conflict_detections);
+
+        // 分析重要性分布
+        analysis.importance_distribution = self.analyze_importance_distribution(&context.importance_evaluations);
+
+        Ok(analysis)
+    }
+
+    /// 生成候选操作
+    async fn generate_candidate_actions(
+        &self,
+        context: &DecisionContext,
+        _analysis: &ContextAnalysis,
+    ) -> Result<Vec<CandidateAction>> {
+        let mut candidates = Vec::new();
+
+        // 基于新事实生成添加操作
+        for fact in &context.new_facts {
+            if fact.confidence > 0.6 {
+                candidates.push(CandidateAction {
+                    action: MemoryAction::Add {
+                        content: fact.description.clone(),
+                        importance: fact.importance,
+                        metadata: HashMap::new(),
+                    },
+                    confidence: fact.confidence,
+                    reasoning: format!("基于高置信度事实: {}", fact.description),
+                    priority: self.calculate_action_priority(&fact.fact_type, fact.importance),
+                });
+            }
+        }
+
+        // 基于冲突检测生成解决操作
+        for conflict in &context.conflict_detections {
+            match &conflict.suggested_resolution {
+                crate::conflict_resolution::ResolutionStrategy::KeepLatest => {
+                    if let Some(_latest_id) = conflict.memory_ids.last() {
+                        candidates.push(CandidateAction {
+                            action: MemoryAction::Delete {
+                                memory_id: conflict.memory_ids[0].clone(),
+                                deletion_reason: DeletionReason::Contradicted,
+                            },
+                            confidence: conflict.confidence,
+                            reasoning: "解决冲突：保留最新记忆".to_string(),
+                            priority: conflict.severity,
+                        });
+                    }
+                }
+                _ => {
+                    // 其他解决策略的处理
+                }
+            }
+        }
+
+        Ok(candidates)
+    }
+
+    /// 评估候选操作
+    async fn evaluate_candidate_actions(
+        &self,
+        candidates: &[CandidateAction],
+        context: &DecisionContext,
+    ) -> Result<Vec<EvaluatedAction>> {
+        let mut evaluated = Vec::new();
+
+        for candidate in candidates {
+            let evaluation = ActionEvaluation {
+                feasibility: self.assess_action_feasibility(&candidate.action, context),
+                risk: self.assess_action_risk(&candidate.action, context),
+                benefit: self.assess_action_benefit(&candidate.action, context),
+                cost: self.assess_action_cost(&candidate.action, context),
+            };
+
+            let overall_score = self.calculate_overall_score(&evaluation, candidate.confidence);
+            evaluated.push(EvaluatedAction {
+                candidate: candidate.clone(),
+                evaluation,
+                overall_score,
+            });
+        }
+
+        Ok(evaluated)
+    }
+
+    /// 选择最佳操作
+    fn select_best_actions(&self, evaluated_actions: &[EvaluatedAction]) -> Vec<MemoryAction> {
+        let mut sorted_actions = evaluated_actions.to_vec();
+        sorted_actions.sort_by(|a, b| b.overall_score.partial_cmp(&a.overall_score).unwrap());
+
+        sorted_actions
+            .into_iter()
+            .take(10) // 限制操作数量
+            .filter(|action| action.overall_score > self.config.confidence_threshold)
+            .map(|action| action.candidate.action)
+            .collect()
+    }
+
+    /// 计算决策置信度
+    fn calculate_decision_confidence(
+        &self,
+        actions: &[MemoryAction],
+        analysis: &ContextAnalysis,
+    ) -> f32 {
+        if actions.is_empty() {
+            return 0.0;
+        }
+
+        // 基于多个因素计算置信度
+        let fact_quality_factor = analysis.fact_quality;
+        let memory_state_factor = analysis.memory_state;
+        let conflict_factor = 1.0 - analysis.conflict_severity;
+
+        let base_confidence = (fact_quality_factor + memory_state_factor + conflict_factor) / 3.0;
+
+        // 根据操作数量调整
+        let action_count_factor = if actions.len() <= 5 {
+            1.0
+        } else {
+            0.8 // 操作过多时降低置信度
+        };
+
+        (base_confidence * action_count_factor).clamp(0.0, 1.0)
+    }
+
+    /// 生成决策原因
+    async fn generate_decision_reasoning(
+        &self,
+        actions: &[MemoryAction],
+        analysis: &ContextAnalysis,
+    ) -> Result<String> {
+        let mut reasons = Vec::new();
+
+        if analysis.fact_quality > 0.8 {
+            reasons.push("事实质量较高");
+        }
+        if analysis.conflict_severity > 0.7 {
+            reasons.push("存在严重冲突需要解决");
+        }
+        if actions.len() > 3 {
+            reasons.push("需要执行多个操作");
+        }
+
+        let reasoning = if reasons.is_empty() {
+            "基于标准决策流程".to_string()
+        } else {
+            format!("决策依据: {}", reasons.join("，"))
+        };
+
+        Ok(reasoning)
+    }
+
+    /// 评估决策影响
+    fn assess_decision_impact(
+        &self,
+        actions: &[MemoryAction],
+        context: &DecisionContext,
+    ) -> DecisionImpact {
+        let affected_memory_count = actions.len();
+
+        DecisionImpact {
+            affected_memory_count,
+            performance_impact: (affected_memory_count as f32 / 100.0).min(1.0),
+            storage_impact: (affected_memory_count as f32 / 50.0).min(1.0),
+            user_experience_impact: if affected_memory_count <= 5 { 0.1 } else { 0.3 },
+        }
+    }
+
+    // 辅助方法实现...
+    fn analyze_fact_quality(&self, facts: &[StructuredFact]) -> f32 {
+        if facts.is_empty() { return 0.0; }
+        facts.iter().map(|f| f.confidence).sum::<f32>() / facts.len() as f32
+    }
+
+    fn analyze_memory_state(&self, memories: &[Memory]) -> f32 {
+        // 简化的记忆状态分析
+        if memories.len() < 100 { 0.9 } else { 0.7 }
+    }
+
+    fn analyze_conflict_severity(&self, conflicts: &[crate::conflict_resolution::ConflictDetection]) -> f32 {
+        if conflicts.is_empty() { return 0.0; }
+        conflicts.iter().map(|c| c.severity).sum::<f32>() / conflicts.len() as f32
+    }
+
+    fn analyze_importance_distribution(&self, evaluations: &[ImportanceEvaluation]) -> f32 {
+        if evaluations.is_empty() { return 0.5; }
+        evaluations.iter().map(|e| e.importance_score).sum::<f32>() / evaluations.len() as f32
+    }
+
+    fn calculate_action_priority(&self, fact_type: &str, importance: f32) -> f32 {
+        importance * if fact_type.contains("Person") { 1.2 } else { 1.0 }
+    }
+
+    fn assess_action_feasibility(&self, _action: &MemoryAction, _context: &DecisionContext) -> f32 { 0.8 }
+    fn assess_action_risk(&self, _action: &MemoryAction, _context: &DecisionContext) -> f32 { 0.2 }
+    fn assess_action_benefit(&self, _action: &MemoryAction, _context: &DecisionContext) -> f32 { 0.7 }
+    fn assess_action_cost(&self, _action: &MemoryAction, _context: &DecisionContext) -> f32 { 0.3 }
+
+    fn calculate_overall_score(&self, evaluation: &ActionEvaluation, confidence: f32) -> f32 {
+        (evaluation.feasibility * 0.3 + evaluation.benefit * 0.4 - evaluation.risk * 0.2 - evaluation.cost * 0.1) * confidence
+    }
+}
+
+// 辅助结构体
+#[derive(Debug, Clone, Default)]
+struct ContextAnalysis {
+    fact_quality: f32,
+    memory_state: f32,
+    conflict_severity: f32,
+    importance_distribution: f32,
+}
+
+#[derive(Debug, Clone)]
+struct CandidateAction {
+    action: MemoryAction,
+    confidence: f32,
+    reasoning: String,
+    priority: f32,
+}
+
+#[derive(Debug, Clone)]
+struct ActionEvaluation {
+    feasibility: f32,
+    risk: f32,
+    benefit: f32,
+    cost: f32,
+}
+
+#[derive(Debug, Clone)]
+struct EvaluatedAction {
+    candidate: CandidateAction,
+    evaluation: ActionEvaluation,
+    overall_score: f32,
 }
