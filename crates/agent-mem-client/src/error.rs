@@ -37,6 +37,9 @@ pub enum ClientError {
 
     #[error("Internal client error: {0}")]
     InternalError(String),
+
+    #[error("Validation error: {0}")]
+    ValidationError(String),
 }
 
 /// Client result type

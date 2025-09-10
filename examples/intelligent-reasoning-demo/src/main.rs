@@ -3,8 +3,10 @@
 //! 展示如何使用 DeepSeek 驱动的智能推理引擎进行事实提取和记忆决策
 
 use agent_mem_intelligence::{
-    IntelligentMemoryProcessor, Message, ExistingMemory
+    IntelligentMemoryProcessor, ExistingMemory
 };
+use agent_mem_traits::{Message, MessageRole};
+use chrono;
 use std::collections::HashMap;
 use tokio;
 
@@ -20,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let api_key = "sk-8790bf8b4f6c4afca432e8661508119c".to_string();
 
     // 创建智能处理器
-    let processor = match IntelligentMemoryProcessor::new(api_key) {
+    let processor = match IntelligentMemoryProcessor::new(api_key).await {
         Ok(p) => p,
         Err(e) => {
             eprintln!("❌ 创建智能处理器失败: {}", e);
@@ -33,16 +35,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 准备简化的测试消息
     let messages = vec![
         Message {
-            role: "user".to_string(),
+            role: MessageRole::User,
             content: "Hi, I'm John from San Francisco. I love coffee.".to_string(),
-            timestamp: Some("2024-01-01T10:00:00Z".to_string()),
-            message_id: Some("msg1".to_string()),
+            timestamp: Some(chrono::Utc::now()),
         },
         Message {
-            role: "user".to_string(),
+            role: MessageRole::User,
             content: "I work with Rust and Python. I enjoy hiking.".to_string(),
-            timestamp: Some("2024-01-01T10:02:00Z".to_string()),
-            message_id: Some("msg2".to_string()),
+            timestamp: Some(chrono::Utc::now()),
         },
     ];
 
