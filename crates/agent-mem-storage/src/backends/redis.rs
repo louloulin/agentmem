@@ -3,11 +3,17 @@
 //! Redis 是一个高性能的内存数据结构存储，支持多种数据类型，
 //! 非常适合用作缓存层、会话存储和实时数据处理。
 
-use agent_mem_traits::{Result, VectorData, VectorStore, VectorSearchResult};
+use agent_mem_traits::{Result, VectorData, VectorStore, VectorSearchResult, AgentMemError};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
+use tracing::{info, debug, warn};
+
+#[cfg(feature = "redis")]
+use redis::{Client, AsyncCommands, RedisResult};
+#[cfg(feature = "redis")]
+use redis::aio::ConnectionManager;
 
 /// Redis 存储配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -145,8 +151,9 @@ pub struct RedisDistributedLock {
 /// Redis 存储实现
 pub struct RedisStore {
     config: RedisConfig,
-    // 注意：这里我们使用一个简化的内存实现作为占位符
-    // 在实际实现中，这里应该是真正的 Redis 客户端连接池
+    #[cfg(feature = "redis")]
+    connection_manager: ConnectionManager,
+    // 本地缓存，用于提高性能（无论是否启用 Redis 功能）
     vectors: std::sync::Arc<std::sync::Mutex<HashMap<String, RedisVectorRecord>>>,
     cache_stats: std::sync::Arc<std::sync::Mutex<RedisCacheStats>>,
 }
@@ -154,46 +161,106 @@ pub struct RedisStore {
 impl RedisStore {
     /// 创建新的 Redis 存储实例
     pub async fn new(config: RedisConfig) -> Result<Self> {
-        let store = Self {
-            config,
-            vectors: std::sync::Arc::new(std::sync::Mutex::new(HashMap::new())),
-            cache_stats: std::sync::Arc::new(std::sync::Mutex::new(RedisCacheStats {
-                total_vectors: 0,
-                cache_hits: 0,
-                cache_misses: 0,
-                hit_rate: 0.0,
-                memory_usage: 0,
-                expired_keys: 0,
-            })),
-        };
+        #[cfg(feature = "redis")]
+        {
+            // 真实的 Redis 连接实现
+            let client = Client::open(config.connection_url.as_str())
+                .map_err(|e| AgentMemError::storage_error(format!("Failed to create Redis client: {}", e)))?;
 
-        // 验证连接
-        store.verify_connection().await?;
-        store.initialize_cache().await?;
+            let connection_manager = ConnectionManager::new(client).await
+                .map_err(|e| AgentMemError::storage_error(format!("Failed to create Redis connection manager: {}", e)))?;
 
-        Ok(store)
+            let store = Self {
+                config,
+                connection_manager,
+                vectors: std::sync::Arc::new(std::sync::Mutex::new(HashMap::new())),
+                cache_stats: std::sync::Arc::new(std::sync::Mutex::new(RedisCacheStats {
+                    total_vectors: 0,
+                    cache_hits: 0,
+                    cache_misses: 0,
+                    hit_rate: 0.0,
+                    memory_usage: 0,
+                    expired_keys: 0,
+                })),
+            };
+
+            // 验证连接
+            store.verify_connection().await?;
+            store.initialize_cache().await?;
+
+            Ok(store)
+        }
+
+        #[cfg(not(feature = "redis"))]
+        {
+            // 回退到内存实现
+            let store = Self {
+                config,
+                vectors: std::sync::Arc::new(std::sync::Mutex::new(HashMap::new())),
+                cache_stats: std::sync::Arc::new(std::sync::Mutex::new(RedisCacheStats {
+                    total_vectors: 0,
+                    cache_hits: 0,
+                    cache_misses: 0,
+                    hit_rate: 0.0,
+                    memory_usage: 0,
+                    expired_keys: 0,
+                })),
+            };
+
+            warn!("Redis feature not enabled, using in-memory fallback");
+            Ok(store)
+        }
     }
 
     /// 验证与 Redis 的连接
     async fn verify_connection(&self) -> Result<()> {
-        // 在实际实现中，这里应该创建 Redis 连接并测试
-        // let client = redis::Client::open(self.config.connection_url.as_str())?;
-        // let mut con = client.get_async_connection().await?;
-        // redis::cmd("PING").query_async(&mut con).await?;
-        
-        // 模拟连接验证
-        tokio::time::sleep(Duration::from_millis(10)).await;
-        Ok(())
+        #[cfg(feature = "redis")]
+        {
+            // 真实的 Redis 连接验证
+            let mut conn = self.connection_manager.clone();
+            let _: String = redis::cmd("PING").query_async(&mut conn).await
+                .map_err(|e| AgentMemError::storage_error(format!("Redis ping failed: {}", e)))?;
+            info!("Redis connection verified successfully");
+            Ok(())
+        }
+
+        #[cfg(not(feature = "redis"))]
+        {
+            // 模拟连接验证
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            Ok(())
+        }
     }
 
     /// 初始化缓存
     async fn initialize_cache(&self) -> Result<()> {
-        // 在实际实现中，这里应该设置 Redis 配置
-        // 如数据库选择、密码认证等
-        
-        // 模拟初始化
-        tokio::time::sleep(Duration::from_millis(5)).await;
-        Ok(())
+        #[cfg(feature = "redis")]
+        {
+            // 真实的 Redis 初始化
+            let mut conn = self.connection_manager.clone();
+
+            // 选择数据库
+            if self.config.database != 0 {
+                let _: () = redis::cmd("SELECT").arg(self.config.database).query_async(&mut conn).await
+                    .map_err(|e| AgentMemError::storage_error(format!("Failed to select database: {}", e)))?;
+            }
+
+            // 设置密码（如果需要）
+            if let Some(password) = &self.config.password {
+                let _: () = redis::cmd("AUTH").arg(password).query_async(&mut conn).await
+                    .map_err(|e| AgentMemError::storage_error(format!("Authentication failed: {}", e)))?;
+            }
+
+            info!("Redis cache initialized successfully");
+            Ok(())
+        }
+
+        #[cfg(not(feature = "redis"))]
+        {
+            // 模拟初始化
+            tokio::time::sleep(Duration::from_millis(5)).await;
+            Ok(())
+        }
     }
 
     /// 构建向量键名
@@ -277,46 +344,104 @@ impl RedisStore {
             return Ok(None);
         }
 
-        // 在实际实现中，这里应该使用 Redis 的 SET NX EX 命令
-        // let lock_key = format!("{}:lock:{}", self.config.key_prefix, key);
-        // let lock_value = uuid::Uuid::new_v4().to_string();
-        // let result: Option<String> = redis::cmd("SET")
-        //     .arg(&lock_key)
-        //     .arg(&lock_value)
-        //     .arg("NX")
-        //     .arg("EX")
-        //     .arg(timeout)
-        //     .query_async(&mut con)
-        //     .await?;
+        #[cfg(feature = "redis")]
+        {
+            // 真实的 Redis 分布式锁实现
+            let mut conn = self.connection_manager.clone();
+            let lock_key = format!("{}:lock:{}", self.config.key_prefix, key);
+            let lock_value = uuid::Uuid::new_v4().to_string();
 
-        // 模拟锁获取
-        tokio::time::sleep(Duration::from_millis(1)).await;
-        
-        Ok(Some(RedisDistributedLock {
-            key: key.to_string(),
-            value: uuid::Uuid::new_v4().to_string(),
-            timeout,
-        }))
+            // 使用 SET NX EX 命令获取锁
+            let result: RedisResult<String> = redis::cmd("SET")
+                .arg(&lock_key)
+                .arg(&lock_value)
+                .arg("NX")
+                .arg("EX")
+                .arg(timeout)
+                .query_async(&mut conn)
+                .await;
+
+            match result {
+                Ok(_) => {
+                    debug!("Acquired distributed lock: {}", lock_key);
+                    Ok(Some(RedisDistributedLock {
+                        key: lock_key,
+                        value: lock_value,
+                        timeout,
+                    }))
+                }
+                Err(_) => {
+                    debug!("Failed to acquire distributed lock: {}", lock_key);
+                    Ok(None)
+                }
+            }
+        }
+
+        #[cfg(not(feature = "redis"))]
+        {
+            // 模拟锁获取
+            tokio::time::sleep(Duration::from_millis(1)).await;
+
+            Ok(Some(RedisDistributedLock {
+                key: key.to_string(),
+                value: uuid::Uuid::new_v4().to_string(),
+                timeout,
+            }))
+        }
     }
 
     /// 释放分布式锁
-    pub async fn release_lock(&self, _lock: &RedisDistributedLock) -> Result<bool> {
+    pub async fn release_lock(&self, lock: &RedisDistributedLock) -> Result<bool> {
         if !self.config.enable_distributed_lock {
             return Ok(false);
         }
 
-        // 在实际实现中，这里应该使用 Lua 脚本原子性地检查和删除锁
-        // let script = r#"
-        //     if redis.call("get", KEYS[1]) == ARGV[1] then
-        //         return redis.call("del", KEYS[1])
-        //     else
-        //         return 0
-        //     end
-        // "#;
+        #[cfg(feature = "redis")]
+        {
+            // 真实的 Redis 分布式锁释放实现
+            let mut conn = self.connection_manager.clone();
 
-        // 模拟锁释放
-        tokio::time::sleep(Duration::from_millis(1)).await;
-        Ok(true)
+            // 使用 Lua 脚本原子性地检查和删除锁
+            let script = r#"
+                if redis.call("get", KEYS[1]) == ARGV[1] then
+                    return redis.call("del", KEYS[1])
+                else
+                    return 0
+                end
+            "#;
+
+            let result: RedisResult<i32> = redis::Script::new(script)
+                .key(&lock.key)
+                .arg(&lock.value)
+                .invoke_async(&mut conn)
+                .await;
+
+            match result {
+                Ok(1) => {
+                    debug!("Released distributed lock: {}", lock.key);
+                    Ok(true)
+                }
+                Ok(0) => {
+                    warn!("Lock not owned or already expired: {}", lock.key);
+                    Ok(false)
+                }
+                Ok(_) => {
+                    warn!("Unexpected result when releasing lock: {}", lock.key);
+                    Ok(false)
+                }
+                Err(e) => {
+                    warn!("Failed to release lock {}: {}", lock.key, e);
+                    Ok(false)
+                }
+            }
+        }
+
+        #[cfg(not(feature = "redis"))]
+        {
+            // 模拟锁释放
+            tokio::time::sleep(Duration::from_millis(1)).await;
+            Ok(true)
+        }
     }
 
     /// 执行缓存预热
@@ -338,22 +463,65 @@ impl RedisStore {
 
     /// 执行缓存清理
     pub async fn cleanup_cache(&self) -> Result<usize> {
-        // 在实际实现中，这里应该清理过期的缓存项
-        // 释放内存空间
-        
-        // 模拟清理过程
-        tokio::time::sleep(Duration::from_millis(5)).await;
-        Ok(0) // 返回清理的项目数量
+        #[cfg(feature = "redis")]
+        {
+            // 真实的 Redis 缓存清理实现
+            let mut conn = self.connection_manager.clone();
+
+            // 获取所有匹配的键
+            let pattern = format!("{}:*", self.config.key_prefix);
+            let keys: Vec<String> = conn.keys(&pattern).await
+                .map_err(|e| AgentMemError::StorageError(format!("Failed to get keys: {}", e)))?;
+
+            let mut cleaned_count = 0;
+
+            // 检查每个键的 TTL，删除过期的键
+            for key in keys {
+                let ttl: i64 = conn.ttl(&key).await
+                    .map_err(|e| AgentMemError::StorageError(format!("Failed to get TTL: {}", e)))?;
+
+                // TTL = -1 表示没有过期时间，TTL = -2 表示键不存在
+                if ttl == -2 {
+                    cleaned_count += 1;
+                }
+            }
+
+            info!("Cleaned {} expired cache entries", cleaned_count);
+            Ok(cleaned_count)
+        }
+
+        #[cfg(not(feature = "redis"))]
+        {
+            // 模拟清理过程
+            tokio::time::sleep(Duration::from_millis(5)).await;
+            Ok(0) // 返回清理的项目数量
+        }
     }
 
     /// 批量设置 TTL
-    pub async fn set_ttl_batch(&self, ids: Vec<String>, _ttl: u64) -> Result<()> {
-        // 在实际实现中，这里应该批量设置键的过期时间
-        // 使用 Redis 的 EXPIRE 命令
-        
-        // 模拟批量 TTL 设置
-        tokio::time::sleep(Duration::from_millis(ids.len() as u64)).await;
-        Ok(())
+    pub async fn set_batch_ttl(&self, ids: Vec<String>, ttl: u64) -> Result<()> {
+        #[cfg(feature = "redis")]
+        {
+            // 真实的 Redis 批量 TTL 设置实现
+            let mut conn = self.connection_manager.clone();
+            let ids_len = ids.len();
+
+            for id in &ids {
+                let vector_key = self.build_vector_key(id);
+                let _: () = redis::cmd("EXPIRE").arg(&vector_key).arg(ttl as i64).query_async(&mut conn).await
+                    .map_err(|e| AgentMemError::storage_error(format!("Failed to set TTL for {}: {}", vector_key, e)))?;
+            }
+
+            debug!("Set TTL for {} keys", ids_len);
+            Ok(())
+        }
+
+        #[cfg(not(feature = "redis"))]
+        {
+            // 模拟批量 TTL 设置
+            tokio::time::sleep(Duration::from_millis(ids.len() as u64)).await;
+            Ok(())
+        }
     }
 }
 

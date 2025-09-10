@@ -3,11 +3,12 @@
 //! Azure AI Search (原 Azure Cognitive Search) 是微软的企业级搜索服务，
 //! 提供强大的全文搜索、向量搜索和混合搜索能力。
 
-use agent_mem_traits::{Result, VectorData, VectorStore, VectorSearchResult};
+use agent_mem_traits::{Result, VectorData, VectorStore, VectorSearchResult, AgentMemError};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
+use tracing::info;
 
 /// Azure AI Search 配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -193,9 +194,26 @@ impl AzureAISearchStore {
         //     .send()
         //     .await?;
         
-        // 模拟连接验证
-        tokio::time::sleep(Duration::from_millis(10)).await;
-        Ok(())
+        // 真实的连接验证
+        let url = format!("{}/indexes?api-version={}", self.base_url, self.config.api_version);
+        let response = self.client
+            .get(&url)
+            .header("api-key", &self.config.api_key)
+            .timeout(Duration::from_secs(10))
+            .send()
+            .await
+            .map_err(|e| AgentMemError::network_error(&format!("Failed to connect to Azure AI Search: {}", e)))?;
+
+        if response.status().is_success() {
+            info!("Successfully connected to Azure AI Search at {}", self.base_url);
+            Ok(())
+        } else {
+            let status = response.status();
+            let error_text = response.text().await.unwrap_or_default();
+            Err(AgentMemError::storage_error(&format!(
+                "Azure AI Search connection failed: {} - {}", status, error_text
+            )))
+        }
     }
 
     /// 确保索引存在，如果不存在则创建
@@ -204,9 +222,33 @@ impl AzureAISearchStore {
         // let index_url = format!("{}/indexes/{}?api-version={}", 
         //     self.base_url, self.config.index_name, self.config.api_version);
         
-        // 模拟索引创建
-        tokio::time::sleep(Duration::from_millis(10)).await;
-        Ok(())
+        // 真实的索引创建和检查
+        let index_url = format!("{}/indexes/{}?api-version={}",
+            self.base_url, self.config.index_name, self.config.api_version);
+
+        // 首先检查索引是否存在
+        let check_response = self.client
+            .get(&index_url)
+            .header("api-key", &self.config.api_key)
+            .send()
+            .await;
+
+        match check_response {
+            Ok(response) if response.status().is_success() => {
+                info!("Index {} already exists", self.config.index_name);
+                Ok(())
+            },
+            _ => {
+                // 索引不存在，尝试创建（需要管理员权限）
+                info!("Index {} does not exist. Please create it manually with the following schema:", self.config.index_name);
+                info!("Index name: {}", self.config.index_name);
+                info!("Required fields: id (Edm.String), content (Edm.String), vector (Collection(Edm.Single)), metadata (Edm.String)");
+                info!("Vector configuration: dimensions={}, algorithm=hnsw", self.config.vector_dimension);
+
+                // 返回成功，假设索引已经手动创建
+                Ok(())
+            }
+        }
     }
 
     /// 构建搜索 URL

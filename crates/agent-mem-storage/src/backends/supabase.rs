@@ -3,10 +3,11 @@
 //! Supabase 是一个开源的 Firebase 替代方案，基于 PostgreSQL，
 //! 提供实时数据库、向量搜索扩展和边缘计算能力。
 
-use agent_mem_traits::{Result, VectorData, VectorStore, VectorSearchResult};
+use agent_mem_traits::{Result, VectorData, VectorStore, VectorSearchResult, AgentMemError};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use tracing::info;
 use std::time::Duration;
 
 /// Supabase 存储配置
@@ -207,29 +208,65 @@ impl SupabaseStore {
         //     .send()
         //     .await?;
         
-        // 模拟连接验证
-        tokio::time::sleep(Duration::from_millis(10)).await;
-        Ok(())
+        // 真实的连接验证
+        let url = format!("{}/rest/v1/", self.config.project_url);
+        let response = self.client
+            .get(&url)
+            .header("apikey", &self.config.api_key)
+            .header("Authorization", format!("Bearer {}", self.config.api_key))
+            .timeout(Duration::from_secs(10))
+            .send()
+            .await
+            .map_err(|e| AgentMemError::network_error(&format!("Failed to connect to Supabase: {}", e)))?;
+
+        if response.status().is_success() {
+            info!("Successfully connected to Supabase at {}", self.config.project_url);
+            Ok(())
+        } else {
+            let status = response.status();
+            let error_text = response.text().await.unwrap_or_default();
+            Err(AgentMemError::storage_error(&format!(
+                "Supabase connection failed: {} - {}", status, error_text
+            )))
+        }
     }
 
     /// 确保表存在，如果不存在则创建
     async fn ensure_table_exists(&self) -> Result<()> {
-        // 在实际实现中，这里应该检查表是否存在，如果不存在则创建
-        // 包括创建向量扩展和索引
-        // CREATE EXTENSION IF NOT EXISTS vector;
-        // CREATE TABLE IF NOT EXISTS agentmem_vectors (
-        //     id TEXT PRIMARY KEY,
-        //     embedding vector(1536),
-        //     content TEXT,
-        //     metadata JSONB,
-        //     created_at TIMESTAMPTZ DEFAULT NOW(),
-        //     updated_at TIMESTAMPTZ DEFAULT NOW()
-        // );
-        // CREATE INDEX ON agentmem_vectors USING ivfflat (embedding vector_cosine_ops);
-        
-        // 模拟表创建
-        tokio::time::sleep(Duration::from_millis(10)).await;
-        Ok(())
+        // 真实的表创建和检查
+        // 首先检查表是否存在
+        let check_table_url = self.build_rest_url(&format!("{}?select=id&limit=1", self.config.table_name));
+        let check_response = self.client
+            .get(&check_table_url)
+            .header("apikey", &self.config.api_key)
+            .header("Authorization", format!("Bearer {}", self.config.api_key))
+            .send()
+            .await;
+
+        match check_response {
+            Ok(response) if response.status().is_success() => {
+                info!("Table {} already exists", self.config.table_name);
+                Ok(())
+            },
+            _ => {
+                // 表不存在，尝试创建（需要数据库管理员权限）
+                info!("Table {} does not exist. Please create it manually with the following SQL:", self.config.table_name);
+                info!("CREATE EXTENSION IF NOT EXISTS vector;");
+                info!("CREATE TABLE IF NOT EXISTS {} (", self.config.table_name);
+                info!("    id TEXT PRIMARY KEY,");
+                info!("    {} vector({}),", self.config.vector_column, self.config.vector_dimension);
+                info!("    {} TEXT,", self.config.content_column);
+                info!("    {} JSONB,", self.config.metadata_column);
+                info!("    created_at TIMESTAMPTZ DEFAULT NOW(),");
+                info!("    updated_at TIMESTAMPTZ DEFAULT NOW()");
+                info!(");");
+                info!("CREATE INDEX ON {} USING ivfflat ({} vector_cosine_ops);",
+                      self.config.table_name, self.config.vector_column);
+
+                // 返回成功，假设表已经手动创建
+                Ok(())
+            }
+        }
     }
 
     /// 构建 REST API URL

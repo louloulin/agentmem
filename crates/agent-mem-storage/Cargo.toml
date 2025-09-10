@@ -55,6 +55,9 @@ mongodb = { version = "2.8", optional = true }
 bson = { version = "2.9", optional = true }
 futures = { version = "0.3", optional = true }
 
+# Redis 缓存存储
+redis = { version = "0.24", features = ["tokio-comp", "connection-manager"], optional = true }
+
 [dev-dependencies]
 tempfile.workspace = true
 tokio-test = "0.4"
@@ -72,7 +75,7 @@ qdrant = ["dep:qdrant-client"] # Qdrant 向量数据库
 pinecone = [] # 使用HTTP实现
 elasticsearch = [] # 使用HTTP实现
 milvus = [] # 使用HTTP实现
-redis = [] # Redis 缓存层
+redis = ["dep:redis"] # Redis 缓存层
 supabase = [] # Supabase PostgreSQL + 向量扩展
 weaviate = [] # 使用HTTP实现
 
