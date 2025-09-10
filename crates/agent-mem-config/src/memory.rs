@@ -23,6 +23,9 @@ pub struct MemoryConfig {
 
     /// Intelligence configuration
     pub intelligence: IntelligenceConfig,
+
+    /// Performance configuration
+    pub performance: PerformanceConfig,
 }
 
 
@@ -109,6 +112,30 @@ impl Default for IntelligenceConfig {
             enable_conflict_detection: true,
             enable_memory_summarization: true,
             importance_scoring: true,
+        }
+    }
+}
+
+/// Performance configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PerformanceConfig {
+    /// Number of retry attempts for failed operations
+    pub retry_attempts: Option<u32>,
+    /// Base delay in milliseconds for exponential backoff
+    pub base_delay_ms: Option<u64>,
+    /// Maximum delay in milliseconds for exponential backoff
+    pub max_delay_ms: Option<u64>,
+    /// Maximum number of concurrent operations
+    pub max_concurrent_operations: Option<usize>,
+}
+
+impl Default for PerformanceConfig {
+    fn default() -> Self {
+        Self {
+            retry_attempts: Some(3),
+            base_delay_ms: Some(100),
+            max_delay_ms: Some(5000),
+            max_concurrent_operations: Some(10),
         }
     }
 }

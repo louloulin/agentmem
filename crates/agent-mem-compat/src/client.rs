@@ -157,7 +157,7 @@ impl BatchItem for MemoryOperation {
             memory: content,
             user_id: self.request.user_id.clone().unwrap_or_else(|| "default".to_string()),
             agent_id: self.request.agent_id.clone(),
-            run_id: self.request.session_id.clone(),
+            run_id: self.request.run_id.clone(),
             metadata: self.request.metadata.clone().unwrap_or_default(),
             score: None,
             created_at: Utc::now(),

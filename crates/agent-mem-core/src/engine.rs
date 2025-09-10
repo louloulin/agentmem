@@ -40,6 +40,25 @@ impl Default for MemoryEngineConfig {
     }
 }
 
+impl From<&agent_mem_config::memory::MemoryConfig> for MemoryEngineConfig {
+    fn from(config: &agent_mem_config::memory::MemoryConfig) -> Self {
+        // Convert config IntelligenceConfig to core IntelligenceConfig
+        let intelligence = IntelligenceConfig {
+            importance_weights: crate::intelligence::ImportanceWeights::default(),
+            conflict_sensitivity: if config.intelligence.enable_conflict_detection { 0.8 } else { 0.0 },
+            auto_resolution_threshold: config.intelligence.similarity_threshold as f64,
+        };
+
+        Self {
+            hierarchy: HierarchyConfig::default(),
+            intelligence,
+            auto_processing: config.intelligence.importance_scoring,
+            processing_interval_seconds: 300,
+            max_batch_size: 100,
+        }
+    }
+}
+
 /// Core memory engine
 pub struct MemoryEngine {
     config: MemoryEngineConfig,

@@ -26,6 +26,26 @@ pub enum Messages {
 }
 
 impl Messages {
+    /// Get the number of messages
+    pub fn len(&self) -> usize {
+        match self {
+            Messages::Single(_) => 1,
+            Messages::Structured(_) => 1,
+            Messages::Multiple(messages) => messages.len(),
+        }
+    }
+
+    /// Check if messages is empty
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Messages::Single(s) => s.is_empty(),
+            Messages::Structured(msg) => msg.content.is_empty(),
+            Messages::Multiple(messages) => messages.is_empty(),
+        }
+    }
+}
+
+impl Messages {
     /// Validate messages content
     pub fn validate(&self) -> crate::Result<()> {
         match self {
