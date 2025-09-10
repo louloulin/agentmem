@@ -4,8 +4,7 @@
 use crate::providers::AzureProvider;
 #[cfg(feature = "gemini")]
 use crate::providers::GeminiProvider;
-#[cfg(feature = "ollama")]
-use crate::providers::OllamaProvider;
+use crate::providers::OllamaProvider; // 移除条件编译，确保总是可用
 use crate::providers::{AnthropicProvider, OpenAIProvider};
 use crate::providers::{ClaudeProvider, CohereProvider, MistralProvider, PerplexityProvider};
 use crate::providers::LiteLLMProvider;
@@ -13,6 +12,7 @@ use crate::providers::LiteLLMProvider;
 use agent_mem_traits::{AgentMemError, LLMConfig, LLMProvider, Message, ModelInfo, Result};
 use async_trait::async_trait;
 use std::sync::Arc;
+use tracing::{info, warn, error};
 
 /// LLM提供商枚举，包装不同的提供商实现
 pub enum LLMProviderEnum {
@@ -467,5 +467,136 @@ mod tests {
         assert!(providers.contains(&"cohere"));
         assert!(providers.contains(&"mistral"));
         assert!(providers.contains(&"perplexity"));
+    }
+}
+
+/// 真实的 LLM 提供商工厂，用于替换 Mock 实现
+pub struct RealLLMFactory;
+
+impl RealLLMFactory {
+    /// 创建真实的 LLM 提供商，带有降级机制
+    pub async fn create_with_fallback(config: &LLMConfig) -> Result<Arc<dyn LLMProvider + Send + Sync>> {
+        info!("Creating real LLM provider: {}", config.provider);
+
+        // 尝试创建主要提供商
+        match Self::create_primary_provider(config).await {
+            Ok(provider) => {
+                info!("Successfully created primary LLM provider: {}", config.provider);
+                Ok(provider)
+            },
+            Err(e) => {
+                warn!("Failed to create primary provider {}: {}", config.provider, e);
+
+                // 尝试降级到本地 Ollama
+                if config.provider != "ollama" {
+                    info!("Attempting fallback to local Ollama");
+                    Self::create_ollama_fallback().await
+                } else {
+                    error!("All LLM providers failed, no fallback available");
+                    Err(e)
+                }
+            }
+        }
+    }
+
+    /// 创建主要的 LLM 提供商
+    async fn create_primary_provider(config: &LLMConfig) -> Result<Arc<dyn LLMProvider + Send + Sync>> {
+        match config.provider.as_str() {
+            "openai" => {
+                let provider = OpenAIProvider::new(config.clone())?;
+                // 验证连接
+                Self::validate_provider(&provider).await?;
+                Ok(Arc::new(provider))
+            },
+            "anthropic" => {
+                let provider = AnthropicProvider::new(config.clone())?;
+                Self::validate_provider(&provider).await?;
+                Ok(Arc::new(provider))
+            },
+            "ollama" => {
+                let provider = OllamaProvider::new(config.clone())?;
+                Self::validate_provider(&provider).await?;
+                Ok(Arc::new(provider))
+            },
+            "claude" => {
+                let provider = ClaudeProvider::new(config.clone())?;
+                Self::validate_provider(&provider).await?;
+                Ok(Arc::new(provider))
+            },
+            "cohere" => {
+                let provider = CohereProvider::new(config.clone())?;
+                Self::validate_provider(&provider).await?;
+                Ok(Arc::new(provider))
+            },
+            "mistral" => {
+                let provider = MistralProvider::new(config.clone())?;
+                Self::validate_provider(&provider).await?;
+                Ok(Arc::new(provider))
+            },
+            "perplexity" => {
+                let provider = PerplexityProvider::new(config.clone())?;
+                Self::validate_provider(&provider).await?;
+                Ok(Arc::new(provider))
+            },
+            _ => Err(AgentMemError::config_error(&format!("Unsupported LLM provider: {}", config.provider)))
+        }
+    }
+
+    /// 创建 Ollama 降级提供商
+    async fn create_ollama_fallback() -> Result<Arc<dyn LLMProvider + Send + Sync>> {
+        let fallback_config = LLMConfig {
+            provider: "ollama".to_string(),
+            model: "llama2".to_string(), // 使用常见的本地模型
+            api_key: None,
+            base_url: Some("http://localhost:11434".to_string()),
+            temperature: Some(0.7),
+            max_tokens: Some(2000),
+            top_p: None,
+            frequency_penalty: None,
+            presence_penalty: None,
+            response_format: None,
+        };
+
+        let provider = OllamaProvider::new(fallback_config)?;
+
+        // 尝试验证 Ollama 连接
+        match Self::validate_provider(&provider).await {
+            Ok(_) => {
+                info!("Successfully connected to fallback Ollama provider");
+                Ok(Arc::new(provider))
+            },
+            Err(e) => {
+                error!("Fallback Ollama provider also failed: {}", e);
+                Err(AgentMemError::llm_error("All LLM providers failed, including fallback"))
+            }
+        }
+    }
+
+    /// 验证提供商连接
+    async fn validate_provider(provider: &dyn LLMProvider) -> Result<()> {
+        use agent_mem_traits::Message;
+
+        let test_messages = vec![
+            Message::user("Hello")
+        ];
+
+        // 尝试简单的生成请求来验证连接
+        match tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            provider.generate(&test_messages)
+        ).await {
+            Ok(Ok(_)) => {
+                info!("LLM provider validation successful");
+                Ok(())
+            },
+            Ok(Err(e)) => {
+                warn!("LLM provider validation failed: {}", e);
+                Err(e)
+            },
+            Err(_) => {
+                warn!("LLM provider validation timed out");
+                Err(AgentMemError::llm_error("Provider validation timeout"))
+            }
+        }
     }
 }

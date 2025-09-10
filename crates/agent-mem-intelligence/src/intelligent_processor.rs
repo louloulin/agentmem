@@ -11,61 +11,17 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use agent_mem_traits::{Result, Message, MessageRole, MemoryItem, Session, MemoryType};
-use agent_mem_llm::LLMProvider;
+use agent_mem_traits::{Result, Message, MemoryItem, Session, MemoryType, LLMConfig};
+use agent_mem_llm::{LLMProvider, factory::RealLLMFactory};
 use async_trait::async_trait;
 use agent_mem_core::Memory;
 use crate::fact_extraction::{FactExtractor, ExtractedFact, AdvancedFactExtractor, StructuredFact};
 use crate::decision_engine::{MemoryDecisionEngine, MemoryDecision, ExistingMemory, EnhancedDecisionEngine, DecisionContext, DecisionResult};
 use crate::conflict_resolution::{ConflictResolver, ConflictResolverConfig, ConflictDetection};
 use crate::importance_evaluator::{ImportanceEvaluator, ImportanceEvaluatorConfig, ImportanceEvaluation};
-use tracing::{debug, info, warn};
+use tracing::{debug, info, warn, error};
 
-/// 模拟的 LLM Provider 用于测试
-#[derive(Debug, Clone)]
-pub struct MockLLMProvider;
-
-#[async_trait::async_trait]
-impl LLMProvider for MockLLMProvider {
-    async fn generate(&self, _messages: &[Message]) -> Result<String> {
-        Ok("Mock response".to_string())
-    }
-
-    async fn generate_stream(
-        &self,
-        _messages: &[Message],
-    ) -> Result<Box<dyn futures::Stream<Item = Result<String>> + Send + Unpin>> {
-        // 创建一个简单的空流
-        use std::pin::Pin;
-        use std::task::{Context, Poll};
-
-        struct EmptyStream;
-
-        impl futures::Stream for EmptyStream {
-            type Item = Result<String>;
-
-            fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-                Poll::Ready(None)
-            }
-        }
-
-        Ok(Box::new(EmptyStream))
-    }
-
-    fn get_model_info(&self) -> agent_mem_traits::ModelInfo {
-        agent_mem_traits::ModelInfo {
-            provider: "mock".to_string(),
-            model: "mock-model".to_string(),
-            max_tokens: 4096,
-            supports_streaming: false,
-            supports_functions: false,
-        }
-    }
-
-    fn validate_config(&self) -> Result<()> {
-        Ok(())
-    }
-}
+// MockLLMProvider 已移除，使用真实的 LLM 提供商
 
 /// 智能处理结果（增强版本）
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -139,9 +95,22 @@ pub struct IntelligentMemoryProcessor {
 }
 
 impl IntelligentMemoryProcessor {
-    /// 创建新的智能处理器
-    pub fn new(_api_key: String) -> Self {
-        let llm = Arc::new(MockLLMProvider);
+    /// 创建新的智能处理器（异步版本）
+    pub async fn new(api_key: String) -> Result<Self> {
+        let llm_config = LLMConfig {
+            provider: "openai".to_string(),
+            model: "gpt-3.5-turbo".to_string(),
+            api_key: Some(api_key),
+            base_url: None,
+            temperature: Some(0.7),
+            max_tokens: Some(2000),
+            top_p: None,
+            frequency_penalty: None,
+            presence_penalty: None,
+            response_format: None,
+        };
+
+        let llm = RealLLMFactory::create_with_fallback(&llm_config).await?;
         let fact_extractor = FactExtractor::new(llm.clone());
         let decision_engine = MemoryDecisionEngine::new(llm.clone());
         let conflict_resolver = ConflictResolver::new(
@@ -150,17 +119,30 @@ impl IntelligentMemoryProcessor {
         );
         let config = ProcessingConfig::default();
 
-        Self {
+        Ok(Self {
             fact_extractor,
             decision_engine,
             conflict_resolver,
             config,
-        }
+        })
     }
 
-    /// 使用自定义配置创建处理器
-    pub fn with_config(_api_key: String, config: ProcessingConfig) -> Self {
-        let llm = Arc::new(MockLLMProvider);
+    /// 使用自定义配置创建处理器（异步版本）
+    pub async fn with_config(api_key: String, config: ProcessingConfig) -> Result<Self> {
+        let llm_config = LLMConfig {
+            provider: "openai".to_string(),
+            model: "gpt-3.5-turbo".to_string(),
+            api_key: Some(api_key),
+            base_url: None,
+            temperature: Some(0.7),
+            max_tokens: Some(2000),
+            top_p: None,
+            frequency_penalty: None,
+            presence_penalty: None,
+            response_format: None,
+        };
+
+        let llm = RealLLMFactory::create_with_fallback(&llm_config).await?;
         let fact_extractor = FactExtractor::new(llm.clone());
         let decision_engine = MemoryDecisionEngine::new(llm.clone());
         let conflict_resolver = ConflictResolver::new(
@@ -168,12 +150,12 @@ impl IntelligentMemoryProcessor {
             ConflictResolverConfig::default(),
         );
 
-        Self {
+        Ok(Self {
             fact_extractor,
             decision_engine,
             conflict_resolver,
             config,
-        }
+        })
     }
 
     /// 处理消息并生成智能记忆操作
