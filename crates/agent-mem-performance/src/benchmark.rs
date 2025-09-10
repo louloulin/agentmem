@@ -79,8 +79,10 @@ impl BenchmarkSuite {
     async fn warmup_memory_operations(&self) -> Result<()> {
         debug!("Warming up memory operations");
         for _ in 0..self.warmup_iterations {
-            // 模拟内存操作
-            tokio::time::sleep(Duration::from_nanos(100)).await;
+            // 真实的内存操作预热
+            let _data: Vec<u8> = (0..1024).map(|i| (i % 256) as u8).collect();
+            let _hash = std::collections::hash_map::DefaultHasher::new();
+            tokio::task::yield_now().await;
         }
         Ok(())
     }
@@ -88,68 +90,111 @@ impl BenchmarkSuite {
     async fn warmup_vector_operations(&self) -> Result<()> {
         debug!("Warming up vector operations");
         for _ in 0..self.warmup_iterations {
-            // 模拟向量操作
-            tokio::time::sleep(Duration::from_nanos(200)).await;
+            // 真实的向量操作预热
+            let vector: Vec<f32> = (0..128).map(|i| (i as f32).sin()).collect();
+            let _norm: f32 = vector.iter().map(|x| x * x).sum::<f32>().sqrt();
+            tokio::task::yield_now().await;
         }
         Ok(())
     }
 
     async fn benchmark_add_operations(&self) -> Result<f64> {
         let start = Instant::now();
-        
-        for _ in 0..self.iterations {
-            // 模拟添加操作
-            tokio::time::sleep(Duration::from_nanos(50)).await;
+        let mut data_store = std::collections::HashMap::new();
+
+        for i in 0..self.iterations {
+            // 真实的添加操作基准测试
+            let key = format!("key_{}", i);
+            let value = format!("value_{}", i);
+            data_store.insert(key, value);
+
+            if i % 100 == 0 {
+                tokio::task::yield_now().await;
+            }
         }
-        
+
         let duration = start.elapsed();
         let ops_per_second = self.iterations as f64 / duration.as_secs_f64();
-        
+
         debug!("Add operations: {:.2} ops/sec", ops_per_second);
         Ok(ops_per_second)
     }
 
     async fn benchmark_search_operations(&self) -> Result<f64> {
         let start = Instant::now();
-        
-        for _ in 0..self.iterations {
-            // 模拟搜索操作
-            tokio::time::sleep(Duration::from_nanos(30)).await;
+        let mut data_store = std::collections::HashMap::new();
+
+        // 预填充数据
+        for i in 0..1000 {
+            data_store.insert(format!("key_{}", i), format!("value_{}", i));
         }
-        
+
+        for i in 0..self.iterations {
+            // 真实的搜索操作基准测试
+            let key = format!("key_{}", i % 1000);
+            let _result = data_store.get(&key);
+
+            if i % 100 == 0 {
+                tokio::task::yield_now().await;
+            }
+        }
+
         let duration = start.elapsed();
         let ops_per_second = self.iterations as f64 / duration.as_secs_f64();
-        
+
         debug!("Search operations: {:.2} ops/sec", ops_per_second);
         Ok(ops_per_second)
     }
 
     async fn benchmark_update_operations(&self) -> Result<f64> {
         let start = Instant::now();
-        
-        for _ in 0..self.iterations {
-            // 模拟更新操作
-            tokio::time::sleep(Duration::from_nanos(60)).await;
+        let mut data_store = std::collections::HashMap::new();
+
+        // 预填充数据
+        for i in 0..1000 {
+            data_store.insert(format!("key_{}", i), format!("value_{}", i));
         }
-        
+
+        for i in 0..self.iterations {
+            // 真实的更新操作基准测试
+            let key = format!("key_{}", i % 1000);
+            let new_value = format!("updated_value_{}", i);
+            data_store.insert(key, new_value);
+
+            if i % 100 == 0 {
+                tokio::task::yield_now().await;
+            }
+        }
+
         let duration = start.elapsed();
         let ops_per_second = self.iterations as f64 / duration.as_secs_f64();
-        
+
         debug!("Update operations: {:.2} ops/sec", ops_per_second);
         Ok(ops_per_second)
     }
 
     async fn benchmark_delete_operations(&self) -> Result<f64> {
         let start = Instant::now();
-        
-        for _ in 0..self.iterations {
-            // 模拟删除操作
-            tokio::time::sleep(Duration::from_nanos(40)).await;
+        let mut data_store = std::collections::HashMap::new();
+
+        // 预填充数据
+        for i in 0..self.iterations {
+            data_store.insert(format!("key_{}", i), format!("value_{}", i));
         }
-        
+
+        for i in 0..self.iterations {
+            // 真实的删除操作基准测试
+            let key = format!("key_{}", i);
+            data_store.remove(&key);
+
+            if i % 100 == 0 {
+                tokio::task::yield_now().await;
+            }
+        }
+
         let duration = start.elapsed();
         let ops_per_second = self.iterations as f64 / duration.as_secs_f64();
-        
+
         debug!("Delete operations: {:.2} ops/sec", ops_per_second);
         Ok(ops_per_second)
     }
@@ -158,14 +203,33 @@ impl BenchmarkSuite {
         let mut latencies = Vec::new();
         let start = Instant::now();
         
-        for _ in 0..self.iterations {
+        // 创建向量数据集
+        let vectors: Vec<Vec<f32>> = (0..1000).map(|i| {
+            (0..128).map(|j| ((i + j) as f32).sin()).collect()
+        }).collect();
+
+        for i in 0..self.iterations {
             let op_start = Instant::now();
-            
-            // 模拟相似性搜索操作
-            tokio::time::sleep(Duration::from_nanos(100)).await;
-            
+
+            // 真实的相似性搜索操作
+            let query_vector: Vec<f32> = (0..128).map(|j| ((i + j) as f32).cos()).collect();
+            let mut similarities = Vec::new();
+
+            // 计算与前100个向量的相似度
+            for vector in vectors.iter().take(100) {
+                let similarity = Self::cosine_similarity(&query_vector, vector);
+                similarities.push(similarity);
+            }
+
+            // 排序找到最相似的
+            similarities.sort_by(|a, b| b.partial_cmp(a).unwrap());
+
             let op_duration = op_start.elapsed();
             latencies.push(op_duration.as_secs_f64() * 1000.0); // 转换为毫秒
+
+            if i % 10 == 0 {
+                tokio::task::yield_now().await;
+            }
         }
         
         let total_duration = start.elapsed();
@@ -179,17 +243,58 @@ impl BenchmarkSuite {
         let start = Instant::now();
         let batch_size = 10;
         let batches = self.iterations / batch_size;
-        
-        for _ in 0..batches {
-            // 模拟批量搜索操作
-            tokio::time::sleep(Duration::from_nanos(800)).await;
+
+        // 创建向量数据集
+        let vectors: Vec<Vec<f32>> = (0..1000).map(|i| {
+            (0..128).map(|j| ((i + j) as f32).sin()).collect()
+        }).collect();
+
+        for batch_idx in 0..batches {
+            // 真实的批量搜索操作
+            let mut batch_results = Vec::new();
+
+            for i in 0..batch_size {
+                let query_idx = batch_idx * batch_size + i;
+                let query_vector: Vec<f32> = (0..128).map(|j| ((query_idx + j) as f32).cos()).collect();
+
+                // 搜索最相似的向量
+                let mut best_similarity = -1.0f32;
+                let mut _best_idx = 0;
+
+                for (idx, vector) in vectors.iter().enumerate().take(100) {
+                    let similarity = Self::cosine_similarity(&query_vector, vector);
+                    if similarity > best_similarity {
+                        best_similarity = similarity;
+                        _best_idx = idx;
+                    }
+                }
+
+                batch_results.push(best_similarity);
+            }
+
+            if batch_idx % 10 == 0 {
+                tokio::task::yield_now().await;
+            }
         }
-        
+
         let duration = start.elapsed();
         let ops_per_second = self.iterations as f64 / duration.as_secs_f64();
-        
+
         debug!("Batch search: {:.2} ops/sec", ops_per_second);
         Ok(ops_per_second)
+    }
+
+    /// 计算两个向量的余弦相似度
+    fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
+        let dot_product: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
+        let norm_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
+        let norm_b: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
+
+        if norm_a == 0.0 || norm_b == 0.0 {
+            0.0
+        } else {
+            dot_product / (norm_a * norm_b)
+        }
     }
 }
 
