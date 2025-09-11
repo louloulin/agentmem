@@ -211,9 +211,10 @@ impl Session {
 }
 
 /// Types of memory
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum MemoryType {
     Factual,    // 事实性记忆
+    #[default]
     Episodic,   // 情节性记忆
     Procedural, // 程序性记忆
     Semantic,   // 语义记忆
@@ -312,7 +313,7 @@ pub enum MemoryEvent {
 pub type Metadata = HashMap<String, serde_json::Value>;
 
 /// Enhanced request types for Mem5 compatibility
-
+///
 /// Enhanced add request with all Mem0 compatible parameters
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnhancedAddRequest {
@@ -455,7 +456,7 @@ impl MetadataBuilder {
 
     pub fn custom<T: Serialize>(mut self, key: String, value: T) -> crate::Result<Self> {
         let value = serde_json::to_value(value)
-            .map_err(|e| crate::AgentMemError::SerializationError(e))?;
+            .map_err(crate::AgentMemError::SerializationError)?;
         self.data.insert(key, value);
         Ok(self)
     }
@@ -622,16 +623,12 @@ impl std::str::FromStr for MemoryType {
             "procedural" => Ok(MemoryType::Procedural),
             "semantic" => Ok(MemoryType::Semantic),
             "working" => Ok(MemoryType::Working),
-            _ => Err(crate::AgentMemError::ValidationError(format!("Invalid memory type: {}", s))),
+            _ => Err(crate::AgentMemError::ValidationError(format!("Invalid memory type: {s}"))),
         }
     }
 }
 
-impl Default for MemoryType {
-    fn default() -> Self {
-        MemoryType::Episodic
-    }
-}
+
 
 /// Processing options for memory operations
 #[derive(Debug, Clone, Serialize, Deserialize)]

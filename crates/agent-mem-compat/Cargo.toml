@@ -39,6 +39,9 @@ reqwest.workspace = true
 # Collections
 dashmap.workspace = true
 
+# Regex support for advanced filtering
+regex = "1.10"
+
 [dev-dependencies]
 tokio-test = "0.4"
 tempfile.workspace = true

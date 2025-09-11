@@ -11,8 +11,8 @@ use crate::{
     config::Mem0Config,
     error::{Mem0Error, Result},
     types::{
-        AddMemoryRequest, DeleteMemoryResponse, Memory, MemoryFilter, MemoryHistory,
-        MemorySearchResult, SearchMemoryRequest, UpdateMemoryRequest,
+        AddMemoryRequest, ChangeType, DeleteMemoryResponse, Memory, MemoryFilter, MemoryHistory,
+        MemorySearchResult, SearchMemoryRequest, SortField, SortOrder, UpdateMemoryRequest,
     },
     utils::{
         calculate_importance_score, generate_memory_id,
@@ -285,7 +285,20 @@ impl Mem0Client {
             updated_at: None,
         };
 
-        self.memories.insert(memory_id.clone(), memory);
+        self.memories.insert(memory_id.clone(), memory.clone());
+
+        // Create history entry for creation
+        self.create_history_entry(
+            &memory_id,
+            &memory.user_id,
+            None, // no previous memory
+            Some(memory.memory.clone()),
+            None, // no previous metadata
+            Some(memory.metadata.clone()),
+            ChangeType::Created,
+            None, // changed_by
+            None, // reason
+        ).await?;
 
         debug!("Added memory with ID: {}", memory_id);
         Ok(memory_id)
@@ -320,8 +333,7 @@ impl Mem0Client {
             .or_else(|| request.filters.as_ref().and_then(|f| f.limit))
             .unwrap_or(self.config.memory.default_search_limit);
 
-        // Simple text-based search for demonstration
-        let query_lower = request.query.to_lowercase();
+        // Enhanced search with complex filtering and scoring
         let mut matching_memories: Vec<Memory> = self.memories
             .iter()
             .filter(|entry| {
@@ -331,30 +343,38 @@ impl Mem0Client {
                     return false;
                 }
 
-                // Apply additional filters if provided
+                // Apply enhanced filters if provided
                 if let Some(filters) = &request.filters {
-                    if let Some(agent_id) = &filters.agent_id {
-                        if memory.agent_id.as_ref() != Some(agent_id) {
-                            return false;
-                        }
-                    }
-                    if let Some(run_id) = &filters.run_id {
-                        if memory.run_id.as_ref() != Some(run_id) {
-                            return false;
-                        }
+                    if !filters.matches(memory) {
+                        return false;
                     }
                 }
 
-                // Simple text matching
-                memory.memory.to_lowercase().contains(&query_lower)
+                // Enhanced text matching with scoring
+                self.calculate_search_score(&request.query, memory) > 0.0
             })
             .map(|entry| entry.value().clone())
             .collect();
 
-        // Sort by score (descending) and limit results
-        matching_memories.sort_by(|a, b| {
-            b.score.unwrap_or(0.0).partial_cmp(&a.score.unwrap_or(0.0)).unwrap_or(std::cmp::Ordering::Equal)
-        });
+        // Apply enhanced sorting if specified in filters
+        if let Some(ref filter) = request.filters {
+            self.sort_memories(&mut matching_memories, &filter.sort_field, &filter.sort_order);
+
+            // Apply pagination
+            if let Some(offset) = filter.offset {
+                if offset < matching_memories.len() {
+                    matching_memories = matching_memories.into_iter().skip(offset).collect();
+                } else {
+                    matching_memories.clear();
+                }
+            }
+        } else {
+            // Default sorting by score (descending)
+            matching_memories.sort_by(|a, b| {
+                b.score.unwrap_or(0.0).partial_cmp(&a.score.unwrap_or(0.0)).unwrap_or(std::cmp::Ordering::Equal)
+            });
+        }
+
         matching_memories.truncate(limit);
 
         let total = matching_memories.len();
@@ -387,8 +407,162 @@ impl Mem0Client {
 
         Ok(memory.clone())
     }
-    
-    /// Update a memory
+
+    /// Calculate search relevance score
+    fn calculate_search_score(&self, query: &str, memory: &Memory) -> f32 {
+        let query_lower = query.to_lowercase();
+        let content_lower = memory.memory.to_lowercase();
+
+        // Exact match gets highest score
+        if content_lower == query_lower {
+            return 1.0;
+        }
+
+        // Contains query gets high score
+        if content_lower.contains(&query_lower) {
+            let ratio = query_lower.len() as f32 / content_lower.len() as f32;
+            return 0.8 * ratio;
+        }
+
+        // Word-based matching
+        let query_words: Vec<&str> = query_lower.split_whitespace().collect();
+        let content_words: Vec<&str> = content_lower.split_whitespace().collect();
+
+        let mut matches = 0;
+        for query_word in &query_words {
+            for content_word in &content_words {
+                if content_word.contains(query_word) || query_word.contains(content_word) {
+                    matches += 1;
+                    break;
+                }
+            }
+        }
+
+        if matches > 0 {
+            let word_score = matches as f32 / query_words.len() as f32;
+            return 0.5 * word_score;
+        }
+
+        0.0
+    }
+
+    /// Sort memories based on specified criteria
+    fn sort_memories(&self, memories: &mut Vec<Memory>, sort_field: &SortField, sort_order: &SortOrder) {
+        use crate::types::{SortField, SortOrder};
+
+        memories.sort_by(|a, b| {
+            let comparison = match sort_field {
+                SortField::CreatedAt => a.created_at.cmp(&b.created_at),
+                SortField::UpdatedAt => {
+                    match (a.updated_at, b.updated_at) {
+                        (Some(a_updated), Some(b_updated)) => a_updated.cmp(&b_updated),
+                        (Some(_), None) => std::cmp::Ordering::Greater,
+                        (None, Some(_)) => std::cmp::Ordering::Less,
+                        (None, None) => std::cmp::Ordering::Equal,
+                    }
+                }
+                SortField::Score => a.score.partial_cmp(&b.score).unwrap_or(std::cmp::Ordering::Equal),
+                SortField::ContentLength => a.memory.len().cmp(&b.memory.len()),
+                SortField::Metadata(key) => {
+                    match (a.metadata.get(key), b.metadata.get(key)) {
+                        (Some(a_val), Some(b_val)) => {
+                            // Try to compare as numbers first, then as strings
+                            if let (Some(a_num), Some(b_num)) = (a_val.as_f64(), b_val.as_f64()) {
+                                a_num.partial_cmp(&b_num).unwrap_or(std::cmp::Ordering::Equal)
+                            } else {
+                                a_val.to_string().cmp(&b_val.to_string())
+                            }
+                        }
+                        (Some(_), None) => std::cmp::Ordering::Greater,
+                        (None, Some(_)) => std::cmp::Ordering::Less,
+                        (None, None) => std::cmp::Ordering::Equal,
+                    }
+                }
+            };
+
+            match sort_order {
+                SortOrder::Asc => comparison,
+                SortOrder::Desc => comparison.reverse(),
+            }
+        });
+    }
+
+    /// Create a history entry for memory changes
+    async fn create_history_entry(
+        &self,
+        memory_id: &str,
+        user_id: &str,
+        prev_memory: Option<String>,
+        new_memory: Option<String>,
+        prev_metadata: Option<HashMap<String, serde_json::Value>>,
+        new_metadata: Option<HashMap<String, serde_json::Value>>,
+        change_type: ChangeType,
+        changed_by: Option<String>,
+        reason: Option<String>,
+    ) -> Result<()> {
+        let history_entry = MemoryHistory {
+            id: uuid::Uuid::new_v4().to_string(),
+            memory_id: memory_id.to_string(),
+            user_id: user_id.to_string(),
+            prev_memory,
+            new_memory,
+            prev_metadata,
+            new_metadata,
+            timestamp: Utc::now(),
+            change_type,
+            changed_by,
+            reason,
+            version: self.get_next_version(memory_id).await,
+            related_memory_ids: Vec::new(),
+            metadata: HashMap::new(),
+        };
+
+        // Store history entry
+        self.history_cache
+            .entry(memory_id.to_string())
+            .or_insert_with(Vec::new)
+            .push(history_entry);
+
+        Ok(())
+    }
+
+    /// Get the next version number for a memory
+    async fn get_next_version(&self, memory_id: &str) -> u32 {
+        if let Some(history) = self.history_cache.get(memory_id) {
+            history.iter().map(|h| h.version).max().unwrap_or(0) + 1
+        } else {
+            1
+        }
+    }
+
+    /// Get memory history
+    pub async fn history(&self, memory_id: &str, user_id: &str) -> Result<Vec<MemoryHistory>> {
+        validate_user_id(user_id)?;
+
+        // Check if memory exists and belongs to user
+        if let Some(memory) = self.memories.get(memory_id) {
+            if memory.user_id != user_id {
+                return Err(Mem0Error::MemoryNotFound {
+                    id: memory_id.to_string(),
+                });
+            }
+        } else {
+            return Err(Mem0Error::MemoryNotFound {
+                id: memory_id.to_string(),
+            });
+        }
+
+        // Get history entries
+        let history = self.history_cache
+            .get(memory_id)
+            .map(|h| h.clone())
+            .unwrap_or_default();
+
+        debug!("Retrieved {} history entries for memory: {}", history.len(), memory_id);
+        Ok(history)
+    }
+
+    /// Update a memory with history tracking
     pub async fn update(
         &self,
         memory_id: &str,
@@ -411,21 +585,51 @@ impl Mem0Client {
             });
         }
 
+        // Store original values for history tracking
+        let prev_memory = memory.memory.clone();
+        let prev_metadata = memory.metadata.clone();
+        let mut change_type = None;
+
         // Update content if provided
         if let Some(new_content) = request.memory {
             validate_memory_content(&new_content)?;
-            memory.memory = new_content;
+            if memory.memory != new_content {
+                memory.memory = new_content;
+                change_type = Some(ChangeType::ContentUpdated);
+            }
         }
 
         // Update metadata if provided
         if let Some(mut new_metadata) = request.metadata {
             sanitize_metadata(&mut new_metadata);
-            memory.metadata = new_metadata;
+            if memory.metadata != new_metadata {
+                memory.metadata = new_metadata;
+                change_type = Some(if change_type.is_some() {
+                    ChangeType::ContentUpdated
+                } else {
+                    ChangeType::MetadataUpdated
+                });
+            }
         }
 
-        // Update timestamps and importance
-        memory.updated_at = Some(Utc::now());
-        memory.score = Some(calculate_importance_score(&memory.memory, &memory.metadata));
+        // Only update timestamp and create history if something actually changed
+        if let Some(change_type) = change_type {
+            memory.updated_at = Some(Utc::now());
+            memory.score = Some(calculate_importance_score(&memory.memory, &memory.metadata));
+
+            // Create history entry
+            self.create_history_entry(
+                memory_id,
+                user_id,
+                Some(prev_memory),
+                Some(memory.memory.clone()),
+                Some(prev_metadata),
+                Some(memory.metadata.clone()),
+                change_type,
+                None, // changed_by
+                None, // reason
+            ).await?;
+        }
 
         let updated_memory = memory.clone();
 
@@ -437,18 +641,32 @@ impl Mem0Client {
     pub async fn delete(&self, memory_id: &str, user_id: &str) -> Result<DeleteMemoryResponse> {
         validate_user_id(user_id)?;
 
-        // Check if memory exists and belongs to user
-        if let Some(memory) = self.memories.get(memory_id) {
+        // Check if memory exists and belongs to user, and get a copy for history
+        let memory_to_delete = if let Some(memory) = self.memories.get(memory_id) {
             if memory.user_id != user_id {
                 return Err(Mem0Error::MemoryNotFound {
                     id: memory_id.to_string(),
                 });
             }
+            memory.clone()
         } else {
             return Err(Mem0Error::MemoryNotFound {
                 id: memory_id.to_string(),
             });
-        }
+        };
+
+        // Create history entry before deletion
+        self.create_history_entry(
+            memory_id,
+            user_id,
+            Some(memory_to_delete.memory.clone()),
+            None, // no new memory (deleted)
+            Some(memory_to_delete.metadata.clone()),
+            None, // no new metadata (deleted)
+            ChangeType::Deleted,
+            None, // changed_by
+            None, // reason
+        ).await?;
 
         // Remove the memory
         self.memories.remove(memory_id);
@@ -641,7 +859,20 @@ impl Mem0Client {
                 memory_type: None,
                 created_after: None,
                 created_before: None,
+                updated_after: None,
+                updated_before: None,
+                min_score: None,
+                max_score: None,
+                min_content_length: None,
+                max_content_length: None,
+                metadata_filters: HashMap::new(),
                 metadata: HashMap::new(),
+                content_contains: None,
+                content_regex: None,
+                tags: Vec::new(),
+                exclude_tags: Vec::new(),
+                sort_field: SortField::default(),
+                sort_order: SortOrder::default(),
                 limit: Some(request.limit),
                 offset: None,
             }),

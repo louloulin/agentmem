@@ -7,13 +7,11 @@
 //! - 进度跟踪
 //! - 错误恢复
 
-use agent_mem_traits::{Result, VectorData, VectorStore, AgentMemError};
-use async_trait::async_trait;
+use agent_mem_traits::{Result, VectorStore};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{info, warn, error, debug};
+use tracing::{info, error};
 
 /// 迁移进度信息
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -210,7 +208,7 @@ impl DataMigrator {
         {
             let mut progress = self.progress.write().await;
             progress.total_records = total_records;
-            progress.total_batches = (total_records + self.config.batch_size - 1) / self.config.batch_size;
+            progress.total_batches = total_records.div_ceil(self.config.batch_size);
         }
 
         // 执行批量迁移
@@ -255,8 +253,8 @@ impl DataMigrator {
     /// 批量迁移数据
     async fn migrate_in_batches(
         &self,
-        source: Arc<dyn VectorStore + Send + Sync>,
-        target: Arc<dyn VectorStore + Send + Sync>,
+        _source: Arc<dyn VectorStore + Send + Sync>,
+        _target: Arc<dyn VectorStore + Send + Sync>,
         total_records: usize,
     ) -> Result<()> {
         // 注意：这是一个简化的实现
@@ -264,7 +262,7 @@ impl DataMigrator {
         // 由于当前的 VectorStore trait 没有分页接口，我们使用简化的方式
         
         let batch_size = self.config.batch_size;
-        let total_batches = (total_records + batch_size - 1) / batch_size;
+        let total_batches = total_records.div_ceil(batch_size);
         
         for batch_index in 0..total_batches {
             // 检查是否被暂停或取消
@@ -395,7 +393,8 @@ impl MigrationTools {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agent_mem_traits::{VectorSearchResult, HealthStatus, VectorStoreStats};
+    use agent_mem_traits::{VectorSearchResult, HealthStatus, VectorStoreStats, VectorData};
+    use async_trait::async_trait;
     use std::collections::HashMap;
 
     /// 模拟存储后端用于测试
@@ -604,8 +603,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_migration_pause_resume() {
-        let source = Arc::new(MockVectorStore::new(100));
-        let target = Arc::new(MockVectorStore::new(0));
+        let _source = Arc::new(MockVectorStore::new(100));
+        let _target = Arc::new(MockVectorStore::new(0));
 
         let migrator = DataMigrator::new(MigrationConfig::default());
 
