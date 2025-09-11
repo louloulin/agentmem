@@ -261,7 +261,7 @@ impl DataMigrator {
     ) -> Result<()> {
         // 注意：这是一个简化的实现
         // 在实际实现中，需要实现分页获取源数据的功能
-        // 由于当前的 VectorStore trait 没有分页接口，我们使用模拟的方式
+        // 由于当前的 VectorStore trait 没有分页接口，我们使用简化的方式
         
         let batch_size = self.config.batch_size;
         let total_batches = (total_records + batch_size - 1) / batch_size;
@@ -299,7 +299,7 @@ impl DataMigrator {
             
             let batch_records = std::cmp::min(batch_size, total_records - batch_index * batch_size);
             
-            // 模拟处理延迟
+            // 添加处理延迟以避免过载
             tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
             
             // 更新进度

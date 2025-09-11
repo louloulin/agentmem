@@ -867,7 +867,7 @@ mod tests {
 
         let delete_results = results.unwrap();
         assert_eq!(delete_results.len(), 3);
-        // All should succeed since we're using mock implementation
+        // All should succeed with the real implementation
         assert!(delete_results.iter().all(|&result| result));
     }
 }

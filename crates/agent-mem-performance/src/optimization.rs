@@ -246,7 +246,7 @@ impl OptimizationEngine {
             }
         }
 
-        // 如果无法读取系统负载，使用随机值模拟
+        // 如果无法读取系统负载，使用基于时间的确定性值
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
 
