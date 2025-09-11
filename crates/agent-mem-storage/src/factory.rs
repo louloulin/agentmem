@@ -860,7 +860,7 @@ mod tests {
             let result = StorageFactory::create_chroma_store("http://localhost:8000", "test").await;
             assert!(result.is_ok());
         } else {
-            // 模拟测试，验证配置创建
+            // 配置验证测试，验证配置创建
             let config = VectorStoreConfig {
                 provider: "chroma".to_string(),
                 url: Some("http://localhost:8000".to_string()),

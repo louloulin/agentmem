@@ -376,7 +376,7 @@ mod tests {
     async fn test_session_management() {
         let store = create_test_store().await;
         
-        // 模拟会话管理场景
+        // 测试会话管理场景
         let session_vectors = vec![
             create_test_vector("session_user_1", vec![0.8, 0.2, 0.1, 0.1]),
             create_test_vector("session_user_2", vec![0.1, 0.8, 0.2, 0.1]),
@@ -385,7 +385,7 @@ mod tests {
         
         store.add_vectors(session_vectors).await.unwrap();
         
-        // 模拟会话查询
+        // 测试会话查询
         let user_query = vec![0.7, 0.3, 0.1, 0.1];
         let results = store.search_vectors(user_query, 3, Some(0.5)).await.unwrap();
         
@@ -402,7 +402,7 @@ mod tests {
     async fn test_real_time_processing() {
         let store = create_test_store().await;
         
-        // 模拟实时数据处理场景
+        // 测试实时数据处理场景
         let real_time_data = vec![
             create_test_vector("realtime_1", vec![0.9, 0.1, 0.1, 0.1]),
             create_test_vector("realtime_2", vec![0.1, 0.9, 0.1, 0.1]),

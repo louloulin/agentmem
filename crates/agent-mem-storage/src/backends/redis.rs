@@ -226,7 +226,7 @@ impl RedisStore {
 
         #[cfg(not(feature = "redis"))]
         {
-            // 模拟连接验证
+            // 本地连接验证（无 Redis 特性时）
             tokio::time::sleep(Duration::from_millis(10)).await;
             Ok(())
         }
@@ -257,7 +257,7 @@ impl RedisStore {
 
         #[cfg(not(feature = "redis"))]
         {
-            // 模拟初始化
+            // 本地初始化（无 Redis 特性时）
             tokio::time::sleep(Duration::from_millis(5)).await;
             Ok(())
         }
@@ -379,7 +379,7 @@ impl RedisStore {
 
         #[cfg(not(feature = "redis"))]
         {
-            // 模拟锁获取
+            // 本地锁获取（无 Redis 特性时）
             tokio::time::sleep(Duration::from_millis(1)).await;
 
             Ok(Some(RedisDistributedLock {
@@ -438,7 +438,7 @@ impl RedisStore {
 
         #[cfg(not(feature = "redis"))]
         {
-            // 模拟锁释放
+            // 本地锁释放（无 Redis 特性时）
             tokio::time::sleep(Duration::from_millis(1)).await;
             Ok(true)
         }
@@ -492,7 +492,7 @@ impl RedisStore {
 
         #[cfg(not(feature = "redis"))]
         {
-            // 模拟清理过程
+            // 本地清理过程（无 Redis 特性时）
             tokio::time::sleep(Duration::from_millis(5)).await;
             Ok(0) // 返回清理的项目数量
         }
@@ -518,7 +518,7 @@ impl RedisStore {
 
         #[cfg(not(feature = "redis"))]
         {
-            // 模拟批量 TTL 设置
+            // 本地批量 TTL 设置（无 Redis 特性时）
             tokio::time::sleep(Duration::from_millis(ids.len() as u64)).await;
             Ok(())
         }

@@ -73,6 +73,7 @@ pub struct TogetherErrorDetail {
 }
 
 /// Together AI 提供商
+#[derive(Debug)]
 pub struct TogetherProvider {
     config: LLMConfig,
     client: Client,
@@ -186,7 +187,7 @@ impl TogetherProvider {
     }
 
     /// 提取响应文本
-    fn extract_response_text(&self, response: &TogetherResponse) -> Result<String> {
+    pub fn extract_response_text(&self, response: &TogetherResponse) -> Result<String> {
         if response.choices.is_empty() {
             return Err(AgentMemError::llm_error("No choices in response"));
         }
@@ -236,7 +237,7 @@ impl TogetherProvider {
     }
 
     /// 获取模型的最大 token 数
-    fn get_model_max_tokens(&self) -> usize {
+    pub fn get_model_max_tokens(&self) -> usize {
         match self.config.model.as_str() {
             // Llama 2 系列
             model if model.contains("Llama-2") => 4_096,

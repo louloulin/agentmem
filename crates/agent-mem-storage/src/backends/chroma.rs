@@ -541,12 +541,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_vector_operations_mock() {
-        // 模拟测试，不需要真实的Chroma服务器
+    async fn test_vector_operations_structure() {
+        // 测试向量数据结构，不需要真实的Chroma服务器
         let config = VectorStoreConfig {
             provider: "chroma".to_string(),
             url: Some("http://localhost:8000".to_string()),
-            collection_name: Some("test_mock".to_string()),
+            collection_name: Some("test_structure".to_string()),
             ..Default::default()
         };
 
@@ -554,7 +554,7 @@ mod tests {
             config,
             client: Client::new(),
             base_url: "http://localhost:8000".to_string(),
-            collection_name: "test_mock".to_string(),
+            collection_name: "test_structure".to_string(),
         };
 
         // 测试向量数据结构
@@ -573,5 +573,110 @@ mod tests {
         assert_eq!(vector_data.id, "test_id");
         assert_eq!(vector_data.vector.len(), 5);
         assert!(vector_data.metadata.contains_key("content"));
+    }
+
+    // 真实 Chroma 集成测试 (需要运行 Chroma 服务器)
+    #[cfg(feature = "integration-tests")]
+    mod integration_tests {
+        use super::*;
+        use std::env;
+
+        async fn create_real_chroma_store() -> Option<ChromaStore> {
+            let chroma_url = env::var("CHROMA_URL").unwrap_or_else(|_| "http://localhost:8000".to_string());
+
+            let config = VectorStoreConfig {
+                provider: "chroma".to_string(),
+                url: Some(chroma_url.clone()),
+                collection_name: Some("test_integration".to_string()),
+                ..Default::default()
+            };
+
+            match ChromaStore::new(config).await {
+                Ok(store) => Some(store),
+                Err(_) => {
+                    println!("Skipping real Chroma test - Chroma server not available at {}", chroma_url);
+                    None
+                }
+            }
+        }
+
+        #[tokio::test]
+        async fn test_real_chroma_health_check() {
+            let Some(store) = create_real_chroma_store().await else {
+                return;
+            };
+
+            let health = store.health_check().await;
+            assert!(health.is_ok(), "Chroma health check should succeed: {:?}", health);
+
+            let health_status = health.unwrap();
+            assert_eq!(health_status.status, "healthy");
+            println!("Chroma Health: {:?}", health_status);
+        }
+
+        #[tokio::test]
+        async fn test_real_chroma_vector_operations() {
+            let Some(store) = create_real_chroma_store().await else {
+                return;
+            };
+
+            // 测试数据
+            let test_vectors = vec![
+                VectorData {
+                    id: "test_1".to_string(),
+                    vector: vec![0.1, 0.2, 0.3, 0.4, 0.5],
+                    metadata: {
+                        let mut map = std::collections::HashMap::new();
+                        map.insert("content".to_string(), "Test content 1".to_string());
+                        map.insert("type".to_string(), "test".to_string());
+                        map
+                    },
+                },
+                VectorData {
+                    id: "test_2".to_string(),
+                    vector: vec![0.2, 0.3, 0.4, 0.5, 0.6],
+                    metadata: {
+                        let mut map = std::collections::HashMap::new();
+                        map.insert("content".to_string(), "Test content 2".to_string());
+                        map.insert("type".to_string(), "test".to_string());
+                        map
+                    },
+                },
+            ];
+
+            // 添加向量
+            let result = store.add_vectors(test_vectors.clone()).await;
+            assert!(result.is_ok(), "Adding vectors should succeed: {:?}", result);
+            let ids = result.unwrap();
+            assert_eq!(ids.len(), 2);
+
+            // 搜索向量
+            let query_vector = vec![0.15, 0.25, 0.35, 0.45, 0.55];
+            let search_result = store.search_vectors(query_vector, 10, None).await;
+            assert!(search_result.is_ok(), "Vector search should succeed: {:?}", search_result);
+
+            let results = search_result.unwrap();
+            assert!(!results.is_empty(), "Search should return results");
+            println!("Chroma search results: {:?}", results);
+
+            // 清理测试数据
+            let delete_result = store.delete_vectors(ids).await;
+            assert!(delete_result.is_ok(), "Deleting vectors should succeed: {:?}", delete_result);
+        }
+
+        #[tokio::test]
+        async fn test_real_chroma_collection_management() {
+            let Some(store) = create_real_chroma_store().await else {
+                return;
+            };
+
+            // 测试集合创建和管理
+            let collection_info = store.get_collection_info().await;
+            assert!(collection_info.is_ok(), "Getting collection info should succeed: {:?}", collection_info);
+
+            let info = collection_info.unwrap();
+            assert_eq!(info.name, "test_integration");
+            println!("Chroma collection info: {:?}", info);
+        }
     }
 }

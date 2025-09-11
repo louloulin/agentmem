@@ -257,7 +257,7 @@ mod tests {
     async fn test_postgresql_features() {
         let store = create_test_store().await;
         
-        // 添加包含丰富元数据的向量，模拟 PostgreSQL JSONB 功能
+        // 添加包含丰富元数据的向量，测试 PostgreSQL JSONB 功能
         let mut metadata = HashMap::new();
         metadata.insert("title".to_string(), "PostgreSQL Document".to_string());
         metadata.insert("author".to_string(), "Jane Doe".to_string());
@@ -290,13 +290,13 @@ mod tests {
         let store = create_test_store().await;
         
         // 测试实时功能的配置（在实际实现中会启用实时订阅）
-        // 这里我们测试基本的 CRUD 操作，模拟实时更新场景
+        // 这里我们测试基本的 CRUD 操作，验证实时更新场景
         
         // 添加初始数据
         let vector_data = create_test_vector("realtime_test", vec![0.5, 0.5, 0.5, 0.5]);
         store.add_vectors(vec![vector_data]).await.unwrap();
         
-        // 模拟实时更新
+        // 测试实时更新
         let updated_vector = create_test_vector("realtime_test", vec![0.8, 0.6, 0.4, 0.2]);
         store.update_vectors(vec![updated_vector]).await.unwrap();
         
@@ -304,7 +304,7 @@ mod tests {
         let retrieved = store.get_vector("realtime_test").await.unwrap().unwrap();
         assert_eq!(retrieved.vector, vec![0.8, 0.6, 0.4, 0.2]);
         
-        // 模拟实时删除
+        // 测试实时删除
         store.delete_vectors(vec!["realtime_test".to_string()]).await.unwrap();
         
         // 验证删除
@@ -316,7 +316,7 @@ mod tests {
     async fn test_edge_computing_simulation() {
         let store = create_test_store().await;
         
-        // 模拟边缘计算场景：快速的本地操作
+        // 测试边缘计算场景：快速的本地操作
         let start_time = std::time::Instant::now();
         
         // 添加多个向量

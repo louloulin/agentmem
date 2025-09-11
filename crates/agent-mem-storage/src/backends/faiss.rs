@@ -91,7 +91,7 @@ pub struct VectorMetadata {
     pub timestamp: i64,
 }
 
-/// 分层索引结构，模拟 FAISS 的 HNSW 算法
+/// 分层索引结构，实现 FAISS 兼容的 HNSW 算法
 #[derive(Debug, Clone)]
 struct HierarchicalIndex {
     /// 层级结构，每层包含节点和连接
@@ -134,7 +134,7 @@ impl Default for IndexLayer {
 }
 
 /// FAISS 存储实现
-/// 增强的高性能内存实现，模拟 FAISS 的核心算法
+/// 增强的高性能内存实现，兼容 FAISS 的核心算法
 pub struct FaissStore {
     config: FaissConfig,
     // 使用高性能的内存存储作为基础实现

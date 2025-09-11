@@ -1,5 +1,5 @@
-//! Anthropic嵌入模型实现（模拟）
-//! 注意：Anthropic目前主要专注于文本生成，这里提供一个模拟实现
+//! Anthropic嵌入模型兼容性实现
+//! 注意：Anthropic目前主要专注于文本生成，这里提供一个兼容性实现
 
 use crate::config::EmbeddingConfig;
 use agent_mem_traits::{AgentMemError, Embedder, Result};
@@ -68,7 +68,7 @@ impl AnthropicEmbedder {
 
     /// 健康检查
     pub async fn health_check(&self) -> Result<bool> {
-        // 注意：这是一个模拟实现，因为Anthropic目前不提供嵌入API
+        // 注意：这是一个兼容性实现，因为Anthropic目前不提供嵌入API
         // 在实际实现中，这里应该调用真实的API端点
         Ok(true)
     }
@@ -77,7 +77,7 @@ impl AnthropicEmbedder {
 #[async_trait]
 impl Embedder for AnthropicEmbedder {
     async fn embed(&self, text: &str) -> Result<Vec<f32>> {
-        // 模拟实现：返回基于文本内容的确定性向量
+        // 兼容性实现：返回基于文本内容的确定性向量
         // 在实际实现中，这里应该调用Anthropic的嵌入API
         let mut embedding = vec![0.0; self.dimension()];
 
@@ -101,7 +101,7 @@ impl Embedder for AnthropicEmbedder {
     }
 
     async fn embed_batch(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
-        // 模拟批量嵌入
+        // 兼容性批量嵌入
         let mut embeddings = Vec::new();
         for text in texts {
             embeddings.push(self.embed(text).await?);

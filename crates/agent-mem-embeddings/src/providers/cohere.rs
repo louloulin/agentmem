@@ -271,7 +271,7 @@ mod tests {
         // 测试批量处理逻辑
         let texts: Vec<String> = (0..200).map(|i| format!("text {}", i)).collect();
 
-        // 模拟分批处理
+        // 测试分批处理
         const MAX_BATCH_SIZE: usize = 96;
         let chunks: Vec<_> = texts.chunks(MAX_BATCH_SIZE).collect();
 

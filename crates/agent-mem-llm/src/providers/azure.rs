@@ -75,6 +75,7 @@ pub struct AzureErrorDetail {
 }
 
 /// Azure OpenAI提供商实现
+#[derive(Debug)]
 pub struct AzureProvider {
     config: LLMConfig,
     client: Client,
@@ -209,7 +210,7 @@ impl AzureProvider {
     }
 
     /// 提取响应文本
-    fn extract_response_text(&self, response: &AzureResponse) -> Result<String> {
+    pub fn extract_response_text(&self, response: &AzureResponse) -> Result<String> {
         if response.choices.is_empty() {
             return Err(AgentMemError::llm_error("No choices in response"));
         }

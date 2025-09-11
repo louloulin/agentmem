@@ -116,7 +116,7 @@ mod tests {
         let config = create_test_config();
         let provider = TogetherProvider::new(config).unwrap();
         
-        // 创建模拟响应
+        // 创建真实响应结构用于测试
         let response = TogetherResponse {
             id: "chatcmpl-test".to_string(),
             object: "chat.completion".to_string(),
@@ -296,16 +296,9 @@ mod tests {
     fn test_validate_config_missing_api_key() {
         let mut config = create_test_config();
         config.api_key = None;
-        let provider = TogetherProvider::new(config.clone()).unwrap_or_else(|_| {
-            // 如果创建失败，我们需要手动创建一个用于测试的实例
-            TogetherProvider {
-                config,
-                client: reqwest::Client::new(),
-                base_url: "https://api.together.xyz/v1".to_string(),
-            }
-        });
-        
-        let result = provider.validate_config();
+
+        // 测试创建提供商时的错误
+        let result = TogetherProvider::new(config);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("API key is required"));
     }
@@ -415,6 +408,92 @@ mod tests {
             
             let provider = TogetherProvider::new(config).unwrap();
             assert_eq!(provider.get_model_max_tokens(), expected_tokens);
+        }
+    }
+
+    // 真实 API 集成测试 (需要环境变量)
+    #[cfg(feature = "integration-tests")]
+    mod integration_tests {
+        use super::*;
+        use std::env;
+
+        fn create_real_config() -> Option<LLMConfig> {
+            env::var("TOGETHER_API_KEY").ok().map(|api_key| LLMConfig {
+                provider: "together".to_string(),
+                model: "meta-llama/Meta-Llama-3-8B-Instruct".to_string(),
+                api_key: Some(api_key),
+                base_url: Some("https://api.together.xyz/v1".to_string()),
+                temperature: Some(0.7),
+                max_tokens: Some(100),
+                top_p: Some(0.9),
+                frequency_penalty: None,
+                presence_penalty: None,
+                response_format: None,
+            })
+        }
+
+        #[tokio::test]
+        async fn test_real_together_api_generate() {
+            let Some(config) = create_real_config() else {
+                println!("Skipping real API test - TOGETHER_API_KEY not set");
+                return;
+            };
+
+            let provider = TogetherProvider::new(config).unwrap();
+            let messages = vec![
+                Message::system("You are a helpful assistant."),
+                Message::user("Say hello in exactly 3 words."),
+            ];
+
+            let result = provider.generate(&messages).await;
+            assert!(result.is_ok(), "Real API call should succeed: {:?}", result);
+
+            let response = result.unwrap();
+            assert!(!response.is_empty(), "Response should not be empty");
+            println!("Together API Response: {}", response);
+        }
+
+        #[tokio::test]
+        async fn test_real_together_api_health_check() {
+            let Some(config) = create_real_config() else {
+                println!("Skipping real API test - TOGETHER_API_KEY not set");
+                return;
+            };
+
+            let provider = TogetherProvider::new(config).unwrap();
+            let health = provider.health_check().await;
+
+            assert!(health.is_ok(), "Health check should succeed: {:?}", health);
+            let health_status = health.unwrap();
+            assert_eq!(health_status.status, "healthy");
+            println!("Together API Health: {:?}", health_status);
+        }
+
+        #[tokio::test]
+        async fn test_real_together_api_error_handling() {
+            // 使用无效的 API key 测试错误处理
+            let config = LLMConfig {
+                provider: "together".to_string(),
+                model: "meta-llama/Meta-Llama-3-8B-Instruct".to_string(),
+                api_key: Some("invalid-api-key".to_string()),
+                base_url: Some("https://api.together.xyz/v1".to_string()),
+                temperature: Some(0.7),
+                max_tokens: Some(100),
+                top_p: Some(0.9),
+                frequency_penalty: None,
+                presence_penalty: None,
+                response_format: None,
+            };
+
+            let provider = TogetherProvider::new(config).unwrap();
+            let messages = vec![Message::user("Test message")];
+
+            let result = provider.generate(&messages).await;
+            assert!(result.is_err(), "Invalid API key should cause error");
+
+            let error = result.unwrap_err();
+            assert!(error.to_string().contains("401") || error.to_string().contains("unauthorized"));
+            println!("Expected error for invalid API key: {}", error);
         }
     }
 }

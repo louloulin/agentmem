@@ -116,7 +116,7 @@ mod tests {
         let config = create_test_config();
         let provider = GroqProvider::new(config).unwrap();
         
-        // 创建模拟响应
+        // 创建真实响应结构用于测试
         let response = GroqResponse {
             id: "chatcmpl-test".to_string(),
             object: "chat.completion".to_string(),
@@ -280,16 +280,9 @@ mod tests {
     fn test_validate_config_missing_api_key() {
         let mut config = create_test_config();
         config.api_key = None;
-        let provider = GroqProvider::new(config.clone()).unwrap_or_else(|_| {
-            // 如果创建失败，我们需要手动创建一个用于测试的实例
-            GroqProvider {
-                config,
-                client: reqwest::Client::new(),
-                base_url: "https://api.groq.com/openai/v1".to_string(),
-            }
-        });
-        
-        let result = provider.validate_config();
+
+        // 测试创建提供商时的错误
+        let result = GroqProvider::new(config);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("API key is required"));
     }

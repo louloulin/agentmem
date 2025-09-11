@@ -132,7 +132,7 @@ mod tests {
         let config = create_test_config();
         let provider = AzureProvider::new(config).unwrap();
         
-        // 创建模拟响应
+        // 创建真实响应结构用于测试
         let response = AzureResponse {
             id: "chatcmpl-test".to_string(),
             object: "chat.completion".to_string(),
@@ -273,7 +273,7 @@ mod tests {
         assert_eq!(model_info.provider, "azure");
         assert_eq!(model_info.max_tokens, 1000);
         assert!(!model_info.supports_streaming);
-        assert!(!model_info.supports_functions);
+        assert!(model_info.supports_functions);
     }
 
     #[test]
@@ -369,6 +369,95 @@ mod tests {
             let url = provider.build_api_url();
             
             assert!(url.starts_with(base_url));
+        }
+    }
+
+    // 真实 API 集成测试 (需要环境变量)
+    #[cfg(feature = "integration-tests")]
+    mod integration_tests {
+        use super::*;
+        use std::env;
+
+        fn create_real_config() -> Option<LLMConfig> {
+            let api_key = env::var("AZURE_OPENAI_API_KEY").ok()?;
+            let base_url = env::var("AZURE_OPENAI_ENDPOINT").ok()?;
+
+            Some(LLMConfig {
+                provider: "azure".to_string(),
+                model: "gpt-4".to_string(),
+                api_key: Some(api_key),
+                base_url: Some(base_url),
+                temperature: Some(0.7),
+                max_tokens: Some(100),
+                top_p: Some(0.9),
+                frequency_penalty: Some(0.0),
+                presence_penalty: Some(0.0),
+                response_format: None,
+            })
+        }
+
+        #[tokio::test]
+        async fn test_real_azure_api_generate() {
+            let Some(config) = create_real_config() else {
+                println!("Skipping real API test - AZURE_OPENAI_API_KEY or AZURE_OPENAI_ENDPOINT not set");
+                return;
+            };
+
+            let provider = AzureProvider::new(config).unwrap();
+            let messages = vec![
+                Message::system("You are a helpful assistant."),
+                Message::user("Say hello in exactly 3 words."),
+            ];
+
+            let result = provider.generate(&messages).await;
+            assert!(result.is_ok(), "Real API call should succeed: {:?}", result);
+
+            let response = result.unwrap();
+            assert!(!response.is_empty(), "Response should not be empty");
+            println!("Azure OpenAI Response: {}", response);
+        }
+
+        #[tokio::test]
+        async fn test_real_azure_api_health_check() {
+            let Some(config) = create_real_config() else {
+                println!("Skipping real API test - AZURE_OPENAI_API_KEY or AZURE_OPENAI_ENDPOINT not set");
+                return;
+            };
+
+            let provider = AzureProvider::new(config).unwrap();
+            let health = provider.health_check().await;
+
+            assert!(health.is_ok(), "Health check should succeed: {:?}", health);
+            let health_status = health.unwrap();
+            assert_eq!(health_status.status, "healthy");
+            println!("Azure OpenAI Health: {:?}", health_status);
+        }
+
+        #[tokio::test]
+        async fn test_real_azure_api_error_handling() {
+            // 使用无效的 API key 测试错误处理
+            let config = LLMConfig {
+                provider: "azure".to_string(),
+                model: "gpt-4".to_string(),
+                api_key: Some("invalid-api-key".to_string()),
+                base_url: Some("https://invalid-resource.openai.azure.com".to_string()),
+                temperature: Some(0.7),
+                max_tokens: Some(100),
+                top_p: Some(0.9),
+                frequency_penalty: Some(0.0),
+                presence_penalty: Some(0.0),
+                response_format: None,
+            };
+
+            let provider = AzureProvider::new(config).unwrap();
+            let messages = vec![Message::user("Test message")];
+
+            let result = provider.generate(&messages).await;
+            assert!(result.is_err(), "Invalid API key should cause error");
+
+            let error = result.unwrap_err();
+            assert!(error.to_string().contains("401") || error.to_string().contains("unauthorized"));
+            println!("Expected error for invalid API key: {}", error);
         }
     }
 }

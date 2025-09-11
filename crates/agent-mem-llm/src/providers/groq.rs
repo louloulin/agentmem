@@ -71,6 +71,7 @@ pub struct GroqErrorDetail {
 }
 
 /// Groq 提供商
+#[derive(Debug)]
 pub struct GroqProvider {
     config: LLMConfig,
     client: Client,
@@ -184,7 +185,7 @@ impl GroqProvider {
     }
 
     /// 提取响应文本
-    fn extract_response_text(&self, response: &GroqResponse) -> Result<String> {
+    pub fn extract_response_text(&self, response: &GroqResponse) -> Result<String> {
         if response.choices.is_empty() {
             return Err(AgentMemError::llm_error("No choices in response"));
         }

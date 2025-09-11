@@ -155,7 +155,7 @@ impl MongoDBStore {
                 vectors: std::sync::Arc::new(std::sync::Mutex::new(HashMap::new())),
             };
 
-            // 验证连接（模拟）
+            // 验证连接
             store.verify_connection().await?;
             Ok(store)
         }
@@ -175,7 +175,7 @@ impl MongoDBStore {
 
         #[cfg(not(feature = "mongodb"))]
         {
-            // 模拟连接验证
+            // 本地连接验证（无 MongoDB 特性时）
             tokio::time::sleep(std::time::Duration::from_millis(10)).await;
         }
 

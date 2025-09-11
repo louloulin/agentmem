@@ -95,6 +95,7 @@ pub struct TitanResult {
 }
 
 /// AWS Bedrock 提供商
+#[derive(Debug)]
 pub struct BedrockProvider {
     config: LLMConfig,
     client: Client,

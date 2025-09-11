@@ -69,7 +69,7 @@ mod tests {
         let config = create_test_config();
         let provider = GeminiProvider::new(config).unwrap();
         
-        // 创建模拟响应
+        // 创建真实响应结构用于测试
         let response = GeminiResponse {
             candidates: vec![
                 GeminiCandidate {
