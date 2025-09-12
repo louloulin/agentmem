@@ -11,6 +11,7 @@ use crate::{
     config::Mem0Config,
     error::{Mem0Error, Result},
     graph_memory::{GraphMemoryManager, GraphMemoryConfig, FusedMemory},
+    procedural_memory::{ProceduralMemoryManager, ProceduralMemoryConfig, Workflow, WorkflowStep, WorkflowExecution, TaskChain, Task, StepExecutionResult, TaskExecutionResult},
     types::{
         AddMemoryRequest, BatchAddResult, BatchDeleteItem, BatchDeleteRequest, BatchDeleteResult,
         BatchUpdateItem, BatchUpdateRequest, BatchUpdateResult, ChangeType, DeleteMemoryResponse,
@@ -198,6 +199,9 @@ pub struct Mem0Client {
 
     /// Graph memory manager for entity-relation storage
     graph_memory: Option<Arc<GraphMemoryManager>>,
+
+    /// Procedural memory manager for workflow and process memory
+    procedural_memory: Option<Arc<ProceduralMemoryManager>>,
 }
 
 impl Mem0Client {
@@ -249,12 +253,21 @@ impl Mem0Client {
             }
         };
 
+        // Initialize procedural memory manager
+        let procedural_memory = {
+            let procedural_config = ProceduralMemoryConfig::default();
+            let manager = ProceduralMemoryManager::new(procedural_config);
+            info!("Procedural memory manager initialized successfully");
+            Some(Arc::new(manager))
+        };
+
         Ok(Self {
             config,
             memories: Arc::new(DashMap::new()),
             history_cache: Arc::new(DashMap::new()),
             batch_processor,
             graph_memory,
+            procedural_memory,
         })
     }
     
@@ -1241,6 +1254,165 @@ impl Mem0Client {
             graph_memory.reset().await.map_err(|e| e.into())
         } else {
             Err(Mem0Error::ServiceUnavailable("Graph memory manager not available".to_string()))
+        }
+    }
+
+    // ===== 程序性记忆方法 =====
+
+    /// 创建工作流
+    pub async fn create_workflow(
+        &self,
+        name: String,
+        description: String,
+        steps: Vec<WorkflowStep>,
+        created_by: String,
+        tags: Vec<String>,
+    ) -> Result<String> {
+        if let Some(ref procedural_memory) = self.procedural_memory {
+            procedural_memory
+                .create_workflow(name, description, steps, created_by, tags)
+                .await
+                .map_err(|e| e.into())
+        } else {
+            Err(Mem0Error::ServiceUnavailable("Procedural memory manager not available".to_string()))
+        }
+    }
+
+    /// 获取工作流
+    pub async fn get_workflow(&self, workflow_id: &str) -> Result<Option<Workflow>> {
+        if let Some(ref procedural_memory) = self.procedural_memory {
+            procedural_memory
+                .get_workflow(workflow_id)
+                .await
+                .map_err(|e| e.into())
+        } else {
+            Err(Mem0Error::ServiceUnavailable("Procedural memory manager not available".to_string()))
+        }
+    }
+
+    /// 列出所有工作流
+    pub async fn list_workflows(&self, tags: Option<Vec<String>>) -> Result<Vec<Workflow>> {
+        if let Some(ref procedural_memory) = self.procedural_memory {
+            procedural_memory
+                .list_workflows(tags)
+                .await
+                .map_err(|e| e.into())
+        } else {
+            Err(Mem0Error::ServiceUnavailable("Procedural memory manager not available".to_string()))
+        }
+    }
+
+    /// 开始执行工作流
+    pub async fn start_workflow_execution(
+        &self,
+        workflow_id: String,
+        executor: String,
+        session: Session,
+        initial_context: Option<std::collections::HashMap<String, serde_json::Value>>,
+    ) -> Result<String> {
+        if let Some(ref procedural_memory) = self.procedural_memory {
+            procedural_memory
+                .start_workflow_execution(workflow_id, executor, session, initial_context)
+                .await
+                .map_err(|e| e.into())
+        } else {
+            Err(Mem0Error::ServiceUnavailable("Procedural memory manager not available".to_string()))
+        }
+    }
+
+    /// 获取执行状态
+    pub async fn get_execution_status(&self, execution_id: &str) -> Result<Option<WorkflowExecution>> {
+        if let Some(ref procedural_memory) = self.procedural_memory {
+            procedural_memory
+                .get_execution_status(execution_id)
+                .await
+                .map_err(|e| e.into())
+        } else {
+            Err(Mem0Error::ServiceUnavailable("Procedural memory manager not available".to_string()))
+        }
+    }
+
+    /// 执行下一步
+    pub async fn execute_next_step(&self, execution_id: &str) -> Result<StepExecutionResult> {
+        if let Some(ref procedural_memory) = self.procedural_memory {
+            procedural_memory
+                .execute_next_step(execution_id)
+                .await
+                .map_err(|e| e.into())
+        } else {
+            Err(Mem0Error::ServiceUnavailable("Procedural memory manager not available".to_string()))
+        }
+    }
+
+    /// 创建任务链
+    pub async fn create_task_chain(&self, name: String, tasks: Vec<Task>) -> Result<String> {
+        if let Some(ref procedural_memory) = self.procedural_memory {
+            procedural_memory
+                .create_task_chain(name, tasks)
+                .await
+                .map_err(|e| e.into())
+        } else {
+            Err(Mem0Error::ServiceUnavailable("Procedural memory manager not available".to_string()))
+        }
+    }
+
+    /// 获取任务链
+    pub async fn get_task_chain(&self, chain_id: &str) -> Result<Option<TaskChain>> {
+        if let Some(ref procedural_memory) = self.procedural_memory {
+            procedural_memory
+                .get_task_chain(chain_id)
+                .await
+                .map_err(|e| e.into())
+        } else {
+            Err(Mem0Error::ServiceUnavailable("Procedural memory manager not available".to_string()))
+        }
+    }
+
+    /// 执行任务链中的下一个任务
+    pub async fn execute_next_task(&self, chain_id: &str) -> Result<TaskExecutionResult> {
+        if let Some(ref procedural_memory) = self.procedural_memory {
+            procedural_memory
+                .execute_next_task(chain_id)
+                .await
+                .map_err(|e| e.into())
+        } else {
+            Err(Mem0Error::ServiceUnavailable("Procedural memory manager not available".to_string()))
+        }
+    }
+
+    /// 列出所有任务链
+    pub async fn list_task_chains(&self) -> Result<Vec<TaskChain>> {
+        if let Some(ref procedural_memory) = self.procedural_memory {
+            procedural_memory
+                .list_task_chains()
+                .await
+                .map_err(|e| e.into())
+        } else {
+            Err(Mem0Error::ServiceUnavailable("Procedural memory manager not available".to_string()))
+        }
+    }
+
+    /// 暂停任务链
+    pub async fn pause_task_chain(&self, chain_id: &str) -> Result<()> {
+        if let Some(ref procedural_memory) = self.procedural_memory {
+            procedural_memory
+                .pause_task_chain(chain_id)
+                .await
+                .map_err(|e| e.into())
+        } else {
+            Err(Mem0Error::ServiceUnavailable("Procedural memory manager not available".to_string()))
+        }
+    }
+
+    /// 恢复任务链
+    pub async fn resume_task_chain(&self, chain_id: &str) -> Result<()> {
+        if let Some(ref procedural_memory) = self.procedural_memory {
+            procedural_memory
+                .resume_task_chain(chain_id)
+                .await
+                .map_err(|e| e.into())
+        } else {
+            Err(Mem0Error::ServiceUnavailable("Procedural memory manager not available".to_string()))
         }
     }
 }

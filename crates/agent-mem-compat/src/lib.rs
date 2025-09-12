@@ -34,6 +34,7 @@
 pub mod client;
 pub mod config;
 pub mod graph_memory;
+pub mod procedural_memory;
 pub mod types;
 pub mod error;
 pub mod utils;
@@ -45,6 +46,11 @@ mod tests;
 pub use client::Mem0Client;
 pub use config::Mem0Config;
 pub use graph_memory::{GraphMemoryManager, GraphMemoryConfig, FusedMemory};
+pub use procedural_memory::{
+    ProceduralMemoryManager, ProceduralMemoryConfig, Workflow, WorkflowStep, WorkflowExecution,
+    TaskChain, Task, StepType, StepStatus, ExecutionStatus, ChainStatus, TaskStatus, TaskPriority,
+    StepExecutionResult, TaskExecutionResult,
+};
 pub use types::{
     AddMemoryRequest, BatchAddResult, BatchDeleteItem, BatchDeleteRequest, BatchDeleteResult,
     BatchUpdateItem, BatchUpdateRequest, BatchUpdateResult, ChangeType, DeleteMemoryResponse,
