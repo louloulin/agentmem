@@ -471,6 +471,7 @@ mod tests {
 }
 
 /// 真实的 LLM 提供商工厂，用于替换 Mock 实现
+/// 提供健康检查、重试机制和降级策略
 pub struct RealLLMFactory;
 
 impl RealLLMFactory {
@@ -538,6 +539,8 @@ impl RealLLMFactory {
                 Self::validate_provider(&provider).await?;
                 Ok(Arc::new(provider))
             },
+            // LiteLLM 需要特殊配置，暂时跳过
+            // "litellm" => { ... },
             _ => Err(AgentMemError::config_error(&format!("Unsupported LLM provider: {}", config.provider)))
         }
     }
@@ -574,10 +577,14 @@ impl RealLLMFactory {
 
     /// 验证提供商连接
     async fn validate_provider(provider: &dyn LLMProvider) -> Result<()> {
-        use agent_mem_traits::Message;
+        use agent_mem_traits::{Message, MessageRole};
 
         let test_messages = vec![
-            Message::user("Hello")
+            Message {
+                role: MessageRole::User,
+                content: "Hello".to_string(),
+                timestamp: None,
+            }
         ];
 
         // 尝试简单的生成请求来验证连接
@@ -598,5 +605,33 @@ impl RealLLMFactory {
                 Err(AgentMemError::llm_error("Provider validation timeout"))
             }
         }
+    }
+
+    /// 创建带重试机制的 LLM 提供商
+    pub async fn create_with_retry(config: &LLMConfig, max_retries: u32) -> Result<Arc<dyn LLMProvider + Send + Sync>> {
+        let mut last_error = None;
+
+        for attempt in 1..=max_retries {
+            info!("Attempting to create LLM provider (attempt {}/{})", attempt, max_retries);
+
+            match Self::create_with_fallback(config).await {
+                Ok(provider) => {
+                    info!("✅ Successfully created LLM provider on attempt {}", attempt);
+                    return Ok(provider);
+                },
+                Err(e) => {
+                    warn!("❌ Failed to create LLM provider on attempt {}: {}", attempt, e);
+                    last_error = Some(e);
+
+                    if attempt < max_retries {
+                        let delay = std::time::Duration::from_secs(2_u64.pow(attempt - 1)); // 指数退避
+                        info!("⏳ Waiting {:?} before retry...", delay);
+                        tokio::time::sleep(delay).await;
+                    }
+                }
+            }
+        }
+
+        Err(last_error.unwrap_or_else(|| AgentMemError::config_error("Failed to create LLM provider after all retries")))
     }
 }

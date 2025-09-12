@@ -48,6 +48,8 @@ members = [
     "examples/client-server-integration-test",
     "examples/intelligent-reasoning-demo",
     "examples/litellm-demo",
+    "examples/embedding-demo",
+    "examples/vector-store-demo",
     "examples/deepseek-test",
     "examples/multimodal-demo",
     "examples/intelligence-demo",

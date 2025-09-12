@@ -12,15 +12,15 @@ use agent_mem_intelligence::{
     decision_engine::{MemoryDecisionEngine, ExistingMemory},
     conflict_resolution::{ConflictResolver, ConflictResolverConfig},
     importance_evaluator::{ImportanceEvaluator, ImportanceEvaluatorConfig},
+    intelligent_processor::IntelligentMemoryProcessor,
 };
-use agent_mem_traits::{Message, MessageRole, MemoryItem, Session, MemoryType, LLMConfig};
-use agent_mem_llm::providers::OllamaProvider;
+use agent_mem_llm::factory::RealLLMFactory;
+use agent_mem_traits::{Message, MessageRole, MemoryItem, Session, MemoryType, LLMConfig, ProcessingResult};
 use anyhow::Result;
 use chrono::Utc;
-use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::info;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 #[tokio::main]
@@ -43,28 +43,77 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-/// 创建真实的 LLM 提供商
+/// 创建真实的 LLM 提供商（移除 Mock 降级）
 async fn create_llm_provider() -> Arc<dyn agent_mem_traits::LLMProvider + Send + Sync> {
-    let llm_config = LLMConfig {
-        provider: "ollama".to_string(),
-        model: "gpt-oss:20b".to_string(),
-        api_key: None,
-        base_url: Some("http://localhost:11434".to_string()),
-        temperature: Some(0.7),
-        max_tokens: Some(4000),
-        top_p: None,
-        frequency_penalty: None,
-        presence_penalty: None,
-        response_format: None,
-    };
 
-    match OllamaProvider::new(llm_config) {
-        Ok(provider) => Arc::new(provider) as Arc<dyn agent_mem_traits::LLMProvider + Send + Sync>,
-        Err(e) => {
-            info!("⚠️ 无法连接到 Ollama，使用 MockLLMProvider: {}", e);
-            Arc::new(MockLLMProvider) as Arc<dyn agent_mem_traits::LLMProvider + Send + Sync>
+
+    // 尝试多个提供商的配置，按优先级排序
+    let provider_configs = vec![
+        // 1. 尝试 Ollama (本地)
+        LLMConfig {
+            provider: "ollama".to_string(),
+            model: "llama3.2:3b".to_string(),
+            api_key: None,
+            base_url: Some("http://localhost:11434".to_string()),
+            temperature: Some(0.7),
+            max_tokens: Some(4000),
+            top_p: None,
+            frequency_penalty: None,
+            presence_penalty: None,
+            response_format: None,
+        },
+        // 2. 尝试 OpenAI (如果有 API key)
+        LLMConfig {
+            provider: "openai".to_string(),
+            model: "gpt-3.5-turbo".to_string(),
+            api_key: std::env::var("OPENAI_API_KEY").ok(),
+            base_url: None,
+            temperature: Some(0.7),
+            max_tokens: Some(4000),
+            top_p: None,
+            frequency_penalty: None,
+            presence_penalty: None,
+            response_format: None,
+        },
+        // 3. 尝试 Anthropic (如果有 API key)
+        LLMConfig {
+            provider: "anthropic".to_string(),
+            model: "claude-3-haiku-20240307".to_string(),
+            api_key: std::env::var("ANTHROPIC_API_KEY").ok(),
+            base_url: None,
+            temperature: Some(0.7),
+            max_tokens: Some(4000),
+            top_p: None,
+            frequency_penalty: None,
+            presence_penalty: None,
+            response_format: None,
+        },
+    ];
+
+    // 尝试每个配置，直到找到可用的提供商
+    for config in provider_configs {
+        // 跳过没有 API key 的云提供商
+        if (config.provider == "openai" || config.provider == "anthropic") && config.api_key.is_none() {
+            continue;
+        }
+
+        match RealLLMFactory::create_with_retry(&config, 3).await {
+            Ok(provider) => {
+                info!("✅ 成功创建 LLM 提供商: {}", config.provider);
+                return provider;
+            }
+            Err(e) => {
+                warn!("❌ 无法创建 {} 提供商: {}", config.provider, e);
+                continue;
+            }
         }
     }
+
+    // 如果所有提供商都失败，返回错误而不是 Mock
+    panic!("❌ 无法创建任何 LLM 提供商。请确保：\n\
+           1. Ollama 服务正在运行 (http://localhost:11434)\n\
+           2. 或设置 OPENAI_API_KEY 环境变量\n\
+           3. 或设置 ANTHROPIC_API_KEY 环境变量");
 }
 
 /// 演示高级事实提取功能
@@ -326,126 +375,4 @@ fn create_test_memory(content: &str, importance: f32) -> MemoryItem {
     }
 }
 
-/// 模拟 LLM 提供者
-struct MockLLMProvider;
-
-#[async_trait::async_trait]
-impl agent_mem_traits::LLMProvider for MockLLMProvider {
-    async fn generate(&self, messages: &[Message]) -> agent_mem_traits::Result<String> {
-        // 根据请求内容返回不同的响应格式
-        let prompt = &messages[0].content;
-
-        if prompt.contains("Extract structured facts") || prompt.contains("Extract key facts") {
-            // 事实提取响应
-            Ok(json!({
-                "facts": [
-                    {
-                        "content": "用户基本信息已记录",
-                        "confidence": 0.9,
-                        "category": "Personal",
-                        "entities": [],
-                        "temporal_info": null,
-                        "source_message_id": "0",
-                        "metadata": {}
-                    }
-                ],
-                "confidence": 0.9,
-                "reasoning": "成功提取用户基本信息"
-            }).to_string())
-        } else if prompt.contains("Make memory decisions") || prompt.contains("decision") {
-            // 决策引擎响应
-            Ok(json!({
-                "decisions": [
-                    {
-                        "action": {
-                            "Add": {
-                                "content": "用户基本信息：张三，30岁，软件工程师，住在北京",
-                                "importance": 0.8,
-                                "metadata": {}
-                            }
-                        },
-                        "confidence": 0.85,
-                        "reasoning": "重要的用户信息需要存储",
-                        "affected_memories": [],
-                        "estimated_impact": 0.7
-                    }
-                ],
-                "overall_confidence": 0.85,
-                "reasoning": "基于内容重要性和用户偏好的决策"
-            }).to_string())
-        } else if prompt.contains("Detect conflicts") || prompt.contains("conflict") {
-            // 冲突解决响应
-            Ok(json!({
-                "conflicts": [],
-                "confidence": 0.95,
-                "reasoning": "未检测到冲突"
-            }).to_string())
-        } else if prompt.contains("Evaluate importance") || prompt.contains("importance") {
-            // 重要性评估响应
-            Ok(json!({
-                "importance_score": 0.8,
-                "confidence": 0.9,
-                "factors": [
-                    {
-                        "factor_type": "Content",
-                        "score": 0.8,
-                        "reasoning": "包含重要的用户信息"
-                    }
-                ],
-                "evaluated_at": "2025-09-09T12:55:00Z",
-                "reasoning": "重要的用户信息"
-            }).to_string())
-        } else {
-            // 默认响应 - 假设是事实提取
-            Ok(json!({
-                "facts": [
-                    {
-                        "content": "用户基本信息已记录",
-                        "confidence": 0.9,
-                        "category": "Personal",
-                        "entities": [],
-                        "temporal_info": null,
-                        "source_message_id": "0",
-                        "metadata": {}
-                    }
-                ],
-                "confidence": 0.9,
-                "reasoning": "成功提取用户基本信息"
-            }).to_string())
-        }
-    }
-
-    async fn generate_stream(
-        &self,
-        _messages: &[Message],
-    ) -> agent_mem_traits::Result<Box<dyn futures::Stream<Item = agent_mem_traits::Result<String>> + Send + Unpin>> {
-        use std::pin::Pin;
-        use std::task::{Context, Poll};
-        
-        struct EmptyStream;
-        
-        impl futures::Stream for EmptyStream {
-            type Item = agent_mem_traits::Result<String>;
-            
-            fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-                Poll::Ready(None)
-            }
-        }
-        
-        Ok(Box::new(EmptyStream))
-    }
-
-    fn get_model_info(&self) -> agent_mem_traits::ModelInfo {
-        agent_mem_traits::ModelInfo {
-            provider: "mock".to_string(),
-            model: "mock-model".to_string(),
-            max_tokens: 4096,
-            supports_streaming: false,
-            supports_functions: false,
-        }
-    }
-
-    fn validate_config(&self) -> agent_mem_traits::Result<()> {
-        Ok(())
-    }
-}
+// MockLLMProvider 已移除 - 现在只使用真实的 LLM 提供商

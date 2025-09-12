@@ -2,7 +2,7 @@
 
 use crate::config::EmbeddingConfig;
 use crate::providers::{
-    AnthropicEmbedder, CohereEmbedder, HuggingFaceEmbedder, LocalEmbedder, OpenAIEmbedder,
+    CohereEmbedder, HuggingFaceEmbedder, LocalEmbedder, OpenAIEmbedder,
 };
 use agent_mem_traits::{AgentMemError, Embedder, Result};
 use async_trait::async_trait;
@@ -15,8 +15,6 @@ pub enum EmbedderEnum {
     HuggingFace(HuggingFaceEmbedder),
     #[cfg(feature = "local")]
     Local(LocalEmbedder),
-    #[cfg(feature = "anthropic")]
-    Anthropic(AnthropicEmbedder),
     #[cfg(feature = "cohere")]
     Cohere(CohereEmbedder),
 }
@@ -30,8 +28,6 @@ impl Embedder for EmbedderEnum {
             EmbedderEnum::HuggingFace(embedder) => embedder.embed(text).await,
             #[cfg(feature = "local")]
             EmbedderEnum::Local(embedder) => embedder.embed(text).await,
-            #[cfg(feature = "anthropic")]
-            EmbedderEnum::Anthropic(embedder) => embedder.embed(text).await,
             #[cfg(feature = "cohere")]
             EmbedderEnum::Cohere(embedder) => embedder.embed(text).await,
         }
@@ -44,8 +40,6 @@ impl Embedder for EmbedderEnum {
             EmbedderEnum::HuggingFace(embedder) => embedder.embed_batch(texts).await,
             #[cfg(feature = "local")]
             EmbedderEnum::Local(embedder) => embedder.embed_batch(texts).await,
-            #[cfg(feature = "anthropic")]
-            EmbedderEnum::Anthropic(embedder) => embedder.embed_batch(texts).await,
             #[cfg(feature = "cohere")]
             EmbedderEnum::Cohere(embedder) => embedder.embed_batch(texts).await,
         }
@@ -58,8 +52,6 @@ impl Embedder for EmbedderEnum {
             EmbedderEnum::HuggingFace(embedder) => embedder.dimension(),
             #[cfg(feature = "local")]
             EmbedderEnum::Local(embedder) => embedder.dimension(),
-            #[cfg(feature = "anthropic")]
-            EmbedderEnum::Anthropic(embedder) => embedder.dimension(),
             #[cfg(feature = "cohere")]
             EmbedderEnum::Cohere(embedder) => embedder.dimension(),
         }
@@ -72,8 +64,6 @@ impl Embedder for EmbedderEnum {
             EmbedderEnum::HuggingFace(embedder) => embedder.provider_name(),
             #[cfg(feature = "local")]
             EmbedderEnum::Local(embedder) => embedder.provider_name(),
-            #[cfg(feature = "anthropic")]
-            EmbedderEnum::Anthropic(embedder) => embedder.provider_name(),
             #[cfg(feature = "cohere")]
             EmbedderEnum::Cohere(embedder) => embedder.provider_name(),
         }
@@ -96,8 +86,6 @@ impl Embedder for EmbedderEnum {
             EmbedderEnum::HuggingFace(embedder) => embedder.health_check().await,
             #[cfg(feature = "local")]
             EmbedderEnum::Local(embedder) => embedder.health_check().await,
-            #[cfg(feature = "anthropic")]
-            EmbedderEnum::Anthropic(embedder) => embedder.health_check().await,
             #[cfg(feature = "cohere")]
             EmbedderEnum::Cohere(embedder) => embedder.health_check().await,
         }
@@ -106,6 +94,9 @@ impl Embedder for EmbedderEnum {
 
 /// 嵌入工厂，用于创建不同的嵌入提供商实例
 pub struct EmbeddingFactory;
+
+/// 真实嵌入工厂，提供健康检查和重试机制
+pub struct RealEmbeddingFactory;
 
 impl EmbeddingFactory {
     /// 根据配置创建嵌入器实例
@@ -147,17 +138,9 @@ impl EmbeddingFactory {
                 }
             }
             "anthropic" => {
-                #[cfg(feature = "anthropic")]
-                {
-                    let embedder = AnthropicEmbedder::new(config.clone()).await?;
-                    EmbedderEnum::Anthropic(embedder)
-                }
-                #[cfg(not(feature = "anthropic"))]
-                {
-                    return Err(AgentMemError::unsupported_provider(
-                        "Anthropic feature not enabled",
-                    ));
-                }
+                return Err(AgentMemError::unsupported_provider(
+                    "Anthropic does not provide a dedicated embedding API. Please use OpenAI, HuggingFace, Cohere, or Local embeddings instead.",
+                ));
             }
             "cohere" => {
                 #[cfg(feature = "cohere")]
@@ -395,5 +378,150 @@ mod tests {
         let config = EmbeddingConfig::openai(None);
         let result = EmbeddingFactory::create_embedder(&config).await;
         assert!(result.is_err());
+    }
+}
+
+impl RealEmbeddingFactory {
+    /// 创建嵌入提供商，带有健康检查和重试机制
+    pub async fn create_with_retry(
+        config: &EmbeddingConfig,
+        max_retries: u32,
+    ) -> Result<Arc<dyn Embedder + Send + Sync>> {
+        for attempt in 1..=max_retries {
+            match Self::create_with_fallback(config).await {
+                Ok(embedder) => {
+                    // 验证嵌入提供商
+                    if let Err(e) = Self::validate_embedder(&embedder).await {
+                        tracing::warn!(
+                            "Embedder validation failed on attempt {}: {}",
+                            attempt,
+                            e
+                        );
+                        if attempt < max_retries {
+                            let delay = std::time::Duration::from_secs(2_u64.pow(attempt - 1));
+                            tokio::time::sleep(delay).await;
+                            continue;
+                        }
+                        return Err(e);
+                    }
+                    return Ok(embedder);
+                }
+                Err(e) => {
+                    tracing::warn!("Embedder creation failed on attempt {}: {}", attempt, e);
+                    if attempt < max_retries {
+                        let delay = std::time::Duration::from_secs(2_u64.pow(attempt - 1));
+                        tokio::time::sleep(delay).await;
+                    } else {
+                        return Err(e);
+                    }
+                }
+            }
+        }
+
+        Err(AgentMemError::config_error("Failed to create embedder after all retries"))
+    }
+
+    /// 创建嵌入提供商，带有回退机制
+    pub async fn create_with_fallback(
+        config: &EmbeddingConfig,
+    ) -> Result<Arc<dyn Embedder + Send + Sync>> {
+        // 首先尝试主要配置
+        match EmbeddingFactory::create_embedder(config).await {
+            Ok(embedder) => Ok(embedder),
+            Err(e) => {
+                tracing::warn!("Primary embedder creation failed: {}", e);
+
+                // 如果主要提供商失败，尝试回退到OpenAI
+                if config.provider != "openai" {
+                    tracing::info!("Attempting fallback to OpenAI embeddings");
+                    let fallback_config = EmbeddingConfig {
+                        provider: "openai".to_string(),
+                        model: "text-embedding-3-small".to_string(),
+                        api_key: config.api_key.clone(),
+                        dimension: config.dimension,
+                        ..Default::default()
+                    };
+
+                    match EmbeddingFactory::create_embedder(&fallback_config).await {
+                        Ok(embedder) => {
+                            tracing::info!("Successfully created fallback OpenAI embedder");
+                            Ok(embedder)
+                        }
+                        Err(fallback_err) => {
+                            tracing::error!("Fallback embedder creation also failed: {}", fallback_err);
+                            Err(e) // 返回原始错误
+                        }
+                    }
+                } else {
+                    Err(e)
+                }
+            }
+        }
+    }
+
+    /// 验证嵌入提供商是否正常工作
+    async fn validate_embedder(embedder: &Arc<dyn Embedder + Send + Sync>) -> Result<()> {
+        // 健康检查
+        let health_check_timeout = std::time::Duration::from_secs(10);
+        let health_result = tokio::time::timeout(
+            health_check_timeout,
+            embedder.health_check()
+        ).await;
+
+        match health_result {
+            Ok(Ok(true)) => {
+                tracing::debug!("Embedder health check passed");
+            }
+            Ok(Ok(false)) => {
+                return Err(AgentMemError::config_error("Embedder health check failed"));
+            }
+            Ok(Err(e)) => {
+                return Err(AgentMemError::config_error(&format!("Embedder health check error: {}", e)));
+            }
+            Err(_) => {
+                return Err(AgentMemError::config_error("Embedder health check timeout"));
+            }
+        }
+
+        // 测试嵌入生成
+        let test_text = "test embedding";
+        let embed_timeout = std::time::Duration::from_secs(30);
+        let embed_result = tokio::time::timeout(
+            embed_timeout,
+            embedder.embed(test_text)
+        ).await;
+
+        match embed_result {
+            Ok(Ok(embedding)) => {
+                if embedding.is_empty() {
+                    return Err(AgentMemError::config_error("Embedder returned empty embedding"));
+                }
+                if embedding.len() != embedder.dimension() {
+                    return Err(AgentMemError::config_error(&format!(
+                        "Embedding dimension mismatch: expected {}, got {}",
+                        embedder.dimension(),
+                        embedding.len()
+                    )));
+                }
+                tracing::debug!("Embedder test embedding successful");
+                Ok(())
+            }
+            Ok(Err(e)) => {
+                Err(AgentMemError::config_error(&format!("Embedder test embedding failed: {}", e)))
+            }
+            Err(_) => {
+                Err(AgentMemError::config_error("Embedder test embedding timeout"))
+            }
+        }
+    }
+
+    /// 获取支持的嵌入提供商列表
+    pub fn supported_providers() -> Vec<&'static str> {
+        vec!["openai", "huggingface", "local", "cohere"]
+    }
+
+    /// 检查提供商是否受支持
+    pub fn is_provider_supported(provider: &str) -> bool {
+        Self::supported_providers().contains(&provider)
     }
 }

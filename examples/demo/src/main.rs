@@ -257,15 +257,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         LLMFactory::supported_providers()
     );
 
-    // 创建一个模拟的LLM配置（不会实际调用API）
+    // 创建真实的LLM配置（从环境变量读取）
     let llm_config = LLMConfig {
-        provider: "openai".to_string(),
-        model: "gpt-3.5-turbo".to_string(),
-        api_key: Some("demo-key".to_string()),
+        provider: std::env::var("LLM_PROVIDER").unwrap_or_else(|_| "openai".to_string()),
+        model: std::env::var("LLM_MODEL").unwrap_or_else(|_| "gpt-3.5-turbo".to_string()),
+        api_key: std::env::var("OPENAI_API_KEY").ok(),
         temperature: Some(0.7),
         max_tokens: Some(1000),
         ..Default::default()
     };
+
+    // 如果没有API密钥，显示提示信息
+    if llm_config.api_key.is_none() {
+        println!("   ⚠️  No API key found. Set OPENAI_API_KEY environment variable for real LLM calls.");
+        println!("   📝 Demo will continue with model info display only.");
+    }
 
     // 创建LLM客户端
     let llm_client = LLMClient::new(&llm_config)?;

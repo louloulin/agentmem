@@ -15,7 +15,7 @@ pub mod providers;
 pub mod utils;
 
 pub use config::EmbeddingConfig;
-pub use factory::EmbeddingFactory;
+pub use factory::{EmbeddingFactory, RealEmbeddingFactory};
 
 // 重新导出常用类型
 pub use agent_mem_traits::{AgentMemError, Embedder, Result};

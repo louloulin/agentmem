@@ -81,29 +81,30 @@ struct MilvusSearchResult {
 }
 
 /// Milvus field data
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct MilvusFieldData {
     field_name: String,
     #[serde(rename = "type")]
     field_type: i32,
     scalars: Option<MilvusScalars>,
+    vectors: Option<MilvusVectorData>,
 }
 
 /// Milvus scalar data
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct MilvusScalars {
     string_data: Option<MilvusStringData>,
     long_data: Option<MilvusLongData>,
 }
 
 /// Milvus string data
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct MilvusStringData {
     data: Vec<String>,
 }
 
 /// Milvus long data
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct MilvusLongData {
     data: Vec<i64>,
 }
@@ -113,6 +114,25 @@ struct MilvusLongData {
 struct MilvusStatus {
     error_code: i32,
     reason: String,
+}
+
+/// Milvus query response
+#[derive(Debug, Deserialize)]
+struct MilvusQueryResponse {
+    status: MilvusStatus,
+    results: Vec<MilvusQueryResult>,
+}
+
+/// Milvus query result
+#[derive(Debug, Deserialize)]
+struct MilvusQueryResult {
+    fields_data: Vec<MilvusFieldData>,
+}
+
+/// Milvus vector field data
+#[derive(Debug, Serialize, Deserialize)]
+struct MilvusVectorData {
+    data: Vec<Vec<f32>>,
 }
 
 /// Milvus collection schema
@@ -575,8 +595,31 @@ impl EmbeddingVectorStore for MilvusStore {
 
         if response.status().is_success() {
             // Parse response and extract embedding
-            // This is a simplified implementation
-            Ok(None) // TODO: Implement proper embedding extraction
+            let query_response: MilvusQueryResponse = response.json().await
+                .map_err(|e| AgentMemError::parsing_error(&format!("Failed to parse query response: {}", e)))?;
+
+            if query_response.status.error_code != 0 {
+                return Err(AgentMemError::storage_error(&format!(
+                    "Milvus query failed: {}",
+                    query_response.status.reason
+                )));
+            }
+
+            // Extract embedding from results
+            if let Some(result) = query_response.results.first() {
+                for field_data in &result.fields_data {
+                    if field_data.field_name == "embedding" {
+                        // Check if this field contains vector data
+                        if let Some(vectors) = &field_data.vectors {
+                            if let Some(embedding) = vectors.data.first() {
+                                return Ok(Some(embedding.clone()));
+                            }
+                        }
+                    }
+                }
+            }
+
+            Ok(None) // No embedding found
         } else if response.status().as_u16() == 404 {
             Ok(None)
         } else {
@@ -618,8 +661,32 @@ impl EmbeddingVectorStore for MilvusStore {
 
         if response.status().is_success() {
             // Parse response and extract memory IDs
-            // This is a simplified implementation
-            Ok(Vec::new()) // TODO: Implement proper ID extraction
+            let query_response: MilvusQueryResponse = response.json().await
+                .map_err(|e| AgentMemError::parsing_error(&format!("Failed to parse list response: {}", e)))?;
+
+            if query_response.status.error_code != 0 {
+                return Err(AgentMemError::storage_error(&format!(
+                    "Milvus list query failed: {}",
+                    query_response.status.reason
+                )));
+            }
+
+            let mut memory_ids = Vec::new();
+
+            // Extract memory IDs from results
+            if let Some(result) = query_response.results.first() {
+                for field_data in &result.fields_data {
+                    if field_data.field_name == "memory_id" {
+                        if let Some(scalars) = &field_data.scalars {
+                            if let Some(string_data) = &scalars.string_data {
+                                memory_ids.extend(string_data.data.clone());
+                            }
+                        }
+                    }
+                }
+            }
+
+            Ok(memory_ids)
         } else {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_default();
