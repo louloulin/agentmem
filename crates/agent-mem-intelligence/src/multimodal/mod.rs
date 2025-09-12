@@ -7,6 +7,10 @@ pub mod audio;
 pub mod video;
 pub mod text;
 
+// 真实处理器模块
+pub mod real_image;
+pub mod real_audio;
+
 use serde::{Deserialize, Serialize};
 use agent_mem_traits::{AgentMemError, Result};
 use std::collections::HashMap;
