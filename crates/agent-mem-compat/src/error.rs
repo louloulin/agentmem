@@ -59,6 +59,14 @@ pub enum Mem0Error {
     /// Permission denied
     #[error("Permission denied: {message}")]
     PermissionDenied { message: String },
+
+    /// Resource not found
+    #[error("Not found: {0}")]
+    NotFound(String),
+
+    /// Service unavailable
+    #[error("Service unavailable: {0}")]
+    ServiceUnavailable(String),
 }
 
 impl From<agent_mem_traits::AgentMemError> for Mem0Error {

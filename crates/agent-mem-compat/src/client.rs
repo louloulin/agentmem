@@ -10,6 +10,7 @@
 use crate::{
     config::Mem0Config,
     error::{Mem0Error, Result},
+    graph_memory::{GraphMemoryManager, GraphMemoryConfig, FusedMemory},
     types::{
         AddMemoryRequest, BatchAddResult, BatchDeleteItem, BatchDeleteRequest, BatchDeleteResult,
         BatchUpdateItem, BatchUpdateRequest, BatchUpdateResult, ChangeType, DeleteMemoryResponse,
@@ -194,6 +195,9 @@ pub struct Mem0Client {
 
     /// Batch processor for concurrent operations
     batch_processor: Option<Arc<BatchProcessor>>,
+
+    /// Graph memory manager for entity-relation storage
+    graph_memory: Option<Arc<GraphMemoryManager>>,
 }
 
 impl Mem0Client {
@@ -233,11 +237,24 @@ impl Mem0Client {
             }
         };
 
+        // Initialize graph memory manager
+        let graph_memory = match GraphMemoryManager::new(GraphMemoryConfig::default()).await {
+            Ok(manager) => {
+                info!("Graph memory manager initialized successfully");
+                Some(Arc::new(manager))
+            }
+            Err(e) => {
+                warn!("Failed to initialize graph memory manager: {}, graph features will be disabled", e);
+                None
+            }
+        };
+
         Ok(Self {
             config,
             memories: Arc::new(DashMap::new()),
             history_cache: Arc::new(DashMap::new()),
             batch_processor,
+            graph_memory,
         })
     }
     
@@ -1129,5 +1146,104 @@ impl Mem0Client {
         })
     }
 
+    /// Search graph memories using entity-relation queries
+    pub async fn search_graph(&self, query: &str, user_id: &str) -> Result<Vec<GraphResult>> {
+        if let Some(ref graph_memory) = self.graph_memory {
+            let session = Session {
+                id: format!("graph_search_{}", generate_memory_id()),
+                user_id: Some(user_id.to_string()),
+                agent_id: Some("mem0_client".to_string()),
+                run_id: None,
+                actor_id: None,
+                created_at: Utc::now(),
+                metadata: std::collections::HashMap::new(),
+            };
 
+            graph_memory.search_graph(query, &session).await.map_err(|e| e.into())
+        } else {
+            warn!("Graph memory manager not available");
+            Ok(Vec::new())
+        }
+    }
+
+    /// Get entity neighbors from graph
+    pub async fn get_entity_neighbors(&self, entity_id: &str, depth: Option<usize>) -> Result<Vec<Entity>> {
+        if let Some(ref graph_memory) = self.graph_memory {
+            graph_memory.get_entity_neighbors(entity_id, depth).await.map_err(|e| e.into())
+        } else {
+            warn!("Graph memory manager not available");
+            Ok(Vec::new())
+        }
+    }
+
+    /// Fuse multiple memories using graph-based intelligence
+    pub async fn fuse_memories(&self, memory_ids: &[String], user_id: &str) -> Result<FusedMemory> {
+        if let Some(ref graph_memory) = self.graph_memory {
+            // Get memory contents
+            let mut memory_contents = Vec::new();
+            for memory_id in memory_ids {
+                if let Some(memory) = self.memories.get(memory_id) {
+                    memory_contents.push(memory.memory.clone());
+                }
+            }
+
+            if memory_contents.is_empty() {
+                return Err(Mem0Error::NotFound("No valid memories found for fusion".to_string()));
+            }
+
+            let session = Session {
+                id: format!("memory_fusion_{}", generate_memory_id()),
+                user_id: Some(user_id.to_string()),
+                agent_id: Some("mem0_client".to_string()),
+                run_id: None,
+                actor_id: None,
+                created_at: Utc::now(),
+                metadata: std::collections::HashMap::new(),
+            };
+
+            graph_memory.fuse_memories(&memory_contents, &session).await.map_err(|e| e.into())
+        } else {
+            Err(Mem0Error::ServiceUnavailable("Graph memory manager not available".to_string()))
+        }
+    }
+
+    /// Add memory with automatic graph extraction
+    pub async fn add_with_graph_extraction(&self, content: &str, user_id: &str, metadata: Option<HashMap<String, serde_json::Value>>) -> Result<String> {
+        // First add the memory normally
+        let memory_id = self.add(content, user_id, metadata).await?;
+
+        // Then extract entities and relations to graph
+        if let Some(ref graph_memory) = self.graph_memory {
+            let session = Session {
+                id: format!("graph_extraction_{}", memory_id),
+                user_id: Some(user_id.to_string()),
+                agent_id: Some("mem0_client".to_string()),
+                run_id: None,
+                actor_id: None,
+                created_at: Utc::now(),
+                metadata: std::collections::HashMap::new(),
+            };
+
+            if let Err(e) = graph_memory.add_memory_to_graph(content, &session).await {
+                warn!("Failed to extract entities/relations for memory {}: {}", memory_id, e);
+                // Don't fail the entire operation, just log the warning
+            } else {
+                info!("Successfully extracted entities/relations for memory {}", memory_id);
+            }
+        }
+
+        Ok(memory_id)
+    }
+
+    /// Reset graph database (for testing)
+    pub async fn reset_graph(&self) -> Result<()> {
+        if let Some(ref graph_memory) = self.graph_memory {
+            graph_memory.reset().await.map_err(|e| e.into())
+        } else {
+            Err(Mem0Error::ServiceUnavailable("Graph memory manager not available".to_string()))
+        }
+    }
 }
+
+// Import required types for graph functionality
+use agent_mem_traits::{Entity, GraphResult, Session};

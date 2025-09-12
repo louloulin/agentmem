@@ -33,6 +33,7 @@
 
 pub mod client;
 pub mod config;
+pub mod graph_memory;
 pub mod types;
 pub mod error;
 pub mod utils;
@@ -43,6 +44,7 @@ mod tests;
 // Re-export main types for convenience
 pub use client::Mem0Client;
 pub use config::Mem0Config;
+pub use graph_memory::{GraphMemoryManager, GraphMemoryConfig, FusedMemory};
 pub use types::{
     AddMemoryRequest, BatchAddResult, BatchDeleteItem, BatchDeleteRequest, BatchDeleteResult,
     BatchUpdateItem, BatchUpdateRequest, BatchUpdateResult, ChangeType, DeleteMemoryResponse,
