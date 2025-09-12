@@ -53,6 +53,7 @@ members = [
     "examples/multimodal-real-demo",
     "examples/storage-migration-demo",
     "examples/advanced-search-demo",
+    "examples/context-aware-demo",
     "examples/graph-memory-demo",
     "examples/procedural-memory-demo",
     "examples/deepseek-test",

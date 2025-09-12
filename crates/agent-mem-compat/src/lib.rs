@@ -33,6 +33,7 @@
 
 pub mod client;
 pub mod config;
+pub mod context_aware;
 pub mod graph_memory;
 pub mod procedural_memory;
 pub mod types;
@@ -45,6 +46,10 @@ mod tests;
 // Re-export main types for convenience
 pub use client::Mem0Client;
 pub use config::Mem0Config;
+pub use context_aware::{
+    ContextAwareManager, ContextAwareConfig, ContextInfo, ContextPattern,
+    ContextAwareSearchRequest, ContextAwareSearchResult, ContextLearningResult,
+};
 pub use graph_memory::{GraphMemoryManager, GraphMemoryConfig, FusedMemory};
 pub use procedural_memory::{
     ProceduralMemoryManager, ProceduralMemoryConfig, Workflow, WorkflowStep, WorkflowExecution,

@@ -9,6 +9,7 @@
 
 use crate::{
     config::Mem0Config,
+    context_aware::{ContextAwareManager, ContextAwareConfig, ContextAwareSearchRequest, ContextAwareSearchResult, ContextInfo, ContextPattern, ContextLearningResult},
     error::{Mem0Error, Result},
     graph_memory::{GraphMemoryManager, GraphMemoryConfig, FusedMemory},
     procedural_memory::{ProceduralMemoryManager, ProceduralMemoryConfig, Workflow, WorkflowStep, WorkflowExecution, TaskChain, Task, StepExecutionResult, TaskExecutionResult},
@@ -202,6 +203,9 @@ pub struct Mem0Client {
 
     /// Procedural memory manager for workflow and process memory
     procedural_memory: Option<Arc<ProceduralMemoryManager>>,
+
+    /// Context-aware memory manager for intelligent context understanding
+    context_aware: Option<Arc<ContextAwareManager>>,
 }
 
 impl Mem0Client {
@@ -261,6 +265,18 @@ impl Mem0Client {
             Some(Arc::new(manager))
         };
 
+        // Initialize context-aware memory manager
+        let context_aware = match ContextAwareManager::new(ContextAwareConfig::default()).await {
+            Ok(manager) => {
+                info!("Context-aware memory manager initialized successfully");
+                Some(Arc::new(manager))
+            }
+            Err(e) => {
+                warn!("Failed to initialize context-aware manager: {}, context features will be disabled", e);
+                None
+            }
+        };
+
         Ok(Self {
             config,
             memories: Arc::new(DashMap::new()),
@@ -268,6 +284,7 @@ impl Mem0Client {
             batch_processor,
             graph_memory,
             procedural_memory,
+            context_aware,
         })
     }
     
@@ -1413,6 +1430,116 @@ impl Mem0Client {
                 .map_err(|e| e.into())
         } else {
             Err(Mem0Error::ServiceUnavailable("Procedural memory manager not available".to_string()))
+        }
+    }
+
+    // Context-Aware Memory Methods
+
+    /// 从内容中提取上下文信息
+    pub async fn extract_context(&self, content: &str, session: &Session) -> Result<Vec<ContextInfo>> {
+        if let Some(ref context_aware) = self.context_aware {
+            context_aware
+                .extract_context(content, session)
+                .await
+                .map_err(|e| e.into())
+        } else {
+            Err(Mem0Error::ServiceUnavailable("Context-aware manager not available".to_string()))
+        }
+    }
+
+    /// 执行上下文感知搜索
+    pub async fn search_with_context(&self, request: ContextAwareSearchRequest) -> Result<Vec<ContextAwareSearchResult>> {
+        if let Some(ref context_aware) = self.context_aware {
+            context_aware
+                .search_with_context(request)
+                .await
+                .map_err(|e| e.into())
+        } else {
+            Err(Mem0Error::ServiceUnavailable("Context-aware manager not available".to_string()))
+        }
+    }
+
+    /// 从上下文中学习模式
+    pub async fn learn_from_context(&self, contexts: &[ContextInfo]) -> Result<ContextLearningResult> {
+        if let Some(ref context_aware) = self.context_aware {
+            context_aware
+                .learn_from_context(contexts)
+                .await
+                .map_err(|e| e.into())
+        } else {
+            Err(Mem0Error::ServiceUnavailable("Context-aware manager not available".to_string()))
+        }
+    }
+
+    /// 获取学习到的上下文模式
+    pub async fn get_context_patterns(&self) -> Result<Vec<ContextPattern>> {
+        if let Some(ref context_aware) = self.context_aware {
+            context_aware
+                .get_patterns()
+                .await
+                .map_err(|e| e.into())
+        } else {
+            Err(Mem0Error::ServiceUnavailable("Context-aware manager not available".to_string()))
+        }
+    }
+
+    /// 获取上下文历史
+    pub async fn get_context_history(&self, limit: Option<usize>) -> Result<Vec<ContextInfo>> {
+        if let Some(ref context_aware) = self.context_aware {
+            context_aware
+                .get_context_history(limit)
+                .await
+                .map_err(|e| e.into())
+        } else {
+            Err(Mem0Error::ServiceUnavailable("Context-aware manager not available".to_string()))
+        }
+    }
+
+    /// 将上下文与记忆关联
+    pub async fn associate_contexts_with_memory(&self, memory_id: &str, contexts: Vec<ContextInfo>) -> Result<()> {
+        if let Some(ref context_aware) = self.context_aware {
+            context_aware
+                .associate_contexts_with_memory(memory_id, contexts)
+                .await
+                .map_err(|e| e.into())
+        } else {
+            Err(Mem0Error::ServiceUnavailable("Context-aware manager not available".to_string()))
+        }
+    }
+
+    /// 获取记忆关联的上下文
+    pub async fn get_memory_contexts(&self, memory_id: &str) -> Result<Vec<ContextInfo>> {
+        if let Some(ref context_aware) = self.context_aware {
+            context_aware
+                .get_memory_contexts(memory_id)
+                .await
+                .map_err(|e| e.into())
+        } else {
+            Err(Mem0Error::ServiceUnavailable("Context-aware manager not available".to_string()))
+        }
+    }
+
+    /// 获取上下文统计信息
+    pub async fn get_context_statistics(&self) -> Result<HashMap<String, u32>> {
+        if let Some(ref context_aware) = self.context_aware {
+            context_aware
+                .get_context_statistics()
+                .await
+                .map_err(|e| e.into())
+        } else {
+            Err(Mem0Error::ServiceUnavailable("Context-aware manager not available".to_string()))
+        }
+    }
+
+    /// 清除上下文历史
+    pub async fn clear_context_history(&self) -> Result<()> {
+        if let Some(ref context_aware) = self.context_aware {
+            context_aware
+                .clear_context_history()
+                .await
+                .map_err(|e| e.into())
+        } else {
+            Err(Mem0Error::ServiceUnavailable("Context-aware manager not available".to_string()))
         }
     }
 }
