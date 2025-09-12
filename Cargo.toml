@@ -52,6 +52,7 @@ members = [
     "examples/vector-store-demo",
     "examples/multimodal-real-demo",
     "examples/storage-migration-demo",
+    "examples/advanced-search-demo",
     "examples/deepseek-test",
     "examples/multimodal-demo",
     "examples/intelligence-demo",

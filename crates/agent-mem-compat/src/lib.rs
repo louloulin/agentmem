@@ -43,7 +43,12 @@ mod tests;
 // Re-export main types for convenience
 pub use client::Mem0Client;
 pub use config::Mem0Config;
-pub use types::{Memory, MemorySearchResult, MemoryFilter};
+pub use types::{
+    AddMemoryRequest, BatchAddResult, BatchDeleteItem, BatchDeleteRequest, BatchDeleteResult,
+    BatchUpdateItem, BatchUpdateRequest, BatchUpdateResult, ChangeType, DeleteMemoryResponse,
+    FilterOperation, Memory, MemoryFilter, MemoryHistory, MemorySearchResult,
+    MemorySearchResultItem, SearchMemoryRequest, SortField, SortOrder, UpdateMemoryRequest,
+};
 pub use error::{Mem0Error, Result};
 
 /// Version information

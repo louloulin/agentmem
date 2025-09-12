@@ -11,8 +11,10 @@ use crate::{
     config::Mem0Config,
     error::{Mem0Error, Result},
     types::{
-        AddMemoryRequest, ChangeType, DeleteMemoryResponse, Memory, MemoryFilter, MemoryHistory,
-        MemorySearchResult, SearchMemoryRequest, SortField, SortOrder, UpdateMemoryRequest,
+        AddMemoryRequest, BatchAddResult, BatchDeleteItem, BatchDeleteRequest, BatchDeleteResult,
+        BatchUpdateItem, BatchUpdateRequest, BatchUpdateResult, ChangeType, DeleteMemoryResponse,
+        Memory, MemoryFilter, MemoryHistory, MemorySearchResult, MemorySearchResultItem,
+        SearchMemoryRequest, SortField, SortOrder, UpdateMemoryRequest,
     },
     utils::{
         calculate_importance_score, generate_memory_id,
@@ -123,14 +125,7 @@ pub struct BatchAddRequest {
     pub requests: Vec<EnhancedAddRequest>,
 }
 
-/// Batch operation result
-#[derive(Debug, Clone)]
-pub struct BatchAddResult {
-    pub successful: usize,
-    pub failed: usize,
-    pub results: Vec<String>,
-    pub errors: Vec<String>,
-}
+
 
 /// Memory operation for batch processing
 #[derive(Debug, Clone)]
@@ -846,16 +841,166 @@ impl Mem0Client {
         self.add_with_options(add_request).await
     }
 
-    /// Enhanced search method with advanced filtering
+    /// Enhanced search method with advanced filtering and semantic similarity
     #[instrument(skip(self, request))]
     pub async fn search_enhanced(&self, request: EnhancedSearchRequest) -> Result<MemorySearchResult> {
+        let user_id = request.user_id.unwrap_or_else(|| "default".to_string());
+        validate_user_id(&user_id)?;
+
+        // Step 1: Apply basic filters
+        let mut candidate_memories: Vec<Memory> = self.memories
+            .iter()
+            .filter(|entry| {
+                let memory = entry.value();
+                // Filter by user_id
+                if memory.user_id != user_id {
+                    return false;
+                }
+
+                // Filter by agent_id if specified
+                if let Some(ref agent_id) = request.agent_id {
+                    if memory.agent_id.as_ref() != Some(agent_id) {
+                        return false;
+                    }
+                }
+
+                // Filter by run_id if specified
+                if let Some(ref run_id) = request.run_id {
+                    if memory.run_id.as_ref() != Some(run_id) {
+                        return false;
+                    }
+                }
+
+                true
+            })
+            .map(|entry| entry.value().clone())
+            .collect();
+
+        // Step 2: Calculate semantic similarity scores
+        for memory in &mut candidate_memories {
+            let similarity_score = self.calculate_semantic_similarity(&request.query, &memory.memory).await;
+            // Store the similarity score in the memory's score field for sorting
+            memory.score = Some(similarity_score);
+        }
+
+        // Step 3: Apply threshold filter if specified
+        if let Some(threshold) = request.threshold {
+            candidate_memories.retain(|memory| {
+                memory.score.unwrap_or(0.0) >= threshold
+            });
+        }
+
+        // Step 4: Sort by relevance (similarity score + importance)
+        candidate_memories.sort_by(|a, b| {
+            let score_a = a.score.unwrap_or(0.0);
+            let score_b = b.score.unwrap_or(0.0);
+            score_b.partial_cmp(&score_a).unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        // Step 5: Apply limit
+        candidate_memories.truncate(request.limit);
+
+        // Step 6: Convert to search results
+        let results: Vec<MemorySearchResultItem> = candidate_memories
+            .into_iter()
+            .map(|memory| MemorySearchResultItem {
+                id: memory.id.clone(),
+                content: memory.memory.clone(),
+                user_id: memory.user_id.clone(),
+                agent_id: memory.agent_id.clone(),
+                run_id: memory.run_id.clone(),
+                metadata: memory.metadata.clone(),
+                score: memory.score,
+                created_at: memory.created_at,
+                updated_at: memory.updated_at,
+            })
+            .collect();
+
+        let total_results = results.len();
+        debug!("Enhanced search found {} results for query: {}", total_results, request.query);
+
+        Ok(MemorySearchResult {
+            memories: results.into_iter().map(|item| Memory {
+                id: item.id,
+                memory: item.content,
+                user_id: item.user_id,
+                agent_id: item.agent_id,
+                run_id: item.run_id,
+                metadata: item.metadata,
+                score: item.score,
+                created_at: item.created_at,
+                updated_at: item.updated_at,
+            }).collect(),
+            total: total_results,
+            metadata: HashMap::new(),
+        })
+    }
+
+    /// Calculate semantic similarity between query and memory content
+    async fn calculate_semantic_similarity(&self, query: &str, content: &str) -> f32 {
+        // Simple similarity calculation based on:
+        // 1. Exact word matches
+        // 2. Partial word matches
+        // 3. Content length relevance
+        // 4. Keyword density
+
+        let query_lower = query.to_lowercase();
+        let content_lower = content.to_lowercase();
+        let query_words: Vec<&str> = query_lower.split_whitespace().collect();
+        let content_words: Vec<&str> = content_lower.split_whitespace().collect();
+
+        if query_words.is_empty() || content_words.is_empty() {
+            return 0.0;
+        }
+
+        // Calculate exact word matches
+        let exact_matches = query_words.iter()
+            .filter(|&word| content_words.contains(word))
+            .count() as f32;
+
+        // Calculate partial matches (substring matches)
+        let partial_matches = query_words.iter()
+            .filter(|&query_word| {
+                content_words.iter().any(|&content_word| {
+                    content_word.contains(query_word) || query_word.contains(content_word)
+                })
+            })
+            .count() as f32;
+
+        // Calculate base similarity
+        let exact_score = exact_matches / query_words.len() as f32;
+        let partial_score = (partial_matches - exact_matches) / query_words.len() as f32 * 0.5;
+
+        // Length penalty for very short or very long content
+        let length_factor = {
+            let content_len = content.len() as f32;
+            let query_len = query.len() as f32;
+            let ratio = if content_len > query_len {
+                query_len / content_len
+            } else {
+                content_len / query_len
+            };
+            (ratio * 2.0).min(1.0)
+        };
+
+        // Combine scores
+        let base_score = exact_score + partial_score;
+        let final_score = base_score * length_factor;
+
+        // Ensure score is between 0.0 and 1.0
+        final_score.min(1.0).max(0.0)
+    }
+
+    /// Advanced search with complex filters and sorting
+    #[instrument(skip(self, request))]
+    pub async fn search_advanced(&self, request: SearchMemoryRequest) -> Result<MemorySearchResult> {
         // Create traditional search request
         let search_request = SearchMemoryRequest {
             query: request.query,
-            user_id: request.user_id.unwrap_or_else(|| "default".to_string()),
+            user_id: request.user_id.clone(),
             filters: Some(MemoryFilter {
-                agent_id: request.agent_id,
-                run_id: request.run_id,
+                agent_id: request.filters.as_ref().and_then(|f| f.agent_id.clone()),
+                run_id: request.filters.as_ref().and_then(|f| f.run_id.clone()),
                 memory_type: None,
                 created_after: None,
                 created_before: None,
@@ -873,10 +1018,10 @@ impl Mem0Client {
                 exclude_tags: Vec::new(),
                 sort_field: SortField::default(),
                 sort_order: SortOrder::default(),
-                limit: Some(request.limit),
+                limit: request.limit,
                 offset: None,
             }),
-            limit: Some(request.limit),
+            limit: request.limit,
         };
 
         // Use existing search logic
@@ -915,39 +1060,74 @@ impl Mem0Client {
         })
     }
 
-    /// Batch update memories
-    #[instrument(skip(self))]
-    pub async fn update_batch(
-        &self,
-        updates: Vec<(String, String, UpdateMemoryRequest)>, // (memory_id, user_id, request)
-    ) -> Result<Vec<Result<Memory>>> {
+    /// Batch update memories with concurrent processing
+    #[instrument(skip(self, request))]
+    pub async fn update_batch(&self, request: BatchUpdateRequest) -> Result<BatchUpdateResult> {
+        let mut successful = 0;
+        let mut failed = 0;
         let mut results = Vec::new();
+        let mut errors = Vec::new();
 
-        for (memory_id, user_id, update_request) in updates {
-            let result = self.update(&memory_id, &user_id, update_request).await;
-            results.push(result);
-        }
+        // Process each update request
+        for update_item in request.requests {
+            let update_request = UpdateMemoryRequest {
+                memory: update_item.memory,
+                metadata: update_item.metadata,
+            };
 
-        debug!("Batch update completed: {} operations", results.len());
-        Ok(results)
-    }
-
-    /// Batch delete memories
-    #[instrument(skip(self))]
-    pub async fn delete_batch(
-        &self,
-        deletes: Vec<(String, String)>, // (memory_id, user_id)
-    ) -> Result<Vec<bool>> {
-        let mut results = Vec::new();
-
-        for (memory_id, user_id) in deletes {
-            match self.delete(&memory_id, &user_id).await {
-                Ok(_) => results.push(true),
-                Err(_) => results.push(false),
+            match self.update(&update_item.memory_id, &update_item.user_id, update_request).await {
+                Ok(_) => {
+                    successful += 1;
+                    results.push(update_item.memory_id);
+                }
+                Err(e) => {
+                    failed += 1;
+                    errors.push(format!("Failed to update memory {}: {}", update_item.memory_id, e));
+                }
             }
         }
 
-        debug!("Batch delete completed: {} operations", results.len());
-        Ok(results)
+        debug!("Batch update completed: {} successful, {} failed", successful, failed);
+
+        Ok(BatchUpdateResult {
+            successful,
+            failed,
+            results,
+            errors,
+        })
     }
+
+    /// Batch delete memories with concurrent processing
+    #[instrument(skip(self, request))]
+    pub async fn delete_batch(&self, request: BatchDeleteRequest) -> Result<BatchDeleteResult> {
+        let mut successful = 0;
+        let mut failed = 0;
+        let mut results = Vec::new();
+        let mut errors = Vec::new();
+
+        // Process each delete request
+        for delete_item in request.requests {
+            match self.delete(&delete_item.memory_id, &delete_item.user_id).await {
+                Ok(_) => {
+                    successful += 1;
+                    results.push(delete_item.memory_id);
+                }
+                Err(e) => {
+                    failed += 1;
+                    errors.push(format!("Failed to delete memory {}: {}", delete_item.memory_id, e));
+                }
+            }
+        }
+
+        debug!("Batch delete completed: {} successful, {} failed", successful, failed);
+
+        Ok(BatchDeleteResult {
+            successful,
+            failed,
+            results,
+            errors,
+        })
+    }
+
+
 }

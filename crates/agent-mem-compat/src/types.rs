@@ -627,3 +627,101 @@ pub struct MemoryHistory {
 
 // Note: Conversion implementations would be added here when integrating with full AgentMem
 // For now, the compatibility layer uses its own Memory type
+
+/// Individual memory search result item
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemorySearchResultItem {
+    /// Memory ID
+    pub id: String,
+    /// Memory content
+    pub content: String,
+    /// User ID
+    pub user_id: String,
+    /// Agent ID (optional)
+    pub agent_id: Option<String>,
+    /// Run ID (optional)
+    pub run_id: Option<String>,
+    /// Metadata
+    pub metadata: HashMap<String, serde_json::Value>,
+    /// Relevance score
+    pub score: Option<f32>,
+    /// Creation timestamp
+    pub created_at: DateTime<Utc>,
+    /// Last update timestamp
+    pub updated_at: Option<DateTime<Utc>>,
+}
+
+/// Batch add result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchAddResult {
+    /// Number of successful additions
+    pub successful: usize,
+    /// Number of failed additions
+    pub failed: usize,
+    /// List of successfully created memory IDs
+    pub results: Vec<String>,
+    /// List of error messages for failed operations
+    pub errors: Vec<String>,
+}
+
+/// Batch update request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchUpdateRequest {
+    /// List of update requests
+    pub requests: Vec<BatchUpdateItem>,
+}
+
+/// Individual batch update item
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchUpdateItem {
+    /// Memory ID to update
+    pub memory_id: String,
+    /// User ID
+    pub user_id: String,
+    /// New memory content (optional)
+    pub memory: Option<String>,
+    /// New metadata (optional)
+    pub metadata: Option<HashMap<String, serde_json::Value>>,
+}
+
+/// Batch update result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchUpdateResult {
+    /// Number of successful updates
+    pub successful: usize,
+    /// Number of failed updates
+    pub failed: usize,
+    /// List of successfully updated memory IDs
+    pub results: Vec<String>,
+    /// List of error messages for failed operations
+    pub errors: Vec<String>,
+}
+
+/// Batch delete request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchDeleteRequest {
+    /// List of delete requests
+    pub requests: Vec<BatchDeleteItem>,
+}
+
+/// Individual batch delete item
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchDeleteItem {
+    /// Memory ID to delete
+    pub memory_id: String,
+    /// User ID
+    pub user_id: String,
+}
+
+/// Batch delete result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchDeleteResult {
+    /// Number of successful deletions
+    pub successful: usize,
+    /// Number of failed deletions
+    pub failed: usize,
+    /// List of successfully deleted memory IDs
+    pub results: Vec<String>,
+    /// List of error messages for failed operations
+    pub errors: Vec<String>,
+}
