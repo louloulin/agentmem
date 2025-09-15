@@ -56,6 +56,7 @@ members = [
     "examples/context-aware-demo",
     "examples/personalization-demo",
     "examples/enterprise-security-demo",
+    "examples/intelligent-compression-demo",
     "examples/enterprise-monitoring-demo",
     "examples/storage-optimization-demo",
     "examples/compute-optimization-demo",
