@@ -70,6 +70,7 @@ members = [
     "examples/production-telemetry-demo",
     "examples/real-implementation-demo",
     "examples/api-server-demo",
+    "examples/multi-tenant-demo",
     # "examples/basic-usage",
     # "examples/advanced-features",
     # "examples/migration-from-agentmen",

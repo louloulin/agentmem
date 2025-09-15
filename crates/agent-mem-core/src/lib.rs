@@ -20,6 +20,7 @@ pub mod history;
 pub mod operations;
 pub mod types;
 pub mod client;
+pub mod tenant;
 
 // Re-export core types
 pub use engine::{MemoryEngine, MemoryEngineConfig};
