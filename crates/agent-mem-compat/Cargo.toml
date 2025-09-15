@@ -44,6 +44,13 @@ dashmap.workspace = true
 # Regex support for advanced filtering
 regex = "1.10"
 
+# Enterprise security dependencies
+jsonwebtoken = "8.0"
+bcrypt = "0.14"
+aes-gcm = "0.10"
+base64 = "0.21"
+rand = "0.8"
+
 [dev-dependencies]
 tokio-test = "0.4"
 tempfile.workspace = true

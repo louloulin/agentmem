@@ -10,6 +10,7 @@
 use crate::{
     config::Mem0Config,
     context_aware::{ContextAwareManager, ContextAwareConfig, ContextAwareSearchRequest, ContextAwareSearchResult, ContextInfo, ContextPattern, ContextLearningResult},
+    enterprise_security::{EnterpriseSecurityManager, EnterpriseSecurityConfig, Permission, AuditEventType, UserSession, JwtClaims},
     error::{Mem0Error, Result},
     graph_memory::{GraphMemoryManager, GraphMemoryConfig, FusedMemory},
     personalization::{PersonalizationManager, PersonalizationConfig, UserBehavior, PersonalizedSearchRequest, PersonalizedSearchResult, MemoryRecommendation, UserPreference, UserProfile, PersonalizationLearningResult},
@@ -210,6 +211,9 @@ pub struct Mem0Client {
 
     /// Personalization manager for user-specific memory strategies
     personalization: Option<Arc<PersonalizationManager>>,
+
+    /// Enterprise security manager for RBAC, encryption, and audit logging
+    enterprise_security: Option<Arc<EnterpriseSecurityManager>>,
 }
 
 impl Mem0Client {
@@ -289,6 +293,21 @@ impl Mem0Client {
             Some(Arc::new(manager))
         };
 
+        // Initialize enterprise security manager
+        let enterprise_security = match EnterpriseSecurityManager::new(EnterpriseSecurityConfig::default()) {
+            Ok(mut manager) => {
+                if let Err(e) = manager.initialize_defaults().await {
+                    warn!("Failed to initialize default security settings: {}, using basic security", e);
+                }
+                info!("Enterprise security manager initialized successfully");
+                Some(Arc::new(manager))
+            }
+            Err(e) => {
+                warn!("Failed to initialize enterprise security manager: {}, security features will be disabled", e);
+                None
+            }
+        };
+
         Ok(Self {
             config,
             memories: Arc::new(DashMap::new()),
@@ -298,6 +317,7 @@ impl Mem0Client {
             procedural_memory,
             context_aware,
             personalization,
+            enterprise_security,
         })
     }
     
@@ -1663,6 +1683,98 @@ impl Mem0Client {
                 .map_err(|e| e.into())
         } else {
             Err(Mem0Error::ServiceUnavailable("Personalization manager not available".to_string()))
+        }
+    }
+
+    // ==================== Enterprise Security Methods ====================
+
+    /// Authenticate user and create session
+    pub async fn authenticate(&self, username: &str, password: &str, ip_address: &str, user_agent: &str) -> Result<UserSession> {
+        if let Some(security) = &self.enterprise_security {
+            security.authenticate(username, password, ip_address, user_agent).await
+                .map_err(|e| Mem0Error::SecurityError(format!("Authentication failed: {}", e)))
+        } else {
+            Err(Mem0Error::FeatureNotEnabled("Enterprise security not enabled".to_string()))
+        }
+    }
+
+    /// Validate JWT token
+    pub async fn validate_token(&self, token: &str) -> Result<JwtClaims> {
+        if let Some(security) = &self.enterprise_security {
+            security.validate_token(token).await
+                .map_err(|e| Mem0Error::SecurityError(format!("Token validation failed: {}", e)))
+        } else {
+            Err(Mem0Error::FeatureNotEnabled("Enterprise security not enabled".to_string()))
+        }
+    }
+
+    /// Check if user has permission
+    pub async fn check_permission(&self, user_id: &str, permission: &Permission) -> Result<bool> {
+        if let Some(security) = &self.enterprise_security {
+            security.check_permission(user_id, permission).await
+                .map_err(|e| Mem0Error::SecurityError(format!("Permission check failed: {}", e)))
+        } else {
+            Ok(true) // If security is disabled, allow all operations
+        }
+    }
+
+    /// Encrypt sensitive data
+    pub async fn encrypt_data(&self, data: &str) -> Result<String> {
+        if let Some(security) = &self.enterprise_security {
+            security.encrypt_data(data).await
+                .map_err(|e| Mem0Error::SecurityError(format!("Encryption failed: {}", e)))
+        } else {
+            Ok(data.to_string()) // If security is disabled, return data as-is
+        }
+    }
+
+    /// Decrypt sensitive data
+    pub async fn decrypt_data(&self, encrypted_data: &str) -> Result<String> {
+        if let Some(security) = &self.enterprise_security {
+            security.decrypt_data(encrypted_data).await
+                .map_err(|e| Mem0Error::SecurityError(format!("Decryption failed: {}", e)))
+        } else {
+            Ok(encrypted_data.to_string()) // If security is disabled, return data as-is
+        }
+    }
+
+    /// Mask sensitive data for PII protection
+    pub async fn mask_sensitive_data(&self, data: &str) -> Result<String> {
+        if let Some(security) = &self.enterprise_security {
+            security.mask_sensitive_data(data).await
+                .map_err(|e| Mem0Error::SecurityError(format!("Data masking failed: {}", e)))
+        } else {
+            Ok(data.to_string()) // If security is disabled, return data as-is
+        }
+    }
+
+    /// Get audit logs
+    pub async fn get_audit_logs(&self, limit: Option<usize>) -> Result<Vec<crate::enterprise_security::AuditLogEntry>> {
+        if let Some(security) = &self.enterprise_security {
+            security.get_audit_logs(limit).await
+                .map_err(|e| Mem0Error::SecurityError(format!("Failed to get audit logs: {}", e)))
+        } else {
+            Err(Mem0Error::FeatureNotEnabled("Enterprise security not enabled".to_string()))
+        }
+    }
+
+    /// Create new user
+    pub async fn create_user(&self, username: &str, email: &str, password: &str, roles: Vec<String>) -> Result<String> {
+        if let Some(security) = &self.enterprise_security {
+            security.create_user(username, email, password, roles).await
+                .map_err(|e| Mem0Error::SecurityError(format!("User creation failed: {}", e)))
+        } else {
+            Err(Mem0Error::FeatureNotEnabled("Enterprise security not enabled".to_string()))
+        }
+    }
+
+    /// Logout user
+    pub async fn logout(&self, session_id: &str) -> Result<()> {
+        if let Some(security) = &self.enterprise_security {
+            security.logout(session_id).await
+                .map_err(|e| Mem0Error::SecurityError(format!("Logout failed: {}", e)))
+        } else {
+            Ok(()) // If security is disabled, logout is always successful
         }
     }
 }

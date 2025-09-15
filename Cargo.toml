@@ -55,6 +55,7 @@ members = [
     "examples/advanced-search-demo",
     "examples/context-aware-demo",
     "examples/personalization-demo",
+    "examples/enterprise-security-demo",
     "examples/graph-memory-demo",
     "examples/procedural-memory-demo",
     "examples/deepseek-test",

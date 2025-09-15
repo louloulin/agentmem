@@ -67,6 +67,14 @@ pub enum Mem0Error {
     /// Service unavailable
     #[error("Service unavailable: {0}")]
     ServiceUnavailable(String),
+
+    /// Security error
+    #[error("Security error: {0}")]
+    SecurityError(String),
+
+    /// Feature not enabled
+    #[error("Feature not enabled: {0}")]
+    FeatureNotEnabled(String),
 }
 
 impl From<agent_mem_traits::AgentMemError> for Mem0Error {

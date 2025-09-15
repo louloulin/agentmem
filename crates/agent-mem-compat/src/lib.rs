@@ -34,6 +34,7 @@
 pub mod client;
 pub mod config;
 pub mod context_aware;
+pub mod enterprise_security;
 pub mod graph_memory;
 pub mod personalization;
 pub mod procedural_memory;
@@ -50,6 +51,10 @@ pub use config::Mem0Config;
 pub use context_aware::{
     ContextAwareManager, ContextAwareConfig, ContextInfo, ContextPattern,
     ContextAwareSearchRequest, ContextAwareSearchResult, ContextLearningResult,
+};
+pub use enterprise_security::{
+    EnterpriseSecurityManager, EnterpriseSecurityConfig, Role, Permission, UserAccount,
+    JwtClaims, OAuth2TokenResponse, AuditEventType, AuditLogEntry, UserSession,
 };
 pub use graph_memory::{GraphMemoryManager, GraphMemoryConfig, FusedMemory};
 pub use personalization::{
