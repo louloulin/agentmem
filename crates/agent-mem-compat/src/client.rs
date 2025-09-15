@@ -12,6 +12,7 @@ use crate::{
     context_aware::{ContextAwareManager, ContextAwareConfig, ContextAwareSearchRequest, ContextAwareSearchResult, ContextInfo, ContextPattern, ContextLearningResult},
     error::{Mem0Error, Result},
     graph_memory::{GraphMemoryManager, GraphMemoryConfig, FusedMemory},
+    personalization::{PersonalizationManager, PersonalizationConfig, UserBehavior, PersonalizedSearchRequest, PersonalizedSearchResult, MemoryRecommendation, UserPreference, UserProfile, PersonalizationLearningResult},
     procedural_memory::{ProceduralMemoryManager, ProceduralMemoryConfig, Workflow, WorkflowStep, WorkflowExecution, TaskChain, Task, StepExecutionResult, TaskExecutionResult},
     types::{
         AddMemoryRequest, BatchAddResult, BatchDeleteItem, BatchDeleteRequest, BatchDeleteResult,
@@ -206,6 +207,9 @@ pub struct Mem0Client {
 
     /// Context-aware memory manager for intelligent context understanding
     context_aware: Option<Arc<ContextAwareManager>>,
+
+    /// Personalization manager for user-specific memory strategies
+    personalization: Option<Arc<PersonalizationManager>>,
 }
 
 impl Mem0Client {
@@ -277,6 +281,14 @@ impl Mem0Client {
             }
         };
 
+        // Initialize personalization manager
+        let personalization = {
+            let personalization_config = PersonalizationConfig::default();
+            let manager = PersonalizationManager::new(personalization_config);
+            info!("Personalization manager initialized successfully");
+            Some(Arc::new(manager))
+        };
+
         Ok(Self {
             config,
             memories: Arc::new(DashMap::new()),
@@ -285,6 +297,7 @@ impl Mem0Client {
             graph_memory,
             procedural_memory,
             context_aware,
+            personalization,
         })
     }
     
@@ -1540,6 +1553,116 @@ impl Mem0Client {
                 .map_err(|e| e.into())
         } else {
             Err(Mem0Error::ServiceUnavailable("Context-aware manager not available".to_string()))
+        }
+    }
+
+    // ==================== 个性化功能 API ====================
+
+    /// 记录用户行为
+    pub async fn record_user_behavior(&self, behavior: UserBehavior) -> Result<()> {
+        if let Some(ref personalization) = self.personalization {
+            personalization
+                .record_behavior(behavior)
+                .await
+                .map_err(|e| e.into())
+        } else {
+            Err(Mem0Error::ServiceUnavailable("Personalization manager not available".to_string()))
+        }
+    }
+
+    /// 个性化搜索
+    pub async fn personalized_search(&self, request: PersonalizedSearchRequest) -> Result<Vec<PersonalizedSearchResult>> {
+        if let Some(ref personalization) = self.personalization {
+            // 首先执行基础搜索
+            let base_results = self.search(&request.query, &request.user_id, None).await?;
+
+            // 转换为 MemorySearchResult 格式供个性化处理
+            let memory_search_results: Vec<crate::personalization::MemorySearchResult> = base_results.memories.into_iter().map(|memory| {
+                crate::personalization::MemorySearchResult {
+                    memory,
+                    score: 0.8, // 默认基础分数
+                }
+            }).collect();
+
+            // 执行个性化搜索
+            personalization
+                .personalized_search(request, memory_search_results)
+                .await
+                .map_err(|e| e.into())
+        } else {
+            Err(Mem0Error::ServiceUnavailable("Personalization manager not available".to_string()))
+        }
+    }
+
+    /// 生成记忆推荐
+    pub async fn generate_recommendations(&self, user_id: &str, limit: usize) -> Result<Vec<MemoryRecommendation>> {
+        if let Some(ref personalization) = self.personalization {
+            personalization
+                .generate_recommendations(user_id, limit)
+                .await
+                .map_err(|e| e.into())
+        } else {
+            Err(Mem0Error::ServiceUnavailable("Personalization manager not available".to_string()))
+        }
+    }
+
+    /// 获取用户偏好
+    pub async fn get_user_preferences(&self, user_id: &str) -> Result<Vec<UserPreference>> {
+        if let Some(ref personalization) = self.personalization {
+            personalization
+                .get_user_preferences(user_id)
+                .await
+                .map_err(|e| e.into())
+        } else {
+            Err(Mem0Error::ServiceUnavailable("Personalization manager not available".to_string()))
+        }
+    }
+
+    /// 更新用户偏好
+    pub async fn update_user_preference(&self, preference: UserPreference) -> Result<()> {
+        if let Some(ref personalization) = self.personalization {
+            personalization
+                .update_user_preference(preference)
+                .await
+                .map_err(|e| e.into())
+        } else {
+            Err(Mem0Error::ServiceUnavailable("Personalization manager not available".to_string()))
+        }
+    }
+
+    /// 删除用户偏好
+    pub async fn delete_user_preference(&self, user_id: &str, preference_id: &str) -> Result<bool> {
+        if let Some(ref personalization) = self.personalization {
+            personalization
+                .delete_user_preference(user_id, preference_id)
+                .await
+                .map_err(|e| e.into())
+        } else {
+            Err(Mem0Error::ServiceUnavailable("Personalization manager not available".to_string()))
+        }
+    }
+
+    /// 获取用户档案
+    pub async fn get_user_profile(&self, user_id: &str) -> Result<Option<UserProfile>> {
+        if let Some(ref personalization) = self.personalization {
+            personalization
+                .get_user_profile(user_id)
+                .await
+                .map_err(|e| e.into())
+        } else {
+            Err(Mem0Error::ServiceUnavailable("Personalization manager not available".to_string()))
+        }
+    }
+
+    /// 更新用户档案
+    pub async fn update_user_profile(&self, user_id: &str) -> Result<UserProfile> {
+        if let Some(ref personalization) = self.personalization {
+            personalization
+                .update_user_profile(user_id)
+                .await
+                .map_err(|e| e.into())
+        } else {
+            Err(Mem0Error::ServiceUnavailable("Personalization manager not available".to_string()))
         }
     }
 }

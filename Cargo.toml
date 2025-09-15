@@ -54,6 +54,7 @@ members = [
     "examples/storage-migration-demo",
     "examples/advanced-search-demo",
     "examples/context-aware-demo",
+    "examples/personalization-demo",
     "examples/graph-memory-demo",
     "examples/procedural-memory-demo",
     "examples/deepseek-test",

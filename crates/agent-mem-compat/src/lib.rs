@@ -35,6 +35,7 @@ pub mod client;
 pub mod config;
 pub mod context_aware;
 pub mod graph_memory;
+pub mod personalization;
 pub mod procedural_memory;
 pub mod types;
 pub mod error;
@@ -51,6 +52,11 @@ pub use context_aware::{
     ContextAwareSearchRequest, ContextAwareSearchResult, ContextLearningResult,
 };
 pub use graph_memory::{GraphMemoryManager, GraphMemoryConfig, FusedMemory};
+pub use personalization::{
+    PersonalizationManager, PersonalizationConfig, UserPreference, UserBehavior,
+    PersonalizedSearchRequest, PersonalizedSearchResult, MemoryRecommendation,
+    UserProfile, UserProfileStats, PersonalizationLearningResult, PreferenceType, BehaviorType,
+};
 pub use procedural_memory::{
     ProceduralMemoryManager, ProceduralMemoryConfig, Workflow, WorkflowStep, WorkflowExecution,
     TaskChain, Task, StepType, StepStatus, ExecutionStatus, ChainStatus, TaskStatus, TaskPriority,
