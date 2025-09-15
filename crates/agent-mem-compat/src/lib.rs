@@ -34,6 +34,7 @@
 pub mod client;
 pub mod config;
 pub mod context_aware;
+pub mod enterprise_monitoring;
 pub mod enterprise_security;
 pub mod graph_memory;
 pub mod personalization;
