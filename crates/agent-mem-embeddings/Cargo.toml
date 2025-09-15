@@ -30,27 +30,36 @@ tracing.workspace = true
 reqwest = { version = "0.11", features = ["json"] }
 
 # 本地嵌入模型依赖（可选）
-candle-core = { version = "0.3", optional = true }
-candle-nn = { version = "0.3", optional = true }
-candle-transformers = { version = "0.3", optional = true }
-tokenizers = { version = "0.15", optional = true }
+candle-core = { version = "0.6", optional = true }
+candle-nn = { version = "0.6", optional = true }
+candle-transformers = { version = "0.6", optional = true }
+tokenizers = { version = "0.19", optional = true }
+
+# ONNX Runtime 支持
+ort = { version = "2.0.0-rc.10", features = ["load-dynamic"], optional = true }
 
 # HuggingFace Hub集成（可选）
 hf-hub = { version = "0.3", optional = true }
+
+# 本地模型缓存和管理
+dirs = "5.0"
+sha2 = "0.10"
+bytes = "1.0"
 
 [dev-dependencies]
 tempfile.workspace = true
 tokio-test = "0.4"
 
 [features]
-default = ["openai"]
+default = ["openai", "local"]
 
 # 嵌入提供商
 openai = []
 huggingface = ["dep:hf-hub"]
 local = ["dep:candle-core", "dep:candle-nn", "dep:candle-transformers", "dep:tokenizers"]
+onnx = ["dep:ort"]
 anthropic = []
 cohere = []
 
 # 所有提供商
-all-providers = ["openai", "huggingface", "local"]
+all-providers = ["openai", "huggingface", "local", "onnx"]

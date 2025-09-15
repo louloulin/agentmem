@@ -7,91 +7,188 @@ use crate::{
         UpdateMemoryRequest,
     },
 };
-// Placeholder implementation for MemoryManager
-pub struct MemoryManager;
+use agent_mem_core::{
+    manager::MemoryManager as CoreMemoryManager,
+    types::{Memory, MemoryQuery},
+};
+use agent_mem_traits::MemoryType;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+
+/// Server-side memory manager wrapper
+pub struct MemoryManager {
+    core_manager: Arc<RwLock<CoreMemoryManager>>,
+}
 
 impl MemoryManager {
     pub fn new() -> Self {
-        Self
+        Self {
+            core_manager: Arc::new(RwLock::new(CoreMemoryManager::new())),
+        }
     }
 
     pub async fn add_memory(
         &self,
-        _agent_id: String,
-        _user_id: Option<String>,
-        _content: String,
-        _memory_type: Option<agent_mem_core::MemoryType>,
-        _importance: Option<f32>,
-        _metadata: Option<std::collections::HashMap<String, String>>,
+        agent_id: String,
+        user_id: Option<String>,
+        content: String,
+        memory_type: Option<MemoryType>,
+        importance: Option<f32>,
+        metadata: Option<std::collections::HashMap<String, String>>,
     ) -> Result<String, String> {
-        Ok(format!("mem_{}", uuid::Uuid::new_v4()))
+        let manager = self.core_manager.read().await;
+
+        // Convert MemoryType from traits to core types
+        let core_memory_type = memory_type.map(|mt| match mt {
+            MemoryType::Factual => agent_mem_core::types::MemoryType::Semantic, // Map Factual to Semantic
+            MemoryType::Episodic => agent_mem_core::types::MemoryType::Episodic,
+            MemoryType::Procedural => agent_mem_core::types::MemoryType::Procedural,
+            MemoryType::Semantic => agent_mem_core::types::MemoryType::Semantic,
+            MemoryType::Working => agent_mem_core::types::MemoryType::Working,
+        });
+
+        manager
+            .add_memory(agent_id, user_id, content, core_memory_type, importance, metadata)
+            .await
+            .map_err(|e| e.to_string())
     }
 
-    pub async fn get_memory(&self, _id: &str) -> Result<Option<serde_json::Value>, String> {
-        Ok(Some(serde_json::json!({
-            "id": _id,
-            "content": "placeholder content",
-            "memory_type": "Episodic"
-        })))
+    pub async fn get_memory(&self, id: &str) -> Result<Option<serde_json::Value>, String> {
+        let manager = self.core_manager.read().await;
+        match manager.get_memory(id).await {
+            Ok(Some(memory)) => {
+                let json = serde_json::json!({
+                    "id": memory.id,
+                    "agent_id": memory.agent_id,
+                    "user_id": memory.user_id,
+                    "content": memory.content,
+                    "memory_type": memory.memory_type,
+                    "importance": memory.importance,
+                    "created_at": memory.created_at,
+                    "last_accessed_at": memory.last_accessed_at,
+                    "access_count": memory.access_count,
+                    "metadata": memory.metadata,
+                    "embedding": memory.embedding,
+                });
+                Ok(Some(json))
+            }
+            Ok(None) => Ok(None),
+            Err(e) => Err(e.to_string()),
+        }
     }
 
     pub async fn update_memory(
         &self,
-        _id: &str,
-        _content: Option<String>,
-        _importance: Option<f32>,
+        id: &str,
+        content: Option<String>,
+        importance: Option<f32>,
     ) -> Result<(), String> {
-        Ok(())
+        let manager = self.core_manager.read().await;
+
+        // Update the memory using the correct method signature
+        manager
+            .update_memory(id, content, importance, None)
+            .await
+            .map_err(|e| e.to_string())
     }
 
-    pub async fn delete_memory(&self, _id: &str) -> Result<(), String> {
-        Ok(())
+    pub async fn delete_memory(&self, id: &str) -> Result<(), String> {
+        let manager = self.core_manager.read().await;
+        manager
+            .delete_memory(id)
+            .await
+            .map_err(|e| e.to_string())
+            .map(|_| ())
     }
 
-    pub async fn search_memories(&self, _query: &MemoryQuery) -> Result<Vec<serde_json::Value>, String> {
-        Ok(vec![])
+    pub async fn search_memories(&self, query: &MemoryQuery) -> Result<Vec<serde_json::Value>, String> {
+        let manager = self.core_manager.read().await;
+        match manager.search_memories(query.clone()).await {
+            Ok(results) => {
+                let json_results = results
+                    .into_iter()
+                    .map(|result| {
+                        serde_json::json!({
+                            "memory": {
+                                "id": result.memory.id,
+                                "agent_id": result.memory.agent_id,
+                                "user_id": result.memory.user_id,
+                                "content": result.memory.content,
+                                "memory_type": result.memory.memory_type,
+                                "importance": result.memory.importance,
+                                "created_at": result.memory.created_at,
+                                "last_accessed_at": result.memory.last_accessed_at,
+                                "access_count": result.memory.access_count,
+                                "metadata": result.memory.metadata,
+                                "embedding": result.memory.embedding,
+                            },
+                            "score": result.score,
+                            "match_type": result.match_type,
+                        })
+                    })
+                    .collect();
+                Ok(json_results)
+            }
+            Err(e) => Err(e.to_string()),
+        }
     }
 
-    pub async fn batch_add_memories(&self, _requests: Vec<crate::models::MemoryRequest>) -> Result<Vec<String>, String> {
-        Ok(vec![])
+    pub async fn batch_add_memories(&self, requests: Vec<crate::models::MemoryRequest>) -> Result<Vec<String>, String> {
+        let mut memory_ids = Vec::new();
+
+        for request in requests {
+            let memory_id = self
+                .add_memory(
+                    request.agent_id,
+                    request.user_id,
+                    request.content,
+                    request.memory_type,
+                    request.importance,
+                    request.metadata,
+                )
+                .await?;
+            memory_ids.push(memory_id);
+        }
+
+        Ok(memory_ids)
     }
 
-    pub async fn batch_get_memories(&self, _ids: Vec<String>) -> Result<Vec<serde_json::Value>, String> {
-        Ok(vec![])
+    pub async fn batch_get_memories(&self, ids: Vec<String>) -> Result<Vec<serde_json::Value>, String> {
+        let mut memories = Vec::new();
+
+        for id in ids {
+            if let Some(memory) = self.get_memory(&id).await? {
+                memories.push(memory);
+            }
+        }
+
+        Ok(memories)
     }
 
-    pub async fn get_memory_stats(&self, _agent_id: Option<String>) -> Result<serde_json::Value, String> {
-        Ok(serde_json::json!({
-            "total_memories": 0,
-            "memory_types": {
-                "episodic": 0,
-                "semantic": 0,
-                "procedural": 0,
-                "working": 0,
-                "factual": 0
-            },
-            "average_importance": 0.0,
-            "storage_size_bytes": 0
-        }))
+    pub async fn get_memory_stats(&self, agent_id: Option<String>) -> Result<serde_json::Value, String> {
+        let manager = self.core_manager.read().await;
+        match manager.get_memory_stats(agent_id.as_deref()).await {
+            Ok(stats) => {
+                let json = serde_json::json!({
+                    "total_memories": stats.total_memories,
+                    "memory_types": stats.memories_by_type,
+                    "memories_by_agent": stats.memories_by_agent,
+                    "average_importance": stats.average_importance,
+                    "oldest_memory_age_days": stats.oldest_memory_age_days,
+                    "most_accessed_memory_id": stats.most_accessed_memory_id,
+                    "total_access_count": stats.total_access_count,
+                });
+                Ok(json)
+            }
+            Err(e) => Err(e.to_string()),
+        }
     }
 }
-
-// Placeholder for MemoryQuery
-pub struct MemoryQuery {
-    pub agent_id: String,
-    pub user_id: Option<String>,
-    pub text_query: Option<String>,
-    pub memory_type: Option<agent_mem_core::MemoryType>,
-    pub limit: Option<usize>,
-    pub offset: Option<usize>,
-}
-use agent_mem_core::MemoryType;
 use axum::{
     extract::{Extension, Path},
     http::StatusCode,
     response::Json,
 };
-use std::sync::Arc;
 use tracing::{error, info};
 use utoipa;
 
@@ -264,13 +361,24 @@ pub async fn search_memories(
 ) -> ServerResult<Json<SearchResponse>> {
     info!("Searching memories with query: {}", request.query);
 
+    // Convert MemoryType from traits to core types
+    let core_memory_type = request.memory_type.map(|mt| match mt {
+        MemoryType::Factual => agent_mem_core::types::MemoryType::Semantic,
+        MemoryType::Episodic => agent_mem_core::types::MemoryType::Episodic,
+        MemoryType::Procedural => agent_mem_core::types::MemoryType::Procedural,
+        MemoryType::Semantic => agent_mem_core::types::MemoryType::Semantic,
+        MemoryType::Working => agent_mem_core::types::MemoryType::Working,
+    });
+
     let query = MemoryQuery {
         agent_id: request.agent_id.unwrap_or_default(),
         user_id: request.user_id,
+        memory_type: core_memory_type,
         text_query: Some(request.query),
-        memory_type: request.memory_type,
-        limit: request.limit,
-        offset: None,
+        vector_query: None,
+        min_importance: None,
+        max_age_seconds: None,
+        limit: request.limit.unwrap_or(10),
     };
 
     let results = memory_manager.search_memories(&query).await.map_err(|e| {

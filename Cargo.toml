@@ -69,6 +69,7 @@ members = [
     "examples/enhanced-messages-demo",
     "examples/production-telemetry-demo",
     "examples/real-implementation-demo",
+    "examples/api-server-demo",
     # "examples/basic-usage",
     # "examples/advanced-features",
     # "examples/migration-from-agentmen",
