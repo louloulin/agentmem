@@ -37,6 +37,7 @@ pub mod context_aware;
 pub mod enterprise_monitoring;
 pub mod enterprise_security;
 pub mod storage_optimization;
+pub mod compute_optimization;
 pub mod graph_memory;
 pub mod personalization;
 pub mod procedural_memory;
