@@ -59,6 +59,7 @@ members = [
     "examples/enterprise-monitoring-demo",
     "examples/storage-optimization-demo",
     "examples/compute-optimization-demo",
+    "examples/cloud-integration-demo",
     "examples/graph-memory-demo",
     "examples/procedural-memory-demo",
     "examples/deepseek-test",

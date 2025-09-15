@@ -38,6 +38,7 @@ pub mod enterprise_monitoring;
 pub mod enterprise_security;
 pub mod storage_optimization;
 pub mod compute_optimization;
+pub mod cloud_integration;
 pub mod graph_memory;
 pub mod personalization;
 pub mod procedural_memory;
