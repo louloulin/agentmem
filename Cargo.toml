@@ -25,7 +25,7 @@ members = [
     # "bindings/agent-mem-c",
 
     # 工具和应用
-    # "tools/agent-mem-cli",
+    "tools/agentmem-cli",
     # "tools/agent-mem-server",
     # "tools/agent-mem-bench",
 
