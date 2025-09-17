@@ -23,6 +23,7 @@ pub mod client;
 pub mod tenant;
 pub mod security;
 pub mod compression;
+pub mod collaboration;
 
 // Re-export core types
 pub use engine::{MemoryEngine, MemoryEngineConfig};
