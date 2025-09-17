@@ -73,6 +73,7 @@ members = [
     "examples/real-implementation-demo",
     "examples/api-server-demo",
     "examples/multi-tenant-demo",
+    "examples/cloud-native-demo",
     # "examples/basic-usage",
     # "examples/advanced-features",
     # "examples/migration-from-agentmen",
