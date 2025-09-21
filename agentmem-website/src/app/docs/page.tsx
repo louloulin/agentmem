@@ -35,7 +35,8 @@ import {
   Shield,
   Cpu,
   Network,
-  Globe
+  Globe,
+  Clock
 } from "lucide-react";
 import Link from "next/link";
 

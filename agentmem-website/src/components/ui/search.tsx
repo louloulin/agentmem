@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 /**
  * 搜索结果项接口
@@ -256,7 +257,7 @@ export function GlobalSearch({ isOpen, onClose }: GlobalSearchProps) {
                 </div>
               ) : results.length > 0 ? (
                 <div className="py-2">
-                  {results.map((result, index) => (
+                  {results.map((result) => (
                     <Link
                       key={result.id}
                       href={result.url}
@@ -338,18 +339,43 @@ export function GlobalSearch({ isOpen, onClose }: GlobalSearchProps) {
 }
 
 /**
+ * 搜索对话框组件 - 提供全站搜索功能的对话框
+ */
+export const SearchDialog = ({ isOpen, onClose }: GlobalSearchProps) => {
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-[600px]">
+        <DialogHeader>
+          <DialogTitle>站内搜索</DialogTitle>
+        </DialogHeader>
+        <div className="py-4">
+          <GlobalSearch isOpen={isOpen} onClose={onClose} />
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+/**
  * 搜索触发按钮组件
  */
-export function SearchTrigger({ onClick }: { onClick: () => void }) {
+export const SearchTrigger = () => {
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+
   return (
-    <Button
-      variant="outline"
-      onClick={onClick}
-      className="w-full max-w-sm justify-start text-slate-400 border-slate-600 hover:bg-slate-800 hover:text-white"
-    >
-      <Search className="h-4 w-4 mr-2" />
-      <span>搜索文档、API...</span>
-      <kbd className="ml-auto px-2 py-1 bg-slate-700 rounded text-xs">⌘K</kbd>
-    </Button>
+    <>
+      <Button
+        variant="outline"
+        className="w-full justify-start text-sm text-muted-foreground sm:pr-12 md:w-40 lg:w-64"
+        onClick={() => setIsSearchOpen(true)}
+      >
+        <Search className="mr-2 h-4 w-4" />
+        搜索...
+        <kbd className="pointer-events-none absolute right-1.5 top-1.5 hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
+          <span className="text-xs">⌘</span>K
+        </kbd>
+      </Button>
+      <GlobalSearch isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
+    </>
   );
 }

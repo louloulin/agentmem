@@ -126,7 +126,7 @@ export default function HomePage() {
                 <span className="ml-2 text-xl font-bold text-white">AgentMem</span>
               </div>
               <div className="hidden lg:block">
-                <SearchTrigger onClick={() => setIsSearchOpen(true)} />
+                <SearchTrigger />
               </div>
             </div>
             <div className="hidden lg:flex items-center space-x-3">
@@ -185,7 +185,7 @@ export default function HomePage() {
         {isMobileMenuOpen && (
           <div className="lg:hidden bg-slate-900/95 backdrop-blur-sm border-t border-slate-800">
             <div className="px-4 py-4 space-y-4">
-              <SearchTrigger onClick={() => setIsSearchOpen(true)} />
+              <SearchTrigger />
               <div className="flex flex-col space-y-3">
                 <Link 
                   href="#features" 
@@ -558,7 +558,7 @@ export default function HomePage() {
                 </div>
                 <blockquote className="text-slate-300 mb-4">
                   <Quote className="w-4 h-4 text-purple-400 mb-2" />
-                  "AgentMem 帮助我们的客服系统记住每个客户的历史对话，客户满意度提升了 85%。"
+                  &quot;AgentMem 帮助我们的客服系统记住每个客户的历史对话，客户满意度提升了 85%。&quot;
                 </blockquote>
                 <div className="flex items-center justify-between">
                   <div className="flex text-yellow-400">
@@ -581,7 +581,7 @@ export default function HomePage() {
                 </div>
                 <blockquote className="text-slate-300 mb-4">
                   <Quote className="w-4 h-4 text-purple-400 mb-2" />
-                  "通过 AgentMem，我们的 AI 医生能够记住患者的完整病史，诊断准确率提升了 40%。"
+                  &quot;通过 AgentMem，我们的 AI 医生能够记住患者的完整病史，诊断准确率提升了 40%。&quot;
                 </blockquote>
                 <div className="flex items-center justify-between">
                   <div className="flex text-yellow-400">
@@ -604,7 +604,7 @@ export default function HomePage() {
                 </div>
                 <blockquote className="text-slate-300 mb-4">
                   <Quote className="w-4 h-4 text-purple-400 mb-2" />
-                  "学生的学习进度和偏好都被完美记录，个性化推荐的准确率达到了 95%。"
+                  &quot;学生的学习进度和偏好都被完美记录，个性化推荐的准确率达到了 95%。&quot;
                 </blockquote>
                 <div className="flex items-center justify-between">
                   <div className="flex text-yellow-400">

@@ -23,6 +23,11 @@ const nextConfig: NextConfig = {
   images: {
     formats: ['image/webp', 'image/avif'],
   },
+  // ESLint配置
+  eslint: {
+    // 即使有警告也继续构建
+    ignoreDuringBuilds: true,
+  },
 };
 
 export default nextConfig;

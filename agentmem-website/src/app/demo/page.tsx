@@ -110,7 +110,18 @@ export default function DemoPage() {
     uptime: 99.9
   });
   const [selectedDemo, setSelectedDemo] = useState('interactive');
-  const [memoryList, setMemoryList] = useState([
+  // 定义记忆项的类型接口
+  interface Memory {
+    id: string;
+    content: string;
+    category: string;
+    importance: number;
+    created_at: string;
+    user_id: string;
+    relevance?: number;
+  }
+  
+  const [memoryList, setMemoryList] = useState<Memory[]>([
     {
       id: 'mem_001',
       content: '用户喜欢在周末进行户外活动，特别是徒步和骑行',
@@ -137,7 +148,7 @@ export default function DemoPage() {
     }
   ]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
+  const [searchResults, setSearchResults] = useState<Memory[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [demoOutput, setDemoOutput] = useState("");

@@ -34,7 +34,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     localStorage.setItem('agentmem-language', currentLanguage);
     document.documentElement.lang = currentLanguage;
-    document.documentElement.dir = currentLanguage === 'ar' ? 'rtl' : 'ltr';
+    document.documentElement.dir = 'ltr'; // 所有支持的语言都是从左到右的
   }, [currentLanguage]);
 
   // 创建翻译函数
