@@ -4,7 +4,6 @@ import React, { Suspense } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Home } from "lucide-react";
-import { FadeIn } from "@/components/ui/fade-in";
 
 // 分离使用useSearchParams的组件
 function NotFoundContent() {
@@ -43,11 +42,9 @@ export default function NotFound() {
   return (
     <div className="bg-slate-900 min-h-screen">
       <div className="container mx-auto py-16">
-        <FadeIn>
-          <Suspense fallback={<div>加载中...</div>}>
-            <NotFoundContent />
-          </Suspense>
-        </FadeIn>
+        <Suspense fallback={<div>加载中...</div>}>
+          <NotFoundContent />
+        </Suspense>
       </div>
     </div>
   );
