@@ -32,7 +32,7 @@ export function getNestedTranslation(
   
   for (const k of keys) {
     if (result && typeof result === 'object' && k in result) {
-      result = result[k];
+      result = (result as Record<string, unknown>)[k];
     } else {
       return key; // 如果找不到翻译，返回原始 key
     }
