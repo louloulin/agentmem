@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -8,10 +8,10 @@ import { FadeIn, SlideIn } from '@/components/ui/animations';
 import { Check, X, Star, Zap, Shield, Users } from 'lucide-react';
 
 /**
- * 定价页面组件
+ * 定价页面内容组件
  * 展示 AgentMem 的各种定价方案和功能对比
  */
-export default function PricingPage() {
+const PricingPageContent = () => {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
 
   // 定价方案数据
@@ -302,5 +302,17 @@ export default function PricingPage() {
         </FadeIn>
       </div>
     </div>
+  );
+};
+
+/**
+ * 定价页面
+ * 使用Suspense包裹内容组件以解决预渲染问题
+ */
+export default function PricingPage() {
+  return (
+    <Suspense fallback={<div className="text-white text-center py-20">加载中...</div>}>
+      <PricingPageContent />
+    </Suspense>
   );
 }

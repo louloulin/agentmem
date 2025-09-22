@@ -10,31 +10,25 @@
 package agentmem.ffi
 
 import agentmem.core.*
-import agentmem.utils.{SimpleMap}
-// import std.collection.HashMap
+import std.collection.HashMap
 
 /// FFI内存管理器 - 负责C内存的安全管理
 public class FFIMemoryManager {
     /// 跟踪分配的C内存指针
-    private var _allocatedPointers: SimpleMap
+    private var _allocatedPointers: HashMap<UIntNative, Bool>
     /// 是否启用内存跟踪
     private var _trackingEnabled: Bool
 
-    public init(trackingEnabled: Bool) {
-        this._allocatedPointers = SimpleMap()
+    public init(trackingEnabled: Bool = true) {
+        this._allocatedPointers = HashMap<UIntNative, Bool>()
         this._trackingEnabled = trackingEnabled
-    }
-
-    public init() {
-        this._allocatedPointers = SimpleMap()
-        this._trackingEnabled = true
     }
 
     /// 注册分配的指针
     public func registerPointer(ptr: CPointer<Unit>): Unit {
         if (this._trackingEnabled && !ptr.isNull()) {
             let address = ptr.toUIntNative()
-            this._allocatedPointers.set(address.toString(), "true")
+            this._allocatedPointers[address] = true
         }
     }
 
@@ -42,7 +36,7 @@ public class FFIMemoryManager {
     public func unregisterPointer(ptr: CPointer<Unit>): Unit {
         if (this._trackingEnabled && !ptr.isNull()) {
             let address = ptr.toUIntNative()
-            this._allocatedPointers.remove(address.toString())
+            this._allocatedPointers.remove(address)
         }
     }
 
@@ -347,7 +341,7 @@ public class FFIErrorHandler {
     /// 检查FFI调用结果并转换错误
     public static func checkResult(result: Int32): AgentMemResult<Unit> {
         if (result == 0) {
-            return AgentMemResult<Unit>.Ok(())
+            return AgentMemResult<Unit>.Ok(Unit())
         } else {
             let error = FFIErrorHandler.getLastError()
             return AgentMemResult<Unit>.Err(error)

@@ -10,7 +10,6 @@
 package agentmem.core
 
 // import std.result.Result
-import agentmem.utils.{SimpleMap, StringUtils, Timestamp, TimeUtils}
 
 /// AgentMem 错误类型枚举
 public enum AgentMemError {
@@ -178,48 +177,11 @@ public enum AgentMemError {
     }
 }
 
-/// AgentMem 结果类型
-public enum AgentMemResult<T> {
-    | Ok(T)
-    | Err(AgentMemError)
-
-    /// 判断是否成功
-    public func isOk(): Bool {
-        return match (this) {
-            case Ok(_) => true
-            case Err(_) => false
-        }
-    }
-
-    /// 判断是否失败
-    public func isErr(): Bool {
-        return !this.isOk()
-    }
-
-    /// 获取错误值（如果存在）
-    public func getErr(): AgentMemError {
-        return this.unwrapErr()
-    }
-
-    /// 获取成功值（如果存在）
-    public func unwrap(): T {
-        return match (this) {
-            case Ok(value) => value
-            case Err(error) => throw Exception(error.getMessage())
-        }
-    }
-
-    /// 获取错误（如果存在）
-    public func unwrapErr(): AgentMemError {
-        return match (this) {
-            case Ok(_) => throw Exception("Called unwrapErr on Ok value")
-            case Err(error) => error
-        }
-    }
-}
+/// 结果类型别名
+public type AgentMemResult<T> = Result<T, AgentMemError>
 
 /// 错误上下文信息
-public class ErrorContext {
+public struct ErrorContext {
     /// 操作名称
     public var operation: String
     /// 时间戳
@@ -231,15 +193,15 @@ public class ErrorContext {
     /// 代理ID
     public var agentId: Option<String>
     /// 额外信息
-    public var metadata: SimpleMap
+    public var metadata: HashMap<String, String>
 
     public init(operation: String) {
         this.operation = operation
-        this.timestamp = TimeUtils.getCurrentTimestamp()
+        this.timestamp = getCurrentTimestamp()
         this.requestId = None
         this.userId = None
         this.agentId = None
-        this.metadata = SimpleMap()
+        this.metadata = HashMap<String, String>()
     }
 
     /// 设置请求ID
@@ -262,13 +224,13 @@ public class ErrorContext {
 
     /// 添加元数据
     public func withMetadata(key: String, value: String): ErrorContext {
-        this.metadata.set(key, value)
+        this.metadata[key] = value
         return this
     }
 }
 
 /// 错误详情
-public class ErrorDetails {
+public struct ErrorDetails {
     /// 错误对象
     public var error: AgentMemError
     /// 错误上下文
@@ -317,7 +279,9 @@ public class ErrorDetails {
         
         if (!this.context.metadata.isEmpty()) {
             result += "Metadata:\n"
-            result += "  ${this.context.metadata.toString()}\n"
+            for ((key, value) in this.context.metadata) {
+                result += "  ${key}: ${value}\n"
+            }
         }
         
         if (this.stackTrace.isSome()) {
@@ -342,12 +306,8 @@ public interface ErrorHandler {
 public class DefaultErrorHandler <: ErrorHandler {
     private var _logLevel: LogLevel
 
-    public init(logLevel: LogLevel) {
+    public init(logLevel: LogLevel = LogLevel.Error) {
         this._logLevel = logLevel
-    }
-
-    public init() {
-        this._logLevel = LogLevel.Error
     }
 
     public func handleError(error: ErrorDetails): Unit {

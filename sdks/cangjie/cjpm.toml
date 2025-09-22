@@ -1,11 +1,11 @@
 [package]
-name = "agentmem-cangjie-sdk"
+name = "agentmem"
 version = "1.0.0"
-cjc-version = "1.0.0"
+cjc-version = "0.60.5"
 description = "AgentMem 仓颉 SDK - 企业级智能记忆管理平台的仓颉语言接口"
 authors = ["AgentMem Team"]
 license = "MIT"
-output-type = "dynamic"
+output-type = "executable"
 src-dir = "src"
 compile-option = "-O2"
 

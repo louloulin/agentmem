@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -43,7 +43,7 @@ import Link from "next/link";
 /**
  * 文档页面组件 - 展示API文档、快速开始指南和使用示例
  */
-export default function DocsPage() {
+const DocsPageContent = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeSection, setActiveSection] = useState('quick-start');
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
@@ -695,5 +695,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
       {/* 回到顶部按钮 */}
       <ScrollToTopButton />
     </div>
+  );
+};
+
+/**
+ * 文档页面
+ * 使用Suspense包裹内容组件以解决预渲染问题
+ */
+export default function DocsPage() {
+  return (
+    <Suspense fallback={<div className="text-white text-center py-20">加载中...</div>}>
+      <DocsPageContent />
+    </Suspense>
   );
 }

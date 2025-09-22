@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -28,7 +28,7 @@ import {
  * 支持中心页面组件
  * 提供全面的客户支持服务，包括文档、FAQ、联系方式等
  */
-export default function SupportPage() {
+const SupportPageContent = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [contactForm, setContactForm] = useState({
@@ -200,22 +200,12 @@ export default function SupportPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       <div className="container mx-auto px-4 py-16">
         {/* 页面头部 */}
-        <FadeIn>
-          <div className="text-center mb-16">
-            <Badge className="mb-4 bg-purple-500/20 text-purple-300 border-purple-500/30">
-              支持中心
-            </Badge>
-            <h1 className="text-4xl md:text-6xl font-bold text-white mb-6">
-              我们随时
-              <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-                为您服务
-              </span>
-            </h1>
-            <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-              获取专业的技术支持，查找详细的文档资料，与开发者社区交流，让您的 AgentMem 使用体验更加顺畅。
-            </p>
-          </div>
-        </FadeIn>
+        <div className="text-center mb-16">
+          <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">支持中心</h1>
+          <p className="text-xl text-gray-300 max-w-3xl mx-auto">
+            我们提供全面的支持服务，帮助您充分利用 AgentMem 的强大功能
+          </p>
+        </div>
 
         {/* 快速搜索 */}
         <FadeIn delay={200}>
@@ -445,5 +435,17 @@ export default function SupportPage() {
         </div>
       </div>
     </div>
+  );
+};
+
+/**
+ * 支持中心页面
+ * 使用Suspense包裹内容组件以解决预渲染问题
+ */
+export default function SupportPage() {
+  return (
+    <Suspense fallback={<div className="text-white text-center py-20">加载中...</div>}>
+      <SupportPageContent />
+    </Suspense>
   );
 }

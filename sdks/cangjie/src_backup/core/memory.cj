@@ -9,13 +9,12 @@
 
 package agentmem.core
 
-// import std.collection.HashMap
-// import std.time.DateTime
-// import std.uuid.Uuid
-import agentmem.utils.{SimpleMap, StringUtils, ArrayUtils, Vector, Timestamp, TimeUtils}
+import std.collection.HashMap
+import std.time.DateTime
+import std.uuid.Uuid
 
 /// 核心记忆结构体
-public class Memory {
+public struct Memory {
     /// 唯一标识符
     public var id: String
     /// 代理标识符
@@ -39,7 +38,7 @@ public class Memory {
     /// 过期时间戳（可选）
     public var expiresAt: Option<Timestamp>
     /// 元数据
-    public var metadata: SimpleMap
+    public var metadata: HashMap<String, String>
     /// 版本号
     public var version: UInt32
 
@@ -48,7 +47,7 @@ public class Memory {
         id: String,
         agentId: String,
         content: String,
-        memoryType: MemoryType
+        memoryType: MemoryType = MemoryType.Semantic
     ) {
         this.id = id
         this.agentId = agentId
@@ -57,11 +56,11 @@ public class Memory {
         this.content = content
         this.importance = 0.5
         this.embedding = None
-        this.createdAt = TimeUtils.getCurrentTimestamp()
+        this.createdAt = getCurrentTimestamp()
         this.lastAccessedAt = this.createdAt
         this.accessCount = 0
         this.expiresAt = None
-        this.metadata = SimpleMap()
+        this.metadata = HashMap<String, String>()
         this.version = 1
     }
 
@@ -78,7 +77,7 @@ public class Memory {
         lastAccessedAt: Timestamp,
         accessCount: UInt32,
         expiresAt: Option<Timestamp>,
-        metadata: SimpleMap,
+        metadata: HashMap<String, String>,
         version: UInt32
     ) {
         this.id = id
@@ -98,7 +97,7 @@ public class Memory {
 
     /// 生成新的记忆ID
     public static func generateId(): String {
-        return StringUtils.generateId("mem")
+        return Uuid.random().toString()
     }
 
     /// 设置用户ID
@@ -127,7 +126,7 @@ public class Memory {
 
     /// 添加元数据
     public func addMetadata(key: String, value: String): Memory {
-        this.metadata.set(key, value)
+        this.metadata[key] = value
         return this
     }
 
@@ -144,7 +143,7 @@ public class Memory {
 
     /// 记录访问
     public func markAccessed(): Memory {
-        this.lastAccessedAt = TimeUtils.getCurrentTimestamp()
+        this.lastAccessedAt = getCurrentTimestamp()
         this.accessCount = this.accessCount + 1
         return this
     }
@@ -160,7 +159,7 @@ public class Memory {
     public func isExpired(): Bool {
         if (this.expiresAt.isSome()) {
             let expireTime = this.expiresAt.getOrThrow()
-            return TimeUtils.getCurrentTimestamp() > expireTime
+            return getCurrentTimestamp() > expireTime
         }
         return false
     }
@@ -172,32 +171,34 @@ public class Memory {
 
     /// 获取年龄（天数）
     public func getAgeInDays(): UInt32 {
-        let currentTime = TimeUtils.getCurrentTimestamp()
+        let currentTime = getCurrentTimestamp()
         let ageInSeconds = currentTime - this.createdAt
         return UInt32(ageInSeconds / (24 * 60 * 60))
     }
 
     /// 获取最后访问间隔（天数）
     public func getLastAccessAgeInDays(): UInt32 {
-        let currentTime = TimeUtils.getCurrentTimestamp()
+        let currentTime = getCurrentTimestamp()
         let ageInSeconds = currentTime - this.lastAccessedAt
         return UInt32(ageInSeconds / (24 * 60 * 60))
     }
 
     /// 克隆记忆
     public func clone(): Memory {
-        let newMetadata = SimpleMap()
-        // 简化：直接复制toString表示
-        // for ((key, value) in this.metadata) {
-        //     newMetadata.set(key, value)
-        // }
+        let newMetadata = HashMap<String, String>()
+        for ((key, value) in this.metadata) {
+            newMetadata[key] = value
+        }
 
         let newEmbedding = if (this.embedding.isSome()) {
             let originalEmbedding = this.embedding.getOrThrow()
-            // 简化：直接复制原数组
-            Some(originalEmbedding)
+            let newVec = Array<Float32>()
+            for (value in originalEmbedding) {
+                newVec.append(value)
+            }
+            Some(newVec)
         } else {
-            None<Vector>
+            None
         }
 
         return Memory(
@@ -236,7 +237,7 @@ public class Memory {
         var hash = this.id.hashCode()
         hash = hash * 31 + this.agentId.hashCode()
         hash = hash * 31 + this.content.hashCode()
-        return Int32(hash)
+        return hash
     }
 }
 
@@ -250,7 +251,7 @@ public class MemoryBuilder {
     private var _importance: Float32 = 0.5
     private var _embedding: Option<Vector> = None
     private var _expiresAt: Option<Timestamp> = None
-    private var _metadata: SimpleMap = SimpleMap()
+    private var _metadata: HashMap<String, String> = HashMap<String, String>()
 
     public init() {}
 
@@ -304,16 +305,13 @@ public class MemoryBuilder {
 
     /// 添加元数据
     public func withMetadata(key: String, value: String): MemoryBuilder {
-        this._metadata.set(key, value)
+        this._metadata[key] = value
         return this
     }
 
     /// 构建记忆对象
     public func build(): Memory {
-        let id = match (this._id) {
-            case Some(value) => value
-            case None => Memory.generateId()
-        }
+        let id = this._id.getOrElse(Memory.generateId())
         let agentId = this._agentId.getOrThrow()
         let content = this._content.getOrThrow()
 
@@ -343,23 +341,23 @@ public struct MemoryHistory {
     /// 操作描述
     public var description: String
     /// 操作者
-    public var `operator`: Option<String>
+    public var operator: Option<String>
 
     public init(
         memoryId: String,
         operation: HistoryOperation,
         description: String,
-        oldContent: Option<String>,
-        newContent: Option<String>,
-        `operator`: Option<String>
+        oldContent: Option<String> = None,
+        newContent: Option<String> = None,
+        operator: Option<String> = None
     ) {
         this.memoryId = memoryId
         this.operation = operation
-        this.timestamp = TimeUtils.getCurrentTimestamp()
+        this.timestamp = getCurrentTimestamp()
         this.oldContent = oldContent
         this.newContent = newContent
         this.description = description
-        this.`operator` = `operator`
+        this.operator = operator
     }
 }
 

@@ -9,11 +9,10 @@
 
 package agentmem.core
 
-// import std.collection.HashMap
-import agentmem.utils.{SimpleMap, StringUtils}
+import std.collection.HashMap
 
 /// 客户端配置
-public class ClientConfig {
+public struct ClientConfig {
     /// 服务器URL
     public var serverUrl: String
     /// API密钥
@@ -33,7 +32,7 @@ public class ClientConfig {
     /// 用户代理字符串
     public var userAgent: String
     /// 自定义头部
-    public var customHeaders: SimpleMap
+    public var customHeaders: HashMap<String, String>
     /// 启用调试模式
     public var debugMode: Bool
     /// 日志级别
@@ -50,7 +49,7 @@ public class ClientConfig {
         this.connectionPoolSize = 10
         this.enableCompression = true
         this.userAgent = "AgentMem-Cangjie-SDK/1.0.0"
-        this.customHeaders = SimpleMap()
+        this.customHeaders = HashMap<String, String>()
         this.debugMode = false
         this.logLevel = LogLevel.Info
     }
@@ -66,7 +65,7 @@ public class ClientConfig {
         connectionPoolSize: UInt32,
         enableCompression: Bool,
         userAgent: String,
-        customHeaders: SimpleMap,
+        customHeaders: HashMap<String, String>,
         debugMode: Bool,
         logLevel: LogLevel
     ) {
@@ -103,16 +102,9 @@ public class ClientConfig {
     }
 
     /// 启用/禁用缓存
-    public func withCache(enable: Bool, size: UInt32): ClientConfig {
+    public func withCache(enable: Bool, size: UInt32 = 100): ClientConfig {
         this.enableCache = enable
         this.cacheSize = size
-        return this
-    }
-
-    /// 启用/禁用缓存（默认大小）
-    public func withCache(enable: Bool): ClientConfig {
-        this.enableCache = enable
-        this.cacheSize = 100
         return this
     }
 
@@ -136,7 +128,7 @@ public class ClientConfig {
 
     /// 添加自定义头部
     public func withCustomHeader(key: String, value: String): ClientConfig {
-        this.customHeaders.set(key, value)
+        this.customHeaders[key] = value
         return this
     }
 
@@ -186,8 +178,16 @@ public class ClientConfig {
         json += ",\"log_level\":\"${this.logLevel.toString()}\""
         
         if (!this.customHeaders.isEmpty()) {
-            json += ",\"custom_headers\":"
-            json += this.customHeaders.toString()
+            json += ",\"custom_headers\":{"
+            var first = true
+            for ((key, value) in this.customHeaders) {
+                if (!first) {
+                    json += ","
+                }
+                json += "\"${key}\":\"${value}\""
+                first = false
+            }
+            json += "}"
         }
         
         json += "}"
@@ -196,11 +196,10 @@ public class ClientConfig {
 
     /// 克隆配置
     public func clone(): ClientConfig {
-        let newHeaders = SimpleMap()
-        // 简化：直接创建新的SimpleMap
-        // for ((key, value) in this.customHeaders) {
-        //     newHeaders.set(key, value)
-        // }
+        let newHeaders = HashMap<String, String>()
+        for ((key, value) in this.customHeaders) {
+            newHeaders[key] = value
+        }
 
         return ClientConfig(
             this.serverUrl,
@@ -242,7 +241,7 @@ public enum LogLevel {
 
     /// 从字符串创建
     public static func fromString(s: String): Option<LogLevel> {
-        return match (StringUtils.toLowerCase(s)) {
+        return match (s.toLowerCase()) {
             case "trace" => Some(Trace)
             case "debug" => Some(Debug)
             case "info" => Some(Info)

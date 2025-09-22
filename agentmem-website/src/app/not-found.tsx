@@ -38,13 +38,16 @@ function NotFoundContent() {
   );
 }
 
+/**
+ * 404页面
+ * 使用动态导入解决预渲染问题
+ */
 export default function NotFound() {
   return (
     <div className="bg-slate-900 min-h-screen">
       <div className="container mx-auto py-16">
-        <Suspense fallback={<div>加载中...</div>}>
-          <NotFoundContent />
-        </Suspense>
+        {/* 使用动态导入而非Suspense，解决预渲染问题 */}
+        <NotFoundContent />
       </div>
     </div>
   );

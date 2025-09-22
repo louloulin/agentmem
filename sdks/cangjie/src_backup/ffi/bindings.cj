@@ -15,15 +15,15 @@ import agentmem.core.*
 @C
 public struct CMemory {
     /// 记忆ID
-    public var id: CString = CString("")
+    public var id: CString = CString()
     /// 代理ID
-    public var agent_id: CString = CString("")
+    public var agent_id: CString = CString()
     /// 用户ID（可选，空字符串表示None）
-    public var user_id: CString = CString("")
+    public var user_id: CString = CString()
     /// 记忆类型（数值表示）
     public var memory_type: UInt32 = 0
     /// 记忆内容
-    public var content: CString = CString("")
+    public var content: CString = CString()
     /// 重要性分数
     public var importance: Float32 = 0.0
     /// 创建时间戳

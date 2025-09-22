@@ -10,7 +10,6 @@
 package agentmem.ffi
 
 import agentmem.core.*
-import agentmem.utils.{SimpleMap, Timestamp, Mutex}
 import std.collection.HashMap
 
 /// FFI工具类 - 提供各种FFI操作的便利函数
@@ -110,7 +109,7 @@ public class JSONSerializer {
         if (filter.importanceRange.isSome()) {
             if (!first) { json += "," }
             let range = filter.importanceRange.getOrThrow()
-            json += "\"importance_range\":{\"min\":${range._1},\"max\":${range._2}}"
+            json += "\"importance_range\":{\"min\":${range.0},\"max\":${range.1}}"
             first = false
         }
 
@@ -118,7 +117,7 @@ public class JSONSerializer {
         if (filter.timeRange.isSome()) {
             if (!first) { json += "," }
             let range = filter.timeRange.getOrThrow()
-            json += "\"time_range\":{\"start\":${range._1},\"end\":${range._2}}"
+            json += "\"time_range\":{\"start\":${range.0},\"end\":${range.1}}"
             first = false
         }
 
@@ -234,36 +233,29 @@ public class PerformanceMonitor {
 public class RetryHelper {
     /// 执行带重试的操作
     public static func withRetry<T>(
-        operation: () -> AgentMemResult<T>
-    ): AgentMemResult<T> {
-        return withRetry(operation, 3, 1000)
-    }
-
-    public static func withRetry<T>(
         operation: () -> AgentMemResult<T>,
-        maxRetries: UInt32,
-        delayMs: UInt32
+        maxRetries: UInt32 = 3,
+        delayMs: UInt32 = 1000
     ): AgentMemResult<T> {
         var lastError: Option<AgentMemError> = None
         
         for (attempt in 0..(maxRetries + 1)) {
             let result = operation()
-
-            if (result.isOk()) {
-                let value = result.getOk()
-                return AgentMemResult<T>.Ok(value)
-            } else {
-                let error = result.getErr()
-                lastError = Some(error)
-
-                // 检查是否为可重试错误
-                if (!error.isRetryable() || attempt == maxRetries) {
-                    break
-                }
-
-                // 等待一段时间后重试
-                if (attempt < maxRetries) {
-                    // Thread.sleep(Int64(delayMs)) // 暂时注释掉，仓颉可能没有Thread类
+            
+            match (result) {
+                case Ok(value) => return AgentMemResult<T>.Ok(value)
+                case Err(error) => {
+                    lastError = Some(error)
+                    
+                    // 检查是否为可重试错误
+                    if (!error.isRetryable() || attempt == maxRetries) {
+                        break
+                    }
+                    
+                    // 等待一段时间后重试
+                    if (attempt < maxRetries) {
+                        Thread.sleep(Int64(delayMs))
+                    }
                 }
             }
         }
@@ -275,37 +267,30 @@ public class RetryHelper {
 
     /// 指数退避重试
     public static func withExponentialBackoff<T>(
-        operation: () -> AgentMemResult<T>
-    ): AgentMemResult<T> {
-        return withExponentialBackoff(operation, 3, 1000, 2.0f32)
-    }
-
-    public static func withExponentialBackoff<T>(
         operation: () -> AgentMemResult<T>,
-        maxRetries: UInt32,
-        initialDelayMs: UInt32,
-        backoffMultiplier: Float32
+        maxRetries: UInt32 = 3,
+        initialDelayMs: UInt32 = 1000,
+        backoffMultiplier: Float32 = 2.0
     ): AgentMemResult<T> {
         var lastError: Option<AgentMemError> = None
         var currentDelay = initialDelayMs
         
         for (attempt in 0..(maxRetries + 1)) {
             let result = operation()
-
-            if (result.isOk()) {
-                let value = result.getOk()
-                return AgentMemResult<T>.Ok(value)
-            } else {
-                let error = result.getErr()
-                lastError = Some(error)
-
-                if (!error.isRetryable() || attempt == maxRetries) {
-                    break
-                }
-
-                if (attempt < maxRetries) {
-                    // Thread.sleep(Int64(currentDelay)) // 暂时注释掉
-                    currentDelay = UInt32(Float32(currentDelay) * backoffMultiplier)
+            
+            match (result) {
+                case Ok(value) => return AgentMemResult<T>.Ok(value)
+                case Err(error) => {
+                    lastError = Some(error)
+                    
+                    if (!error.isRetryable() || attempt == maxRetries) {
+                        break
+                    }
+                    
+                    if (attempt < maxRetries) {
+                        Thread.sleep(Int64(currentDelay))
+                        currentDelay = UInt32(Float32(currentDelay) * backoffMultiplier)
+                    }
                 }
             }
         }
@@ -318,18 +303,12 @@ public class RetryHelper {
 
 /// 缓存工具
 public class SimpleCache<K, V> {
-    private var _cache: SimpleMap
+    private var _cache: HashMap<K, V>
     private var _maxSize: UInt32
-    private var _accessOrder: Array<String>
+    private var _accessOrder: Array<K>
 
-    public init() {
-        this._cache = SimpleMap() // 使用SimpleMap替代HashMap
-        this._maxSize = 100
-        this._accessOrder = Array<String>(0, {i => ""}) // 简化实现
-    }
-
-    public init(maxSize: UInt32) {
-        this._cache = SimpleMap() // 使用SimpleMap替代HashMap
+    public init(maxSize: UInt32 = 100) {
+        this._cache = HashMap<K, V>()
         this._maxSize = maxSize
         this._accessOrder = Array<K>()
     }
@@ -405,12 +384,7 @@ public class AtomicCounter {
     private var _value: UInt32
     private var _mutex: Mutex
 
-    public init() {
-        this._value = 0
-        this._mutex = Mutex()
-    }
-
-    public init(initialValue: UInt32) {
+    public init(initialValue: UInt32 = 0) {
         this._value = initialValue
         this._mutex = Mutex()
     }
