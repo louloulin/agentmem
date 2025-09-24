@@ -238,6 +238,20 @@ public class Memory {
         hash = hash * 31 + this.content.hashCode()
         return Int32(hash)
     }
+
+    /// 验证记忆数据
+    public func validate(): AgentMemResult<Bool> {
+        if (this.id.isEmpty()) {
+            return AgentMemResult<Bool>.Err(AgentMemError.InvalidParameter("Memory ID cannot be empty"))
+        }
+        if (this.agentId.isEmpty()) {
+            return AgentMemResult<Bool>.Err(AgentMemError.InvalidParameter("Agent ID cannot be empty"))
+        }
+        if (this.content.isEmpty()) {
+            return AgentMemResult<Bool>.Err(AgentMemError.InvalidParameter("Memory content cannot be empty"))
+        }
+        return AgentMemResult<Bool>.Ok(true)
+    }
 }
 
 /// 记忆构建器

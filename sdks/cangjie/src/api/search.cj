@@ -4,477 +4,389 @@
 
 /**
  * @file
- * 搜索功能 - AgentMem 仓颉 SDK 的搜索功能专门实现
+ * AgentMem搜索API - 高级搜索功能实现
  */
 
 package agentmem.api
 
-import agentmem.core.*
-import agentmem.ffi.*
+import agentmem.core.{Memory, MemoryType, ImportanceLevel, AgentMemError, AgentMemResult, SearchFilter, MemorySearchResult}
+import agentmem.utils.{SimpleMap, StringUtils, TimeUtils}
 
-/// 搜索管理器 - 提供高级搜索功能
-public class SearchManager {
-    /// 客户端引用
-    private var _client: AgentMemClient
-    /// 搜索配置
-    private var _config: SearchConfig
-    /// 搜索缓存 (简化为String缓存)
-    private var _searchCache: Option<SimpleCache>
+/// 搜索选项
+public class SearchOptions {
+    public var limit: UInt32 = 10
+    public var offset: UInt32 = 0
+    public var minScore: Float32 = 0.0
+    public var includeMetadata: Bool = true
+    public var sortBy: String = "relevance"
+    public var sortOrder: String = "desc"
 
-    public init(client: AgentMemClient, config: SearchConfig) {
-        this._client = client
-        this._config = config
-        
-        if (client.getConfig().enableCache) {
-            this._searchCache = Some(SimpleCache(50))
-        } else {
-            this._searchCache = None
-        }
-    }
+    public init() {}
 
-    /// 智能搜索 - 结合语义搜索和全文搜索 (重载1)
-    public func smartSearch(query: String): AgentMemResult<Array<MemorySearchResult>> {
-        return this.smartSearch(query, None<SearchFilter>, None<UInt32>)
-    }
-
-    /// 智能搜索 - 结合语义搜索和全文搜索 (重载2)
-    public func smartSearch(
-        query: String,
-        filter: Option<SearchFilter>,
-        limit: Option<UInt32>
-    ): AgentMemResult<Array<MemorySearchResult>> {
-        let searchLimit = match (limit) {
-            case Some(l) => l
-            case None => this._config.maxResults
-        }
-        let cacheKey = this.generateCacheKey(query, filter, searchLimit)
-        
-        // 检查缓存 (简化实现，暂时跳过缓存)
-        // TODO: 实现序列化/反序列化以支持复杂对象缓存
-
-        let monitor = PerformanceMonitor("smart_search")
-
-        // 执行搜索
-        let searchResult = if (filter.isSome()) {
-            this._client.searchMemoriesFiltered(query, filter.getOrThrow(), searchLimit)
-        } else {
-            this._client.searchMemories(query, searchLimit)
-        }
-
-        if (searchResult.isOk()) {
-            let results = searchResult.getOk()
-            // 应用搜索配置进行后处理
-            let processedResults = this.postProcessResults(results)
-
-            // 缓存结果 (简化实现，暂时跳过)
-            // TODO: 实现序列化以支持复杂对象缓存
-
-            monitor.finishAndLog()
-            return AgentMemResult<Array<MemorySearchResult>>.Ok(processedResults)
-        } else {
-            let error = searchResult.getErr()
-            return AgentMemResult<Array<MemorySearchResult>>.Err(error)
-        }
-    }
-
-    /// 语义搜索 - 基于向量相似度的搜索 (重载1)
-    public func semanticSearch(query: String): AgentMemResult<Array<MemorySearchResult>> {
-        return this.semanticSearch(query, 0.7, 10)
-    }
-
-    /// 语义搜索 - 基于向量相似度的搜索 (重载2)
-    public func semanticSearch(
-        query: String,
-        threshold: Float32,
-        limit: UInt32
-    ): AgentMemResult<Array<MemorySearchResult>> {
-        let monitor = PerformanceMonitor("semantic_search")
-
-        try {
-            // 首先生成查询的嵌入向量
-            let embeddingResult = this.generateQueryEmbedding(query)
-            if (embeddingResult.isOk()) {
-                let embedding = embeddingResult.getOk()
-                // 使用嵌入向量进行搜索
-                let searchResult = this.searchByEmbedding(embedding, threshold, limit)
-                monitor.finishAndLog()
-                return searchResult
-            } else {
-                let error = embeddingResult.getErr()
-                return AgentMemResult<Array<MemorySearchResult>>.Err(error)
-            }
-            
-        } catch (e: Exception) {
-            return AgentMemResult<Array<MemorySearchResult>>.Err(
-                AgentMemError.InternalError("Failed to perform semantic search: ${e}")
-            )
-        }
-    }
-
-    /// 相似记忆搜索 (重载1)
-    public func findSimilarMemories(memoryId: String): AgentMemResult<Array<MemorySearchResult>> {
-        return this.findSimilarMemories(memoryId, 0.7, 10)
-    }
-
-    /// 相似记忆搜索 (重载2)
-    public func findSimilarMemories(
-        memoryId: String,
-        threshold: Float32,
-        limit: UInt32
-    ): AgentMemResult<Array<MemorySearchResult>> {
-        return this._client.searchSimilarMemories(memoryId, limit, threshold)
-    }
-
-    /// 多条件搜索 (重载1)
-    public func advancedSearch(queries: Array<String>): AgentMemResult<Array<MemorySearchResult>> {
-        return this.advancedSearch(queries, SearchOperator.And, None<SearchFilter>, 10)
-    }
-
-    /// 多条件搜索 (重载2)
-    public func advancedSearch(
-        queries: Array<String>,
-        `operator`: SearchOperator,
-        filter: Option<SearchFilter>,
-        limit: UInt32
-    ): AgentMemResult<Array<MemorySearchResult>> {
-        if (queries.isEmpty()) {
-            return AgentMemResult<Array<MemorySearchResult>>.Ok(Array<MemorySearchResult>())
-        }
-
-        let monitor = PerformanceMonitor("advanced_search")
-
-        try {
-            var allResults = Array<Array<MemorySearchResult>>()
-            
-            // 对每个查询执行搜索
-            for (query in queries) {
-                let searchResult = if (filter.isSome()) {
-                    this._client.searchMemoriesFiltered(query, filter.getOrThrow(), limit * 2)
-                } else {
-                    this._client.searchMemories(query, limit * 2)
-                }
-                
-                match (searchResult) {
-                    case Ok(results) => allResults.append(results)
-                    case Err(error) => return AgentMemResult<Array<MemorySearchResult>>.Err(error)
-                }
-            }
-            
-            // 合并结果
-            let mergedResults = this.mergeSearchResults(allResults, `operator`, limit)
-            monitor.finishAndLog()
-            
-            return AgentMemResult<Array<MemorySearchResult>>.Ok(mergedResults)
-            
-        } catch (e: Exception) {
-            return AgentMemResult<Array<MemorySearchResult>>.Err(
-                AgentMemError.InternalError("Failed to perform advanced search: ${e}")
-            )
-        }
-    }
-
-    /// 时间范围搜索 (重载1)
-    public func searchByTimeRange(
-        startTime: UInt64,
-        endTime: UInt64
-    ): AgentMemResult<Array<MemorySearchResult>> {
-        return this.searchByTimeRange(startTime, endTime, None<String>, 10)
-    }
-
-    /// 时间范围搜索 (重载2)
-    public func searchByTimeRange(
-        startTime: UInt64,
-        endTime: UInt64,
-        agentId: Option<String>,
-        limit: UInt32
-    ): AgentMemResult<Array<MemorySearchResult>> {
-        var filter = SearchFilter()
-        filter.timeRange = Some((startTime, endTime))
-        
-        if (agentId.isSome()) {
-            filter.agentIds = Some([agentId.getOrThrow()])
-        }
-        
-        return this.smartSearch("*", Some(filter), Some(limit))
-    }
-
-    /// 按重要性搜索 (重载1)
-    public func searchByImportance(minImportance: Float32): AgentMemResult<Array<MemorySearchResult>> {
-        return this.searchByImportance(minImportance, 1.0, None<String>, 10)
-    }
-
-    /// 按重要性搜索 (重载2)
-    public func searchByImportance(
-        minImportance: Float32,
-        maxImportance: Float32,
-        agentId: Option<String>,
-        limit: UInt32
-    ): AgentMemResult<Array<MemorySearchResult>> {
-        var filter = SearchFilter()
-        filter.importanceRange = Some((minImportance, maxImportance))
-        
-        if (agentId.isSome()) {
-            filter.agentIds = Some([agentId.getOrThrow()])
-        }
-        
-        return this.smartSearch("*", Some(filter), Some(limit))
-    }
-
-    /// 按记忆类型搜索 (重载1)
-    public func searchByMemoryType(memoryTypes: Array<MemoryType>): AgentMemResult<Array<MemorySearchResult>> {
-        return this.searchByMemoryType(memoryTypes, None<String>, 10)
-    }
-
-    /// 按记忆类型搜索 (重载2)
-    public func searchByMemoryType(
-        memoryTypes: Array<MemoryType>,
-        agentId: Option<String>,
-        limit: UInt32
-    ): AgentMemResult<Array<MemorySearchResult>> {
-        var filter = SearchFilter()
-        filter.memoryTypes = Some(memoryTypes)
-        
-        if (agentId.isSome()) {
-            filter.agentIds = Some([agentId.getOrThrow()])
-        }
-        
-        return this.smartSearch("*", Some(filter), Some(limit))
-    }
-
-    /// 搜索建议 - 基于查询历史提供搜索建议 (重载1)
-    public func getSearchSuggestions(partialQuery: String): AgentMemResult<Array<String>> {
-        return this.getSearchSuggestions(partialQuery, 5)
-    }
-
-    /// 搜索建议 - 基于查询历史提供搜索建议 (重载2)
-    public func getSearchSuggestions(
-        partialQuery: String,
-        limit: UInt32
-    ): AgentMemResult<Array<String>> {
-        // 这里可以实现基于历史搜索的建议功能
-        // 简化实现，返回基于部分查询的建议
-        var suggestions = Array<String>()
-        
-        if (partialQuery.length >= 2) {
-            suggestions.append("${partialQuery} 相关内容")
-            suggestions.append("${partialQuery} 详细信息")
-            suggestions.append("${partialQuery} 历史记录")
-        }
-        
-        return AgentMemResult<Array<String>>.Ok(suggestions)
-    }
-
-    /// 更新搜索配置
-    public func updateConfig(config: SearchConfig): Unit {
-        this._config = config
-    }
-
-    /// 获取搜索配置
-    public func getConfig(): SearchConfig {
-        return this._config
-    }
-
-    /// 清除搜索缓存
-    public func clearCache(): Unit {
-        if (this._searchCache.isSome()) {
-            this._searchCache.getOrThrow().clear()
-        }
-    }
-
-    // 私有辅助方法
-    private func generateCacheKey(
-        query: String, 
-        filter: Option<SearchFilter>, 
-        limit: UInt32
-    ): String {
-        var key = "q:${query}:l:${limit}"
-        if (filter.isSome()) {
-            key += ":f:${filter.getOrThrow().hashCode()}"
-        }
-        return key
-    }
-
-    private func postProcessResults(results: Array<MemorySearchResult>): Array<MemorySearchResult> {
-        var processedResults = results
-        
-        // 应用相似度阈值过滤
-        if (this._config.similarityThreshold > 0.0) {
-            var filteredResults = Array<MemorySearchResult>()
-            for (result in processedResults) {
-                if (result.score >= this._config.similarityThreshold) {
-                    filteredResults.append(result)
-                }
-            }
-            processedResults = filteredResults
-        }
-        
-        // 应用排序
-        processedResults = this.sortResults(processedResults)
-        
-        // 限制结果数量
-        if (UInt32(processedResults.size) > this._config.maxResults) {
-            var limitedResults = Array<MemorySearchResult>()
-            for (i in 0..this._config.maxResults) {
-                limitedResults.append(processedResults[Int32(i)])
-            }
-            processedResults = limitedResults
-        }
-        
-        return processedResults
-    }
-
-    private func sortResults(results: Array<MemorySearchResult>): Array<MemorySearchResult> {
-        // 简化的排序实现
-        // 实际应该根据配置的排序方式进行排序
-        return results
-    }
-
-    private func generateQueryEmbedding(query: String): AgentMemResult<Array<Float32>> {
-        try {
-            let handle = this._client._handle.getOrThrow()
-            let cQuery = CStringConverter.toCString(query)
-            var embeddingPtr = CPointer<Float32>()
-            var length: UInt32 = 0
-
-            let result = unsafe {
-                agentmem_generate_embedding(
-                    handle, 
-                    cQuery, 
-                    CPointer.addressOf(embeddingPtr), 
-                    CPointer.addressOf(length)
-                )
-            }
-            CStringConverter.freeCString(cQuery)
-
-            if (result == 0) {
-                var embedding = Array<Float32>()
-                for (i in 0..length) {
-                    let value = unsafe { (embeddingPtr + UIntNative(i)).read() }
-                    embedding.append(value)
-                }
-                
-                unsafe { agentmem_free_embedding(embeddingPtr) }
-                return AgentMemResult<Array<Float32>>.Ok(embedding)
-            } else {
-                let error = FFIErrorHandler.getLastError()
-                return AgentMemResult<Vector>.Err(error)
-            }
-            
-        } catch (e: Exception) {
-            return AgentMemResult<Vector>.Err(
-                AgentMemError.InternalError("Failed to generate query embedding: ${e}")
-            )
-        }
-    }
-
-    private func searchByEmbedding(
-        embedding: Vector, 
-        threshold: Float32, 
-        limit: UInt32
-    ): AgentMemResult<Array<MemorySearchResult>> {
-        // 这里需要实现基于嵌入向量的搜索
-        // 简化实现，返回空结果
-        return AgentMemResult<Array<MemorySearchResult>>.Ok(Array<MemorySearchResult>())
-    }
-
-    private func mergeSearchResults(
-        allResults: Array<Array<MemorySearchResult>>,
-        `operator`: SearchOperator,
-        limit: UInt32
-    ): Array<MemorySearchResult> {
-        if (allResults.isEmpty()) {
-            return Array<MemorySearchResult>()
-        }
-
-        if (`operator` == SearchOperator.And) {
-            // 交集：只返回在所有结果中都出现的记忆
-            return this.intersectResults(allResults, limit)
-        } else {
-            // 并集：返回在任何结果中出现的记忆
-            return this.unionResults(allResults, limit)
-        }
-    }
-
-    private func intersectResults(
-        allResults: Array<Array<MemorySearchResult>>,
-        limit: UInt32
-    ): Array<MemorySearchResult> {
-        if (allResults.isEmpty()) {
-            return Array<MemorySearchResult>()
-        }
-
-        var intersection = allResults[0]
-        for (i in 1..allResults.size) {
-            intersection = this.intersectTwoResults(intersection, allResults[i])
-        }
-
-        return this.limitResults(intersection, limit)
-    }
-
-    private func unionResults(
-        allResults: Array<Array<MemorySearchResult>>,
-        limit: UInt32
-    ): Array<MemorySearchResult> {
-        var union = Array<MemorySearchResult>()
-        var seenIds = HashMap<String, Bool>()
-
-        for (results in allResults) {
-            for (result in results) {
-                if (!seenIds.containsKey(result.memory.id)) {
-                    union.append(result)
-                    seenIds[result.memory.id] = true
-                }
-            }
-        }
-
-        return this.limitResults(union, limit)
-    }
-
-    private func intersectTwoResults(
-        results1: Array<MemorySearchResult>,
-        results2: Array<MemorySearchResult>
-    ): Array<MemorySearchResult> {
-        var intersection = Array<MemorySearchResult>()
-        var ids2 = HashMap<String, MemorySearchResult>()
-
-        for (result in results2) {
-            ids2[result.memory.id] = result
-        }
-
-        for (result in results1) {
-            if (ids2.containsKey(result.memory.id)) {
-                intersection.append(result)
-            }
-        }
-
-        return intersection
-    }
-
-    private func limitResults(
-        results: Array<MemorySearchResult>,
-        limit: UInt32
-    ): Array<MemorySearchResult> {
-        if (UInt32(results.size) <= limit) {
-            return results
-        }
-
-        var limitedResults = Array<MemorySearchResult>()
-        for (i in 0..limit) {
-            limitedResults.append(results[Int32(i)])
-        }
-        return limitedResults
+    public init(
+        limit: UInt32,
+        offset: UInt32,
+        minScore: Float32,
+        includeMetadata: Bool,
+        sortBy: String,
+        sortOrder: String
+    ) {
+        this.limit = limit
+        this.offset = offset
+        this.minScore = minScore
+        this.includeMetadata = includeMetadata
+        this.sortBy = sortBy
+        this.sortOrder = sortOrder
     }
 }
 
-/// 搜索操作符枚举
-public enum SearchOperator {
-    | And    // 交集
-    | Or     // 并集
+/// 搜索结果集合
+public class SearchResultSet {
+    public var results: Array<MemorySearchResult>
+    public var totalCount: UInt32
+    public var hasMore: Bool
+    public var queryTime: UInt32
 
-    public func toString(): String {
-        return match (this) {
-            case And => "and"
-            case Or => "or"
+    public init(
+        results: Array<MemorySearchResult>,
+        totalCount: UInt32,
+        hasMore: Bool,
+        queryTime: UInt32
+    ) {
+        this.results = results
+        this.totalCount = totalCount
+        this.hasMore = hasMore
+        this.queryTime = queryTime
+    }
+
+    /// 获取结果数量
+    public func getResultCount(): UInt32 {
+        return UInt32(this.results.size)
+    }
+
+    /// 获取最高分数
+    public func getMaxScore(): Float32 {
+        if (this.results.size == 0) {
+            return 0.0
         }
+        
+        var maxScore = this.results[0].score
+        for (i in 1..this.results.size) {
+            if (this.results[i].score > maxScore) {
+                maxScore = this.results[i].score
+            }
+        }
+        return maxScore
+    }
+
+    /// 获取平均分数
+    public func getAverageScore(): Float32 {
+        if (this.results.size == 0) {
+            return 0.0
+        }
+        
+        var totalScore: Float32 = 0.0
+        for (i in 0..this.results.size) {
+            totalScore += this.results[i].score
+        }
+        return totalScore / Float32(this.results.size)
+    }
+}
+
+/// AgentMem搜索服务
+public class AgentMemSearchService {
+    private var _agentId: String
+    private var _connected: Bool = false
+
+    public init(agentId: String) {
+        this._agentId = agentId
+    }
+
+    /// 设置连接状态
+    public func setConnected(connected: Bool): Unit {
+        this._connected = connected
+    }
+
+    /// 文本搜索
+    public func searchByText(
+        query: String,
+        filter: Option<SearchFilter>,
+        options: Option<SearchOptions>
+    ): AgentMemResult<SearchResultSet> {
+        if (!this._connected) {
+            return AgentMemResult<SearchResultSet>.Err(
+                AgentMemError.NotConnected("Search service not connected")
+            )
+        }
+
+        if (query.isEmpty()) {
+            return AgentMemResult<SearchResultSet>.Err(
+                AgentMemError.InvalidParameter("Query cannot be empty")
+            )
+        }
+
+        try {
+            let searchOptions = match (options) {
+                case Some(opts) => opts
+                case None => SearchOptions()
+            }
+            let startTime = TimeUtils.getCurrentTimestamp()
+
+            // 模拟搜索结果
+            let mockResults = this.generateMockResults(query, searchOptions.limit)
+            let queryTime = UInt32(TimeUtils.getCurrentTimestamp() - startTime)
+
+            let resultSet = SearchResultSet(
+                mockResults,
+                UInt32(mockResults.size),
+                false,
+                queryTime
+            )
+
+            return AgentMemResult<SearchResultSet>.Ok(resultSet)
+
+        } catch (e: Exception) {
+            return AgentMemResult<SearchResultSet>.Err(
+                AgentMemError.InternalError("Search failed: ${e}")
+            )
+        }
+    }
+
+    /// 按记忆类型搜索
+    public func searchByType(
+        memoryType: MemoryType,
+        options: Option<SearchOptions>
+    ): AgentMemResult<SearchResultSet> {
+        if (!this._connected) {
+            return AgentMemResult<SearchResultSet>.Err(
+                AgentMemError.NotConnected("Search service not connected")
+            )
+        }
+
+        try {
+            let searchOptions = match (options) {
+                case Some(opts) => opts
+                case None => SearchOptions()
+            }
+            let startTime = TimeUtils.getCurrentTimestamp()
+
+            // 模拟按类型搜索
+            let mockResults = this.generateMockResultsByType(memoryType, searchOptions.limit)
+            let queryTime = UInt32(TimeUtils.getCurrentTimestamp() - startTime)
+
+            let resultSet = SearchResultSet(
+                mockResults,
+                UInt32(mockResults.size),
+                false,
+                queryTime
+            )
+
+            return AgentMemResult<SearchResultSet>.Ok(resultSet)
+
+        } catch (e: Exception) {
+            return AgentMemResult<SearchResultSet>.Err(
+                AgentMemError.InternalError("Type search failed: ${e}")
+            )
+        }
+    }
+
+    /// 按重要性搜索
+    public func searchByImportance(
+        minImportance: ImportanceLevel,
+        options: Option<SearchOptions>
+    ): AgentMemResult<SearchResultSet> {
+        if (!this._connected) {
+            return AgentMemResult<SearchResultSet>.Err(
+                AgentMemError.NotConnected("Search service not connected")
+            )
+        }
+
+        try {
+            let searchOptions = match (options) {
+                case Some(opts) => opts
+                case None => SearchOptions()
+            }
+            let startTime = TimeUtils.getCurrentTimestamp()
+
+            // 模拟按重要性搜索
+            let mockResults = this.generateMockResultsByImportance(minImportance, searchOptions.limit)
+            let queryTime = UInt32(TimeUtils.getCurrentTimestamp() - startTime)
+
+            let resultSet = SearchResultSet(
+                mockResults,
+                UInt32(mockResults.size),
+                false,
+                queryTime
+            )
+
+            return AgentMemResult<SearchResultSet>.Ok(resultSet)
+
+        } catch (e: Exception) {
+            return AgentMemResult<SearchResultSet>.Err(
+                AgentMemError.InternalError("Importance search failed: ${e}")
+            )
+        }
+    }
+
+    /// 相似性搜索
+    public func searchSimilar(
+        memoryId: String,
+        threshold: Float32,
+        options: Option<SearchOptions>
+    ): AgentMemResult<SearchResultSet> {
+        if (!this._connected) {
+            return AgentMemResult<SearchResultSet>.Err(
+                AgentMemError.NotConnected("Search service not connected")
+            )
+        }
+
+        if (memoryId.isEmpty()) {
+            return AgentMemResult<SearchResultSet>.Err(
+                AgentMemError.InvalidParameter("Memory ID cannot be empty")
+            )
+        }
+
+        try {
+            let searchOptions = match (options) {
+                case Some(opts) => opts
+                case None => SearchOptions()
+            }
+            let startTime = TimeUtils.getCurrentTimestamp()
+
+            // 模拟相似性搜索
+            let mockResults = this.generateMockSimilarResults(memoryId, threshold, searchOptions.limit)
+            let queryTime = UInt32(TimeUtils.getCurrentTimestamp() - startTime)
+
+            let resultSet = SearchResultSet(
+                mockResults,
+                UInt32(mockResults.size),
+                false,
+                queryTime
+            )
+
+            return AgentMemResult<SearchResultSet>.Ok(resultSet)
+
+        } catch (e: Exception) {
+            return AgentMemResult<SearchResultSet>.Err(
+                AgentMemError.InternalError("Similarity search failed: ${e}")
+            )
+        }
+    }
+
+    /// 生成模拟搜索结果
+    private func generateMockResults(query: String, limit: UInt32): Array<MemorySearchResult> {
+        let resultCount = if (limit > 5) { 5 } else { Int64(limit) }
+        
+        return Array<MemorySearchResult>(resultCount, {i =>
+            let memory = Memory(
+                "search_${i}_${StringUtils.generateRandomId(6)}",
+                this._agentId,
+                Some("user-123"),
+                MemoryType.Semantic,
+                "搜索结果 ${i + 1}: 与查询 '${query}' 相关的内容",
+                ImportanceLevel.Medium.toFloat32(),
+                None,
+                TimeUtils.getCurrentTimestamp() - UInt64(i * 3600),
+                TimeUtils.getCurrentTimestamp(),
+                UInt32(i + 1),
+                None,
+                SimpleMap(),
+                UInt32(1)
+            )
+            
+            MemorySearchResult(
+                memory,
+                0.9 - (Float32(i) * 0.1),
+                0.8 - (Float32(i) * 0.05)
+            )
+        })
+    }
+
+    /// 生成按类型的模拟结果
+    private func generateMockResultsByType(memoryType: MemoryType, limit: UInt32): Array<MemorySearchResult> {
+        let resultCount = if (limit > 3) { 3 } else { Int64(limit) }
+        
+        return Array<MemorySearchResult>(resultCount, {i =>
+            let memory = Memory(
+                "type_${memoryType.toString()}_${i}_${StringUtils.generateRandomId(6)}",
+                this._agentId,
+                Some("user-123"),
+                memoryType,
+                "类型为 ${memoryType.toString()} 的记忆内容 ${i + 1}",
+                ImportanceLevel.Medium.toFloat32(),
+                None,
+                TimeUtils.getCurrentTimestamp() - UInt64(i * 1800),
+                TimeUtils.getCurrentTimestamp(),
+                UInt32(i + 1),
+                None,
+                SimpleMap(),
+                UInt32(1)
+            )
+            
+            MemorySearchResult(
+                memory,
+                0.85 - (Float32(i) * 0.1),
+                0.8 - (Float32(i) * 0.05)
+            )
+        })
+    }
+
+    /// 生成按重要性的模拟结果
+    private func generateMockResultsByImportance(minImportance: ImportanceLevel, limit: UInt32): Array<MemorySearchResult> {
+        let resultCount = if (limit > 4) { 4 } else { Int64(limit) }
+        
+        return Array<MemorySearchResult>(resultCount, {i =>
+            let memory = Memory(
+                "importance_${i}_${StringUtils.generateRandomId(6)}",
+                this._agentId,
+                Some("user-123"),
+                MemoryType.Semantic,
+                "重要性级别 >= ${minImportance.toFloat32()} 的记忆内容 ${i + 1}",
+                minImportance.toFloat32(),
+                None,
+                TimeUtils.getCurrentTimestamp() - UInt64(i * 900),
+                TimeUtils.getCurrentTimestamp(),
+                UInt32(i + 1),
+                None,
+                SimpleMap(),
+                UInt32(1)
+            )
+            
+            MemorySearchResult(
+                memory,
+                0.8 - (Float32(i) * 0.05),
+                0.75 - (Float32(i) * 0.05)
+            )
+        })
+    }
+
+    /// 生成相似性搜索的模拟结果
+    private func generateMockSimilarResults(memoryId: String, threshold: Float32, limit: UInt32): Array<MemorySearchResult> {
+        let resultCount = if (limit > 3) { 3 } else { Int64(limit) }
+        
+        return Array<MemorySearchResult>(resultCount, {i =>
+            let memory = Memory(
+                "similar_${i}_${StringUtils.generateRandomId(6)}",
+                this._agentId,
+                Some("user-123"),
+                MemoryType.Semantic,
+                "与记忆 ${memoryId} 相似的内容 ${i + 1}",
+                ImportanceLevel.Medium.toFloat32(),
+                None,
+                TimeUtils.getCurrentTimestamp() - UInt64(i * 600),
+                TimeUtils.getCurrentTimestamp(),
+                UInt32(i + 1),
+                None,
+                SimpleMap(),
+                UInt32(1)
+            )
+            
+            let score = threshold + (0.2 - Float32(i) * 0.05)
+            MemorySearchResult(
+                memory,
+                score,
+                score * 0.9
+            )
+        })
     }
 }

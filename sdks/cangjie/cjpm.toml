@@ -11,6 +11,9 @@ compile-option = "-O2"
 
 [dependencies]
 
+[native-dependencies]
+agentmem_c = { path = "lib/libagentmem_c.a" }
+
 [profile]
 build = {incremental = false, lto = ""}
 test = {}

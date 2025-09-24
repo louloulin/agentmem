@@ -9,7 +9,9 @@
 
 package agentmem
 
-import agentmem.core.{MemoryType, ImportanceLevel, Memory, AgentMemError, AgentMemResult}
+import agentmem.core.{MemoryType, ImportanceLevel, Memory, AgentMemError, AgentMemResult, ClientConfig}
+import agentmem.api.{AgentMemClient, AgentMemClientBuilder, AgentMemSearchService, AgentMemMemoryOps, AgentMemAdminService, SearchOptions}
+// import agentmem.ffi.{SimpleFFITest}
 // import agentmem.tests.{TestSuite}
 
 /// 简单的测试套件
@@ -244,4 +246,170 @@ func runTestSuite(testSuite: TestSuite): Unit {
         let result: AgentMemResult<Int32> = AgentMemResult.Err(AgentMemError.NotFound("test"))
         return result.isErr()
     }
+
+    // 运行API层测试
+    println()
+    runAPITests()
+}
+
+/// 运行API层测试
+func runAPITests(): Unit {
+    println("🚀 运行API层测试...")
+
+    // 测试客户端构建器
+    println("  测试客户端构建器...")
+    let clientBuilderResult = AgentMemClientBuilder()
+        .serverUrl("http://localhost:8080")
+        .agentId("test-agent-123")
+        .apiKey("test-api-key")
+        .timeout(5000)
+        .retryCount(3)
+        .build()
+
+    if (clientBuilderResult.isOk()) {
+        println("  ✓ 客户端构建成功")
+
+        let client = clientBuilderResult.getOk()
+
+        // 测试客户端连接
+        println("  测试客户端连接...")
+        let connectResult = client.connect()
+        if (connectResult.isOk()) {
+            println("  ✓ 客户端连接成功")
+
+            // 测试添加记忆
+            println("  测试添加记忆...")
+            let testMemory = Memory(
+                "test-memory-1",
+                "test-agent-123",
+                Some("test-user"),
+                MemoryType.Semantic,
+                "这是一个API测试记忆",
+                ImportanceLevel.Medium.toFloat32(),
+                None,
+                UInt64(1234567890),
+                UInt64(1234567890),
+                UInt32(1),
+                None,
+                SimpleMap(),
+                UInt32(1)
+            )
+
+            let addResult = client.addMemory(testMemory)
+            if (addResult.isOk()) {
+                let memoryId = addResult.getOk()
+                println("  ✓ 记忆添加成功: ${memoryId}")
+
+                // 测试获取记忆
+                println("  测试获取记忆...")
+                let getResult = client.getMemory(memoryId)
+                if (getResult.isOk()) {
+                    let retrievedMemory = getResult.getOk()
+                    println("  ✓ 记忆获取成功: ${retrievedMemory.content}")
+                } else {
+                    println("  ❌ 记忆获取失败: ${getResult.getErr().getMessage()}")
+                }
+
+                // 测试更新记忆
+                println("  测试更新记忆...")
+                let updateResult = client.updateMemory(memoryId, "更新后的记忆内容")
+                if (updateResult.isOk()) {
+                    println("  ✓ 记忆更新成功")
+                } else {
+                    println("  ❌ 记忆更新失败: ${updateResult.getErr().getMessage()}")
+                }
+
+                // 测试删除记忆
+                println("  测试删除记忆...")
+                let deleteResult = client.deleteMemory(memoryId)
+                if (deleteResult.isOk()) {
+                    println("  ✓ 记忆删除成功")
+                } else {
+                    println("  ❌ 记忆删除失败: ${deleteResult.getErr().getMessage()}")
+                }
+            } else {
+                println("  ❌ 记忆添加失败: ${addResult.getErr().getMessage()}")
+            }
+
+            // 测试搜索功能
+            println("  测试搜索功能...")
+            let searchResult = client.searchMemories("测试查询", 5)
+            if (searchResult.isOk()) {
+                let memories = searchResult.getOk()
+                println("  ✓ 搜索成功，返回 ${memories.size} 个结果")
+            } else {
+                println("  ❌ 搜索失败: ${searchResult.getErr().getMessage()}")
+            }
+
+            // 测试健康检查
+            println("  测试健康检查...")
+            let healthResult = client.healthCheck()
+            if (healthResult.isOk()) {
+                println("  ✓ 健康检查通过")
+            } else {
+                println("  ❌ 健康检查失败: ${healthResult.getErr().getMessage()}")
+            }
+
+            client.disconnect()
+        } else {
+            println("  ❌ 客户端连接失败: ${connectResult.getErr().getMessage()}")
+        }
+    } else {
+        println("  ❌ 客户端构建失败: ${clientBuilderResult.getErr().getMessage()}")
+    }
+
+    // 测试搜索服务
+    println("  测试搜索服务...")
+    let searchService = AgentMemSearchService("test-agent-123")
+    searchService.setConnected(true)
+
+    let searchOptions = SearchOptions(UInt32(3), UInt32(0), 0.5, true, "relevance", "desc")
+    let textSearchResult = searchService.searchByText("测试查询", None, Some(searchOptions))
+    if (textSearchResult.isOk()) {
+        let resultSet = textSearchResult.getOk()
+        println("  ✓ 文本搜索成功，返回 ${resultSet.getResultCount()} 个结果")
+        println("  ✓ 最高分数: ${resultSet.getMaxScore()}")
+        println("  ✓ 平均分数: ${resultSet.getAverageScore()}")
+    } else {
+        println("  ❌ 文本搜索失败: ${textSearchResult.getErr().getMessage()}")
+    }
+
+    // 测试记忆操作服务
+    println("  测试记忆操作服务...")
+    let memoryOps = AgentMemMemoryOps("test-agent-123")
+    memoryOps.setConnected(true)
+
+    let statsResult = memoryOps.getMemoryStatistics()
+    if (statsResult.isOk()) {
+        let stats = statsResult.getOk()
+        println("  ✓ 统计信息获取成功")
+        println("  ✓ 总记忆数: ${stats.totalMemories}")
+        println("  ✓ 最常见类型: ${stats.getMostCommonType().toString()}")
+    } else {
+        println("  ❌ 统计信息获取失败: ${statsResult.getErr().getMessage()}")
+    }
+
+    // 测试管理服务
+    println("  测试管理服务...")
+    let adminService = AgentMemAdminService()
+    adminService.setConnected(true)
+
+    let healthResult = adminService.getSystemHealth()
+    if (healthResult.isOk()) {
+        let health = healthResult.getOk()
+        println("  ✓ 系统健康状态: ${health.status}")
+        println("  ✓ 内存使用率: ${health.getMemoryUsagePercent()}%")
+        println("  ✓ 系统健康: ${health.isHealthy()}")
+    } else {
+        println("  ❌ 系统健康检查失败: ${healthResult.getErr().getMessage()}")
+    }
+
+    let versionResult = adminService.getVersionInfo()
+    if (versionResult.isOk()) {
+        println("  ✓ 系统版本: ${versionResult.getOk()}")
+    } else {
+        println("  ❌ 版本信息获取失败: ${versionResult.getErr().getMessage()}")
+    }
+
+    println("🎉 API层测试完成！")
 }

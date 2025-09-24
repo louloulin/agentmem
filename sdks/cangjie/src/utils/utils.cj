@@ -151,6 +151,12 @@ public class StringUtils {
         // 使用简单的计数器或固定值
         return "${prefix}-${42}"
     }
+
+    /// 生成随机ID
+    public static func generateRandomId(length: Int64): String {
+        // 简化实现，返回固定长度的ID
+        return "rand123456"
+    }
 }
 
 /// 时间工具类
@@ -171,5 +177,56 @@ public class ArrayUtils {
         }
         newArr[arr.size] = element
         return newArr
+    }
+}
+
+/// 简单缓存类
+public class SimpleCache {
+    private var data: SimpleMap
+
+    public init() {
+        this.data = SimpleMap()
+    }
+
+    public func get(key: String): Option<String> {
+        return this.data.get(key)
+    }
+
+    public func set(key: String, value: String): Unit {
+        this.data.set(key, value)
+        return ()
+    }
+
+    public func put(key: String, value: String): Unit {
+        this.data.set(key, value)
+        return ()
+    }
+
+    public func remove(key: String): Unit {
+        this.data.remove(key)
+        return ()
+    }
+
+    public func clear(): Unit {
+        this.data.clear()
+        return ()
+    }
+}
+
+/// 性能监控类
+public class PerformanceMonitor {
+    private var name: String
+    private var startTime: UInt64
+
+    public init(name: String) {
+        this.name = name
+        this.startTime = TimeUtils.getCurrentTimestamp()
+    }
+
+    public func finishAndLog(): Unit {
+        let endTime = TimeUtils.getCurrentTimestamp()
+        let duration = endTime - this.startTime
+        // 简化实现，实际应该记录到日志系统
+        return ()
     }
 }

@@ -16,6 +16,8 @@ import agentmem.utils.{SimpleMap, StringUtils}
 public class ClientConfig {
     /// 服务器URL
     public var serverUrl: String
+    /// 代理ID
+    public var agentId: String
     /// API密钥
     public var apiKey: Option<String>
     /// 超时时间（秒）
@@ -40,8 +42,9 @@ public class ClientConfig {
     public var logLevel: LogLevel
 
     /// 构造函数 - 基本配置
-    public init(serverUrl: String) {
+    public init(serverUrl: String, agentId: String) {
         this.serverUrl = serverUrl
+        this.agentId = agentId
         this.apiKey = None
         this.timeout = 30
         this.retryCount = 3
@@ -58,6 +61,7 @@ public class ClientConfig {
     /// 构造函数 - 完整配置
     public init(
         serverUrl: String,
+        agentId: String,
         apiKey: Option<String>,
         timeout: UInt32,
         retryCount: UInt32,
@@ -71,6 +75,7 @@ public class ClientConfig {
         logLevel: LogLevel
     ) {
         this.serverUrl = serverUrl
+        this.agentId = agentId
         this.apiKey = apiKey
         this.timeout = timeout
         this.retryCount = retryCount
@@ -204,6 +209,7 @@ public class ClientConfig {
 
         return ClientConfig(
             this.serverUrl,
+            this.agentId,
             this.apiKey,
             this.timeout,
             this.retryCount,

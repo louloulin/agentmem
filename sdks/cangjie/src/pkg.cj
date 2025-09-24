@@ -18,7 +18,7 @@ public import agentmem.utils.*
 // 导出API功能
 public import agentmem.api.*
 
-// 导出FFI功能（暂时禁用，需要完善C绑定）
+// 导出FFI功能（暂时禁用，需要完善集成）
 // public import agentmem.ffi.*
 
 // 导出示例代码（暂时禁用，需要修复语法问题）

@@ -20,6 +20,8 @@ public enum AgentMemError {
     | NotFound(String)
     /// 网络连接错误
     | NetworkError(String)
+    /// 未连接错误
+    | NotConnected(String)
     /// 序列化/反序列化错误
     | SerializationError(String)
     /// 身份验证错误
@@ -57,6 +59,7 @@ public enum AgentMemError {
             case InvalidParameter(msg) => "Invalid parameter: ${msg}"
             case NotFound(msg) => "Not found: ${msg}"
             case NetworkError(msg) => "Network error: ${msg}"
+            case NotConnected(msg) => "Not connected: ${msg}"
             case SerializationError(msg) => "Serialization error: ${msg}"
             case AuthenticationError(msg) => "Authentication error: ${msg}"
             case AuthorizationError(msg) => "Authorization error: ${msg}"
@@ -81,6 +84,7 @@ public enum AgentMemError {
             case InvalidParameter(_) => 1001
             case NotFound(_) => 1002
             case NetworkError(_) => 1003
+            case NotConnected(_) => 1019
             case SerializationError(_) => 1004
             case AuthenticationError(_) => 1005
             case AuthorizationError(_) => 1006
@@ -105,6 +109,7 @@ public enum AgentMemError {
             case InvalidParameter(_) => "InvalidParameter"
             case NotFound(_) => "NotFound"
             case NetworkError(_) => "NetworkError"
+            case NotConnected(_) => "NotConnected"
             case SerializationError(_) => "SerializationError"
             case AuthenticationError(_) => "AuthenticationError"
             case AuthorizationError(_) => "AuthorizationError"
@@ -378,6 +383,7 @@ public class DefaultErrorHandler <: ErrorHandler {
             case InvalidParameter(_) => true
             case NotFound(_) => false
             case NetworkError(_) => true
+            case NotConnected(_) => true
             case SerializationError(_) => true
             case AuthenticationError(_) => true
             case AuthorizationError(_) => true
@@ -401,6 +407,7 @@ public class DefaultErrorHandler <: ErrorHandler {
             case InvalidParameter(_) => true
             case NotFound(_) => false
             case NetworkError(_) => true
+            case NotConnected(_) => true
             case SerializationError(_) => true
             case AuthenticationError(_) => true
             case AuthorizationError(_) => true
