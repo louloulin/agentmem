@@ -110,7 +110,7 @@ public class AgentMemSearchService {
     /// 文本搜索
     public func searchByText(
         query: String,
-        filter: Option<SearchFilter>,
+        _filter: Option<SearchFilter>, // 搜索过滤器
         options: Option<SearchOptions>
     ): AgentMemResult<SearchResultSet> {
         if (!this._connected) {

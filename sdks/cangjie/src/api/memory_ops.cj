@@ -122,6 +122,29 @@ public class AgentMemMemoryOps {
         this._connected = connected
     }
 
+    /// 获取统计信息
+    public func getStatistics(): AgentMemResult<MemoryStatistics> {
+        if (!this._connected) {
+            return AgentMemResult<MemoryStatistics>.Err(
+                AgentMemError.NotConnected("Memory operations service not connected")
+            )
+        }
+
+        // 模拟统计数据
+        let stats = MemoryStatistics(
+            100,
+            25,
+            50,
+            15,
+            10,
+            0.65,
+            1024,
+            Int64(TimeUtils.getCurrentTimestamp())
+        )
+
+        return AgentMemResult<MemoryStatistics>.Ok(stats)
+    }
+
     /// 批量添加记忆
     public func addMemoriesBatch(memories: Array<Memory>): AgentMemResult<BatchOperationResult> {
         if (!this._connected) {
@@ -137,8 +160,8 @@ public class AgentMemMemoryOps {
         }
 
         try {
-            var successIds = Array<String>(0, {i => ""})
-            var failureMessages = Array<String>(0, {i => ""})
+            var successIds = Array<String>(0, {_ => ""})
+            var failureMessages = Array<String>(0, {_ => ""})
             var successCount: UInt32 = 0
             var failureCount: UInt32 = 0
 
@@ -190,8 +213,8 @@ public class AgentMemMemoryOps {
         }
 
         try {
-            var successIds = Array<String>(0, {i => ""})
-            var failureMessages = Array<String>(0, {i => ""})
+            var successIds = Array<String>(0, {_ => ""})
+            var failureMessages = Array<String>(0, {_ => ""})
             var successCount: UInt32 = 0
             var failureCount: UInt32 = 0
 
@@ -349,7 +372,7 @@ public class AgentMemMemoryOps {
         try {
             // 模拟导入：假设导入了3个记忆
             let importedCount: UInt32 = 3
-            var successIds = Array<String>(0, {i => ""})
+            var successIds = Array<String>(0, {_ => ""})
             
             for (i in 0..Int64(importedCount)) {
                 let memoryId = "imported_${i}_${TimeUtils.getCurrentTimestamp()}_${StringUtils.generateRandomId(6)}"
@@ -362,7 +385,7 @@ public class AgentMemMemoryOps {
                 importedCount,
                 0,
                 successIds,
-                Array<String>(0, {i => ""})
+                Array<String>(0, {_ => ""})
             )
 
             return AgentMemResult<BatchOperationResult>.Ok(result)

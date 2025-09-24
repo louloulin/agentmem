@@ -64,6 +64,11 @@ public class AgentMemClient {
         return this._connected
     }
 
+    /// 设置连接状态（用于测试）
+    public func setConnected(connected: Bool): Unit {
+        this._connected = connected
+    }
+
     /// 添加记忆
     public func addMemory(memory: Memory): AgentMemResult<String> {
         if (!this._connected) {
@@ -222,7 +227,7 @@ public class AgentMemClient {
     }
 
     /// 搜索记忆（简化版本）
-    public func searchMemories(query: String, limit: UInt32): AgentMemResult<Array<Memory>> {
+    public func searchMemories(query: String, _limit: UInt32): AgentMemResult<Array<Memory>> {
         if (!this._connected) {
             return AgentMemResult<Array<Memory>>.Err(
                 AgentMemError.NotConnected("Client not connected")
@@ -321,8 +326,20 @@ public class AgentMemClientBuilder {
         return this
     }
 
+    /// 设置代理ID（别名方法）
+    public func setAgentId(id: String): AgentMemClientBuilder {
+        this._agentId = id
+        return this
+    }
+
     /// 设置API密钥
     public func apiKey(key: String): AgentMemClientBuilder {
+        this._apiKey = key
+        return this
+    }
+
+    /// 设置API密钥（别名方法）
+    public func setApiKey(key: String): AgentMemClientBuilder {
         this._apiKey = key
         return this
     }

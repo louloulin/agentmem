@@ -265,18 +265,18 @@ foreign func agentmem_get_global_stats(
     out_stats: CPointer<CMemoryStats>
 ): Int32
 
-/// FFI 函数声明 - 内存管理
-foreign func agentmem_free_string(str: CString): Unit
+/// FFI 函数声明 - 内存管理（暂时注释掉部分函数）
+// foreign func agentmem_free_string(str: CString): Unit
 foreign func agentmem_free_memory_array(arr: CPointer<CMemoryArray>): Unit
 foreign func agentmem_free_search_result_array(arr: CPointer<CSearchResultArray>): Unit
 foreign func agentmem_free_batch_result(result: CPointer<CBatchResult>): Unit
 foreign func agentmem_free_paginated_result(result: CPointer<CPaginatedResult>): Unit
 foreign func agentmem_free_memory_stats(stats: CPointer<CMemoryStats>): Unit
 
-/// FFI 函数声明 - 错误处理
-foreign func agentmem_get_last_error(): CString
-foreign func agentmem_get_last_error_code(): UInt32
-foreign func agentmem_clear_last_error(): Unit
+/// FFI 函数声明 - 错误处理（暂时注释掉，避免链接错误）
+// foreign func agentmem_get_last_error(): CString
+// foreign func agentmem_get_last_error_code(): UInt32
+// foreign func agentmem_clear_last_error(): Unit
 
 /// FFI 函数声明 - 配置和调试
 foreign func agentmem_set_log_level(level: UInt32): Unit

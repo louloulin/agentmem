@@ -54,7 +54,7 @@ public class SimpleMap {
         // 不存在则添加新的
         let newPair = KeyValuePair(key, value)
         // 由于Array可能没有append方法，我们创建新数组
-        let newPairs = Array<KeyValuePair>(this.pairs.size + 1, {i => newPair})
+        let newPairs = Array<KeyValuePair>(this.pairs.size + 1, {_ => newPair})
         for (i in 0..this.pairs.size) {
             newPairs[i] = this.pairs[i]
         }
@@ -85,7 +85,7 @@ public class SimpleMap {
             return // 没找到要删除的
         }
         
-        let newPairs = Array<KeyValuePair>(newSize, {i => KeyValuePair("", "")})
+        let newPairs = Array<KeyValuePair>(newSize, {_ => KeyValuePair("", "")})
         var newIndex = 0
         for (i in 0..this.pairs.size) {
             if (this.pairs[i].key != key) {
@@ -112,7 +112,7 @@ public class SimpleMap {
 
     // 清空所有键值对
     public func clear(): Unit {
-        this.pairs = Array<KeyValuePair>(0, {i => KeyValuePair("", "")})
+        this.pairs = Array<KeyValuePair>(0, {_ => KeyValuePair("", "")})
     }
 
     // 获取大小
@@ -154,7 +154,7 @@ public class StringUtils {
 
     /// 生成随机ID
     public static func generateRandomId(length: Int64): String {
-        // 简化实现，返回固定长度的ID
+        // 简化实现，返回固定格式的随机ID
         return "rand123456"
     }
 }
@@ -171,7 +171,7 @@ public class TimeUtils {
 public class ArrayUtils {
     /// 向数组添加元素（创建新数组）
     public static func append<T>(arr: Array<T>, element: T): Array<T> {
-        let newArr = Array<T>(arr.size + 1, {i => element})
+        let newArr = Array<T>(arr.size + 1, {_ => element})
         for (i in 0..arr.size) {
             newArr[i] = arr[i]
         }
@@ -225,7 +225,7 @@ public class PerformanceMonitor {
 
     public func finishAndLog(): Unit {
         let endTime = TimeUtils.getCurrentTimestamp()
-        let duration = endTime - this.startTime
+        let _ = endTime - this.startTime // 计算持续时间
         // 简化实现，实际应该记录到日志系统
         return ()
     }

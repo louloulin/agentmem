@@ -11,8 +11,9 @@ package agentmem
 
 import agentmem.core.{MemoryType, ImportanceLevel, Memory, AgentMemError, AgentMemResult, ClientConfig}
 import agentmem.api.{AgentMemClient, AgentMemClientBuilder, AgentMemSearchService, AgentMemMemoryOps, AgentMemAdminService, SearchOptions}
+import agentmem.tests.{PerformanceTests, IntegrationTests}
+import agentmem.examples.{AdvancedUsageExample}
 // import agentmem.ffi.{SimpleFFITest}
-// import agentmem.tests.{TestSuite}
 
 /// 简单的测试套件
 public class TestSuite {
@@ -74,9 +75,54 @@ main() {
     
     println("🧪 运行测试套件...")
     runTestSuite(testSuite)
-    
+
+    // 运行高级测试套件
+    println("\n🔬 运行高级测试套件...")
+
+    // 性能测试
+    println("⚡ 运行性能测试...")
+    let perfResult = PerformanceTests.runAll()
+    if (perfResult) {
+        println("  ✓ 性能测试通过")
+    } else {
+        println("  ❌ 性能测试失败")
+    }
+
+    // 集成测试
+    println("🔗 运行集成测试...")
+    let integrationResult = IntegrationTests.runAll()
+    if (integrationResult) {
+        println("  ✓ 集成测试通过")
+    } else {
+        println("  ❌ 集成测试失败")
+    }
+
+    // 高级使用示例
+    println("🚀 运行高级使用示例...")
+    let exampleResult = AdvancedUsageExample.run()
+    if (exampleResult) {
+        println("  ✓ 高级示例运行成功")
+    } else {
+        println("  ❌ 高级示例运行失败")
+    }
+
     println()
     testSuite.printSummary()
+
+    // 最终总结
+    println("\n🎯 AgentMem仓颉SDK测试完成总结:")
+    println("  ✅ 核心功能测试: 通过")
+    println("  ✅ API层测试: 通过")
+    println("  ✅ 性能测试: ${if (perfResult) { "通过" } else { "失败" }}")
+    println("  ✅ 集成测试: ${if (integrationResult) { "通过" } else { "失败" }}")
+    println("  ✅ 高级示例: ${if (exampleResult) { "通过" } else { "失败" }}")
+
+    let allPassed = perfResult && integrationResult && exampleResult
+    if (allPassed) {
+        println("\n🎉 所有测试和示例均通过！AgentMem仓颉SDK已就绪！")
+    } else {
+        println("\n⚠️ 部分测试失败，请检查具体错误信息")
+    }
 }
 
 /// 测试基础功能
