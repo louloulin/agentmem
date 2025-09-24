@@ -366,7 +366,7 @@ extend AgentMemClient {
         batchResult.total = cResult.total_count
         
         for (i in 0..cResult.success_count) {
-            batchResult.addSuccess(Unit())
+            batchResult.addSuccess(())
         }
         
         if (!cResult.error_messages.isNull() && cResult.error_count > 0) {

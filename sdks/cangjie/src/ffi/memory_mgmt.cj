@@ -52,12 +52,16 @@ public class FFIMemoryManager {
             return false
         }
         let address = ptr.toUIntNative()
-        return this._allocatedPointers.get(address).getOrElse(false)
+        let result = this._allocatedPointers.get(address.toString())
+        match (result) {
+            case Some(value) => return value == "true"
+            case None => return false
+        }
     }
 
     /// 获取已分配指针数量
     public func getAllocatedCount(): UIntNative {
-        return UIntNative(this._allocatedPointers.size)
+        return UIntNative(this._allocatedPointers.size())
     }
 
     /// 清理所有跟踪的指针（仅用于调试）
@@ -98,12 +102,15 @@ public class CStringConverter {
             return CPointer<CString>()
         }
 
-        let arrayPtr = unsafe { LibC.malloc(UIntNative(count * 8)) } // 假设指针大小为8字节
+        let arrayPtr = unsafe { LibC.malloc<CString>(count: Int64(count * 8)) } // 假设指针大小为8字节
         let cstringArray = unsafe { CPointer<CString>(arrayPtr) }
 
         for (i in 0..count) {
-            let cstr = CStringConverter.toCString(strings[i])
-            unsafe { (cstringArray + UIntNative(i)).write(cstr) }
+            let cstr = unsafe { LibC.mallocCString(strings[i]) }
+            unsafe {
+                let ptr = cstringArray + Int64(i)
+                ptr.write(cstr)
+            }
         }
 
         return cstringArray
@@ -116,8 +123,9 @@ public class CStringConverter {
         }
 
         for (i in 0..count) {
-            let cstr = unsafe { (arr + i).read() }
-            CStringConverter.freeCString(cstr)
+            let ptr = unsafe { arr + Int64(i) }
+            let cstr = unsafe { ptr.read() }
+            unsafe { LibC.free(cstr) }
         }
 
         unsafe { LibC.free(arr) }
@@ -140,14 +148,14 @@ public class MemoryConverter {
         }
         
         cMemory.memory_type = memory.memoryType.toUInt32()
-        cMemory.content = CStringConverter.toCString(memory.content)
+        cMemory.content = unsafe { LibC.mallocCString(memory.content) }
         cMemory.importance = memory.importance
-        cMemory.created_at = memory.createdAt
-        cMemory.last_accessed_at = memory.lastAccessedAt
+        cMemory.created_at = Int64(memory.createdAt)
+        cMemory.last_accessed_at = Int64(memory.lastAccessedAt)
         cMemory.access_count = memory.accessCount
-        
+
         if (memory.expiresAt.isSome()) {
-            cMemory.expires_at = memory.expiresAt.getOrThrow()
+            cMemory.expires_at = Int64(memory.expiresAt.getOrThrow())
         } else {
             cMemory.expires_at = 0
         }
@@ -161,13 +169,14 @@ public class MemoryConverter {
             cMemory.embedding_len = UInt32(embedding.size)
             
             // 分配C内存存储向量数据
-            let vectorSize = UIntNative(embedding.size * 4) // Float32 = 4 bytes
-            let vectorPtr = unsafe { LibC.malloc(vectorSize) }
-            cMemory.embedding_data = unsafe { CPointer<Float32>(vectorPtr) }
-            
+            let vectorSize = Int64(embedding.size * 4) // Float32 = 4 bytes
+            let vectorPtr = unsafe { LibC.malloc<Float32>(count: vectorSize) }
+            cMemory.embedding_data = vectorPtr
+
             // 复制向量数据
             for (i in 0..embedding.size) {
-                unsafe { (cMemory.embedding_data + UIntNative(i)).write(embedding[i]) }
+                let ptr = unsafe { cMemory.embedding_data + Int64(i) }
+                unsafe { ptr.write(embedding[i]) }
             }
         } else {
             cMemory.has_embedding = false
@@ -180,37 +189,55 @@ public class MemoryConverter {
 
     /// 将C Memory转换为仓颉Memory
     public static func fromCMemory(cMemory: CMemory): Memory {
-        let id = CStringConverter.toString(cMemory.id)
-        let agentId = CStringConverter.toString(cMemory.agent_id)
-        let content = CStringConverter.toString(cMemory.content)
-        
-        let memoryType = MemoryType.fromUInt32(cMemory.memory_type).getOrElse(MemoryType.Semantic)
-        
-        let userId = if (cMemory.user_id.isEmpty()) {
-            None
-        } else {
-            Some(CStringConverter.toString(cMemory.user_id))
+        // 先提取所有字段值，避免在闭包中捕获@C结构体
+        let cId = cMemory.id
+        let cAgentId = cMemory.agent_id
+        let cContent = cMemory.content
+        let cMemoryType = cMemory.memory_type
+        let cUserId = cMemory.user_id
+        let cExpiresAt = cMemory.expires_at
+        let cCreatedAt = cMemory.created_at
+        let cLastAccessedAt = cMemory.last_accessed_at
+        let cAccessCount = cMemory.access_count
+        let cVersion = cMemory.version
+        let cHasEmbedding = cMemory.has_embedding
+        let cEmbeddingLen = cMemory.embedding_len
+        let cEmbeddingData = cMemory.embedding_data
+
+        let id = unsafe { cId.toString() }
+        let agentId = unsafe { cAgentId.toString() }
+        let content = unsafe { cContent.toString() }
+
+        let memoryType = match (MemoryType.fromUInt32(cMemoryType)) {
+            case Some(mt) => mt
+            case None => MemoryType.Semantic
         }
-        
-        let expiresAt = if (cMemory.expires_at == 0) {
-            None
+
+        let userId = if (unsafe { cUserId.toString().isEmpty() }) {
+            None<String>
         } else {
-            Some(cMemory.expires_at)
+            Some(unsafe { cUserId.toString() })
+        }
+
+        let expiresAt = if (cExpiresAt == 0) {
+            None<UInt64>
+        } else {
+            Some(UInt64(cExpiresAt))
         }
         
         // 处理嵌入向量
-        let embedding = if (cMemory.has_embedding && cMemory.embedding_len > 0) {
-            var vector = Array<Float32>()
-            for (i in 0..cMemory.embedding_len) {
-                let value = unsafe { (cMemory.embedding_data + UIntNative(i)).read() }
-                vector.append(value)
-            }
+        let embedding = if (cHasEmbedding && cEmbeddingLen > 0) {
+            let vectorSize = Int64(cEmbeddingLen)
+            let vector = Array<Float32>(vectorSize, {i =>
+                let ptr = unsafe { cEmbeddingData + Int64(i) }
+                unsafe { ptr.read() }
+            })
             Some(vector)
         } else {
-            None
+            None<Array<Float32>>
         }
         
-        let metadata = HashMap<String, String>() // 元数据需要单独处理
+        let metadata = SimpleMap() // 元数据需要单独处理
         
         return Memory(
             id,
@@ -220,12 +247,12 @@ public class MemoryConverter {
             content,
             cMemory.importance,
             embedding,
-            cMemory.created_at,
-            cMemory.last_accessed_at,
-            cMemory.access_count,
+            UInt64(cCreatedAt),
+            UInt64(cLastAccessedAt),
+            cAccessCount,
             expiresAt,
             metadata,
-            cMemory.version
+            cVersion
         )
     }
 
@@ -245,7 +272,7 @@ public class MemoryConverter {
     public static func freeCMemoryArray(arr: CMemoryArray): Unit {
         if (!arr.memories.isNull() && arr.count > 0) {
             for (i in 0..arr.count) {
-                let cMemory = unsafe { (arr.memories + i).read() }
+                let cMemory = unsafe { (arr.memories + Int64(i)).read() }
                 MemoryConverter.freeCMemory(cMemory)
             }
             unsafe { LibC.free(arr.memories) }
@@ -257,33 +284,45 @@ public class MemoryConverter {
 public class SearchResultConverter {
     /// 将C搜索结果转换为仓颉搜索结果
     public static func fromCSearchResult(cResult: CSearchResult): MemorySearchResult {
-        let memory = MemoryConverter.fromCMemory(cResult.memory)
-        return MemorySearchResult(memory, cResult.score, cResult.rank)
+        // 先提取字段值
+        let cMemory = cResult.memory
+        let cScore = cResult.score
+        let cRank = cResult.rank
+
+        let memory = MemoryConverter.fromCMemory(cMemory)
+        return MemorySearchResult(memory, cScore, Float32(cRank))
     }
 
     /// 将C搜索结果数组转换为仓颉数组
     public static func fromCSearchResultArray(cArray: CSearchResultArray): Array<MemorySearchResult> {
-        var results = Array<MemorySearchResult>()
-        
-        if (!cArray.results.isNull() && cArray.count > 0) {
-            for (i in 0..cArray.count) {
-                let cResult = unsafe { (cArray.results + i).read() }
-                let result = SearchResultConverter.fromCSearchResult(cResult)
-                results.append(result)
-            }
+        // 先提取字段值
+        let cResults = cArray.results
+        let cCount = cArray.count
+
+        if (!cResults.isNull() && cCount > 0) {
+            let count = Int64(cCount)
+            return Array<MemorySearchResult>(count, {i =>
+                let cResult = unsafe { (cResults + Int64(i)).read() }
+                SearchResultConverter.fromCSearchResult(cResult)
+            })
+        } else {
+            return Array<MemorySearchResult>()
         }
-        
-        return results
     }
 
     /// 释放C搜索结果数组
     public static func freeCSearchResultArray(cArray: CSearchResultArray): Unit {
-        if (!cArray.results.isNull() && cArray.count > 0) {
-            for (i in 0..cArray.count) {
-                let cResult = unsafe { (cArray.results + i).read() }
-                MemoryConverter.freeCMemory(cResult.memory)
+        // 先提取字段值
+        let cResults = cArray.results
+        let cCount = cArray.count
+
+        if (!cResults.isNull() && cCount > 0) {
+            for (i in 0..cCount) {
+                let cResult = unsafe { (cResults + Int64(i)).read() }
+                let cMemory = cResult.memory
+                MemoryConverter.freeCMemory(cMemory)
             }
-            unsafe { LibC.free(cArray.results) }
+            unsafe { LibC.free(cResults) }
         }
     }
 }
@@ -334,9 +373,10 @@ public class FFIErrorHandler {
         // 释放错误消息字符串
         unsafe { agentmem_free_string(errorMessage) }
         
-        return AgentMemError.fromErrorCode(errorCode, message).getOrElse(
-            AgentMemError.InternalError(message)
-        )
+        return match (AgentMemError.fromErrorCode(errorCode, message)) {
+            case Some(error) => error
+            case None => AgentMemError.InternalError(message)
+        }
     }
 
     /// 清除最后的错误

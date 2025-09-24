@@ -202,6 +202,11 @@ public enum AgentMemResult<T> {
     }
 
     /// 获取成功值（如果存在）
+    public func getOk(): T {
+        return this.unwrap()
+    }
+
+    /// 获取成功值（如果存在）
     public func unwrap(): T {
         return match (this) {
             case Ok(value) => value

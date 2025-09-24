@@ -15,15 +15,15 @@ import agentmem.core.*
 @C
 public struct CMemory {
     /// 记忆ID
-    public var id: CString = CString("")
+    public var id: CString
     /// 代理ID
-    public var agent_id: CString = CString("")
+    public var agent_id: CString
     /// 用户ID（可选，空字符串表示None）
-    public var user_id: CString = CString("")
+    public var user_id: CString
     /// 记忆类型（数值表示）
     public var memory_type: UInt32 = 0
     /// 记忆内容
-    public var content: CString = CString("")
+    public var content: CString
     /// 重要性分数
     public var importance: Float32 = 0.0
     /// 创建时间戳
@@ -43,7 +43,25 @@ public struct CMemory {
     /// 嵌入向量数据指针
     public var embedding_data: CPointer<Float32> = CPointer<Float32>()
 
-    public init() {}
+    /// 构造函数
+    public init() {
+        unsafe {
+            this.id = LibC.mallocCString("")
+            this.agent_id = LibC.mallocCString("")
+            this.user_id = LibC.mallocCString("")
+            this.content = LibC.mallocCString("")
+        }
+    }
+
+    /// 析构函数
+    public func finalize() {
+        unsafe {
+            LibC.free(this.id)
+            LibC.free(this.agent_id)
+            LibC.free(this.user_id)
+            LibC.free(this.content)
+        }
+    }
 }
 
 /// C 结构体映射 - 记忆数组

@@ -18,36 +18,39 @@ public class SearchManager {
     private var _client: AgentMemClient
     /// 搜索配置
     private var _config: SearchConfig
-    /// 搜索缓存
-    private var _searchCache: Option<SimpleCache<String, Array<MemorySearchResult>>>
+    /// 搜索缓存 (简化为String缓存)
+    private var _searchCache: Option<SimpleCache>
 
-    public init(client: AgentMemClient, config: SearchConfig = SearchConfig()) {
+    public init(client: AgentMemClient, config: SearchConfig) {
         this._client = client
         this._config = config
         
         if (client.getConfig().enableCache) {
-            this._searchCache = Some(SimpleCache<String, Array<MemorySearchResult>>(50))
+            this._searchCache = Some(SimpleCache(50))
         } else {
             this._searchCache = None
         }
     }
 
-    /// 智能搜索 - 结合语义搜索和全文搜索
+    /// 智能搜索 - 结合语义搜索和全文搜索 (重载1)
+    public func smartSearch(query: String): AgentMemResult<Array<MemorySearchResult>> {
+        return this.smartSearch(query, None<SearchFilter>, None<UInt32>)
+    }
+
+    /// 智能搜索 - 结合语义搜索和全文搜索 (重载2)
     public func smartSearch(
-        query: String, 
-        filter: Option<SearchFilter> = None,
-        limit: Option<UInt32> = None
+        query: String,
+        filter: Option<SearchFilter>,
+        limit: Option<UInt32>
     ): AgentMemResult<Array<MemorySearchResult>> {
-        let searchLimit = limit.getOrElse(this._config.maxResults)
+        let searchLimit = match (limit) {
+            case Some(l) => l
+            case None => this._config.maxResults
+        }
         let cacheKey = this.generateCacheKey(query, filter, searchLimit)
         
-        // 检查缓存
-        if (this._searchCache.isSome()) {
-            let cached = this._searchCache.getOrThrow().get(cacheKey)
-            if (cached.isSome()) {
-                return AgentMemResult<Array<MemorySearchResult>>.Ok(cached.getOrThrow())
-            }
-        }
+        // 检查缓存 (简化实现，暂时跳过缓存)
+        // TODO: 实现序列化/反序列化以支持复杂对象缓存
 
         let monitor = PerformanceMonitor("smart_search")
 
@@ -58,46 +61,47 @@ public class SearchManager {
             this._client.searchMemories(query, searchLimit)
         }
 
-        match (searchResult) {
-            case Ok(results) => {
-                // 应用搜索配置进行后处理
-                let processedResults = this.postProcessResults(results)
-                
-                // 缓存结果
-                if (this._searchCache.isSome()) {
-                    this._searchCache.getOrThrow().put(cacheKey, processedResults)
-                }
-                
-                monitor.finishAndLog()
-                return AgentMemResult<Array<MemorySearchResult>>.Ok(processedResults)
-            }
-            case Err(error) => {
-                return AgentMemResult<Array<MemorySearchResult>>.Err(error)
-            }
+        if (searchResult.isOk()) {
+            let results = searchResult.getOk()
+            // 应用搜索配置进行后处理
+            let processedResults = this.postProcessResults(results)
+
+            // 缓存结果 (简化实现，暂时跳过)
+            // TODO: 实现序列化以支持复杂对象缓存
+
+            monitor.finishAndLog()
+            return AgentMemResult<Array<MemorySearchResult>>.Ok(processedResults)
+        } else {
+            let error = searchResult.getErr()
+            return AgentMemResult<Array<MemorySearchResult>>.Err(error)
         }
     }
 
-    /// 语义搜索 - 基于向量相似度的搜索
+    /// 语义搜索 - 基于向量相似度的搜索 (重载1)
+    public func semanticSearch(query: String): AgentMemResult<Array<MemorySearchResult>> {
+        return this.semanticSearch(query, 0.7, 10)
+    }
+
+    /// 语义搜索 - 基于向量相似度的搜索 (重载2)
     public func semanticSearch(
-        query: String, 
-        threshold: Float32 = 0.7,
-        limit: UInt32 = 10
+        query: String,
+        threshold: Float32,
+        limit: UInt32
     ): AgentMemResult<Array<MemorySearchResult>> {
         let monitor = PerformanceMonitor("semantic_search")
 
         try {
             // 首先生成查询的嵌入向量
             let embeddingResult = this.generateQueryEmbedding(query)
-            match (embeddingResult) {
-                case Ok(embedding) => {
-                    // 使用嵌入向量进行搜索
-                    let searchResult = this.searchByEmbedding(embedding, threshold, limit)
-                    monitor.finishAndLog()
-                    return searchResult
-                }
-                case Err(error) => {
-                    return AgentMemResult<Array<MemorySearchResult>>.Err(error)
-                }
+            if (embeddingResult.isOk()) {
+                let embedding = embeddingResult.getOk()
+                // 使用嵌入向量进行搜索
+                let searchResult = this.searchByEmbedding(embedding, threshold, limit)
+                monitor.finishAndLog()
+                return searchResult
+            } else {
+                let error = embeddingResult.getErr()
+                return AgentMemResult<Array<MemorySearchResult>>.Err(error)
             }
             
         } catch (e: Exception) {
@@ -107,21 +111,31 @@ public class SearchManager {
         }
     }
 
-    /// 相似记忆搜索
+    /// 相似记忆搜索 (重载1)
+    public func findSimilarMemories(memoryId: String): AgentMemResult<Array<MemorySearchResult>> {
+        return this.findSimilarMemories(memoryId, 0.7, 10)
+    }
+
+    /// 相似记忆搜索 (重载2)
     public func findSimilarMemories(
-        memoryId: String, 
-        threshold: Float32 = 0.7,
-        limit: UInt32 = 10
+        memoryId: String,
+        threshold: Float32,
+        limit: UInt32
     ): AgentMemResult<Array<MemorySearchResult>> {
         return this._client.searchSimilarMemories(memoryId, limit, threshold)
     }
 
-    /// 多条件搜索
+    /// 多条件搜索 (重载1)
+    public func advancedSearch(queries: Array<String>): AgentMemResult<Array<MemorySearchResult>> {
+        return this.advancedSearch(queries, SearchOperator.And, None<SearchFilter>, 10)
+    }
+
+    /// 多条件搜索 (重载2)
     public func advancedSearch(
         queries: Array<String>,
-        operator: SearchOperator = SearchOperator.And,
-        filter: Option<SearchFilter> = None,
-        limit: UInt32 = 10
+        `operator`: SearchOperator,
+        filter: Option<SearchFilter>,
+        limit: UInt32
     ): AgentMemResult<Array<MemorySearchResult>> {
         if (queries.isEmpty()) {
             return AgentMemResult<Array<MemorySearchResult>>.Ok(Array<MemorySearchResult>())
@@ -147,7 +161,7 @@ public class SearchManager {
             }
             
             // 合并结果
-            let mergedResults = this.mergeSearchResults(allResults, operator, limit)
+            let mergedResults = this.mergeSearchResults(allResults, `operator`, limit)
             monitor.finishAndLog()
             
             return AgentMemResult<Array<MemorySearchResult>>.Ok(mergedResults)
@@ -159,12 +173,20 @@ public class SearchManager {
         }
     }
 
-    /// 时间范围搜索
+    /// 时间范围搜索 (重载1)
     public func searchByTimeRange(
-        startTime: Timestamp,
-        endTime: Timestamp,
-        agentId: Option<String> = None,
-        limit: UInt32 = 10
+        startTime: UInt64,
+        endTime: UInt64
+    ): AgentMemResult<Array<MemorySearchResult>> {
+        return this.searchByTimeRange(startTime, endTime, None<String>, 10)
+    }
+
+    /// 时间范围搜索 (重载2)
+    public func searchByTimeRange(
+        startTime: UInt64,
+        endTime: UInt64,
+        agentId: Option<String>,
+        limit: UInt32
     ): AgentMemResult<Array<MemorySearchResult>> {
         var filter = SearchFilter()
         filter.timeRange = Some((startTime, endTime))
@@ -176,12 +198,17 @@ public class SearchManager {
         return this.smartSearch("*", Some(filter), Some(limit))
     }
 
-    /// 按重要性搜索
+    /// 按重要性搜索 (重载1)
+    public func searchByImportance(minImportance: Float32): AgentMemResult<Array<MemorySearchResult>> {
+        return this.searchByImportance(minImportance, 1.0, None<String>, 10)
+    }
+
+    /// 按重要性搜索 (重载2)
     public func searchByImportance(
         minImportance: Float32,
-        maxImportance: Float32 = 1.0,
-        agentId: Option<String> = None,
-        limit: UInt32 = 10
+        maxImportance: Float32,
+        agentId: Option<String>,
+        limit: UInt32
     ): AgentMemResult<Array<MemorySearchResult>> {
         var filter = SearchFilter()
         filter.importanceRange = Some((minImportance, maxImportance))
@@ -193,11 +220,16 @@ public class SearchManager {
         return this.smartSearch("*", Some(filter), Some(limit))
     }
 
-    /// 按记忆类型搜索
+    /// 按记忆类型搜索 (重载1)
+    public func searchByMemoryType(memoryTypes: Array<MemoryType>): AgentMemResult<Array<MemorySearchResult>> {
+        return this.searchByMemoryType(memoryTypes, None<String>, 10)
+    }
+
+    /// 按记忆类型搜索 (重载2)
     public func searchByMemoryType(
         memoryTypes: Array<MemoryType>,
-        agentId: Option<String> = None,
-        limit: UInt32 = 10
+        agentId: Option<String>,
+        limit: UInt32
     ): AgentMemResult<Array<MemorySearchResult>> {
         var filter = SearchFilter()
         filter.memoryTypes = Some(memoryTypes)
@@ -209,10 +241,15 @@ public class SearchManager {
         return this.smartSearch("*", Some(filter), Some(limit))
     }
 
-    /// 搜索建议 - 基于查询历史提供搜索建议
+    /// 搜索建议 - 基于查询历史提供搜索建议 (重载1)
+    public func getSearchSuggestions(partialQuery: String): AgentMemResult<Array<String>> {
+        return this.getSearchSuggestions(partialQuery, 5)
+    }
+
+    /// 搜索建议 - 基于查询历史提供搜索建议 (重载2)
     public func getSearchSuggestions(
         partialQuery: String,
-        limit: UInt32 = 5
+        limit: UInt32
     ): AgentMemResult<Array<String>> {
         // 这里可以实现基于历史搜索的建议功能
         // 简化实现，返回基于部分查询的建议
@@ -292,7 +329,7 @@ public class SearchManager {
         return results
     }
 
-    private func generateQueryEmbedding(query: String): AgentMemResult<Vector> {
+    private func generateQueryEmbedding(query: String): AgentMemResult<Array<Float32>> {
         try {
             let handle = this._client._handle.getOrThrow()
             let cQuery = CStringConverter.toCString(query)
@@ -317,7 +354,7 @@ public class SearchManager {
                 }
                 
                 unsafe { agentmem_free_embedding(embeddingPtr) }
-                return AgentMemResult<Vector>.Ok(embedding)
+                return AgentMemResult<Array<Float32>>.Ok(embedding)
             } else {
                 let error = FFIErrorHandler.getLastError()
                 return AgentMemResult<Vector>.Err(error)
@@ -342,22 +379,19 @@ public class SearchManager {
 
     private func mergeSearchResults(
         allResults: Array<Array<MemorySearchResult>>,
-        operator: SearchOperator,
+        `operator`: SearchOperator,
         limit: UInt32
     ): Array<MemorySearchResult> {
         if (allResults.isEmpty()) {
             return Array<MemorySearchResult>()
         }
 
-        match (operator) {
-            case SearchOperator.And => {
-                // 交集：只返回在所有结果中都出现的记忆
-                return this.intersectResults(allResults, limit)
-            }
-            case SearchOperator.Or => {
-                // 并集：返回在任何结果中出现的记忆
-                return this.unionResults(allResults, limit)
-            }
+        if (`operator` == SearchOperator.And) {
+            // 交集：只返回在所有结果中都出现的记忆
+            return this.intersectResults(allResults, limit)
+        } else {
+            // 并集：返回在任何结果中出现的记忆
+            return this.unionResults(allResults, limit)
         }
     }
 

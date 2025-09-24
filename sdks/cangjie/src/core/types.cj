@@ -9,6 +9,8 @@
 
 package agentmem.core
 
+import agentmem.utils.{SimpleMap, ArrayUtils}
+
 /// 记忆类型枚举
 public enum MemoryType {
     | Episodic      // 情景记忆
@@ -59,13 +61,22 @@ public enum MemoryType {
         }
     }
 
-    /// 转换为数值
+    public static func fromUInt32(value: UInt32): Option<MemoryType> {
+        return match (value) {
+            case 0 => Some(Episodic)
+            case 1 => Some(Semantic)
+            case 2 => Some(Procedural)
+            case 3 => Some(Working)
+            case _ => None
+        }
+    }
+
     public func toUInt32(): UInt32 {
         return match (this) {
-            case Episodic => 1
-            case Semantic => 2
-            case Procedural => 3
-            case Working => 4
+            case Episodic => 0
+            case Semantic => 1
+            case Procedural => 2
+            case Working => 3
         }
     }
 }
@@ -121,6 +132,9 @@ public class SearchFilter {
     public var sessionId: Option<String> = None
     public var tags: Option<Array<String>> = None
     public var limit: Option<UInt32> = None
+    public var metadata: SimpleMap = SimpleMap()
+    public var agentIds: Option<Array<String>> = None
+    public var userIds: Option<Array<String>> = None
 
     public init() {}
 }
@@ -135,5 +149,105 @@ public class MemorySearchResult {
         this.memory = memory
         this.score = score
         this.relevance = relevance
+    }
+}
+
+// 注意：仓颉不支持typealias，直接使用基础类型
+// Vector = Array<Float32>
+// Timestamp = UInt64
+
+/// 内存统计信息
+public class MemoryStats {
+    public var totalMemories: UInt64
+    public var episodicCount: UInt64
+    public var semanticCount: UInt64
+    public var proceduralCount: UInt64
+    public var workingCount: UInt64
+    public var averageImportance: Float32
+    public var totalSize: UInt64
+    public var lastUpdated: UInt64
+
+    public init(
+        totalMemories: UInt64,
+        episodicCount: UInt64,
+        semanticCount: UInt64,
+        proceduralCount: UInt64,
+        workingCount: UInt64,
+        averageImportance: Float32,
+        totalSize: UInt64,
+        lastUpdated: UInt64
+    ) {
+        this.totalMemories = totalMemories
+        this.episodicCount = episodicCount
+        this.semanticCount = semanticCount
+        this.proceduralCount = proceduralCount
+        this.workingCount = workingCount
+        this.averageImportance = averageImportance
+        this.totalSize = totalSize
+        this.lastUpdated = lastUpdated
+    }
+}
+
+/// 批处理结果
+public class BatchResult<T> {
+    public var total: UInt32
+    public var successes: Array<T>
+    public var failures: Array<String>
+
+    public init() {
+        this.total = 0
+        this.successes = Array<T>()
+        this.failures = Array<String>()
+    }
+
+    public func addSuccess(item: T): Unit {
+        this.successes = ArrayUtils.append(this.successes, item)
+        return ()
+    }
+
+    public func addFailure(error: String): Unit {
+        this.failures = ArrayUtils.append(this.failures, error)
+        return ()
+    }
+}
+
+/// 分页参数
+public class PaginationParams {
+    public var page: UInt32
+    public var pageSize: UInt32
+    public var sortBy: Option<String>
+    public var sortOrder: Option<String>
+
+    public init(page: UInt32, pageSize: UInt32) {
+        this.page = page
+        this.pageSize = pageSize
+        this.sortBy = None<String>
+        this.sortOrder = None<String>
+    }
+}
+
+/// 分页结果
+public class PaginatedResult<T> {
+    public var items: Array<T>
+    public var totalCount: UInt64
+    public var currentPage: UInt32
+    public var totalPages: UInt32
+    public var hasNext: Bool
+    public var hasPrevious: Bool
+
+    public init(
+        items: Array<T>,
+        totalCount: UInt64,
+        currentPage: UInt32,
+        totalPages: UInt32,
+        hasNext: Bool,
+        hasPrevious: Bool
+    ) {
+        this.items = items
+        this.totalCount = totalCount
+        this.currentPage = currentPage
+        this.totalPages = totalPages
+        this.hasNext = hasNext
+        this.hasPrevious = hasPrevious
     }
 }

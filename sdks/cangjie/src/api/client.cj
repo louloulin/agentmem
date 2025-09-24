@@ -42,7 +42,7 @@ public class AgentMemClient {
     /// 初始化客户端
     public func initialize(): AgentMemResult<Unit> {
         if (this._initialized) {
-            return AgentMemResult<Unit>.Ok(Unit())
+            return AgentMemResult<Unit>.Ok(())
         }
 
         // 验证配置
@@ -80,7 +80,7 @@ public class AgentMemClient {
                 monitor.getOrThrow().finishAndLog()
             }
 
-            return AgentMemResult<Unit>.Ok(Unit())
+            return AgentMemResult<Unit>.Ok(())
             
         } catch (e: Exception) {
             return AgentMemResult<Unit>.Err(
@@ -369,8 +369,13 @@ public class AgentMemClient {
         unsafe { agentmem_set_log_level(level.toUInt32()) }
     }
 
-    /// 搜索记忆
-    public func searchMemories(query: String, limit: UInt32 = 10): AgentMemResult<Array<MemorySearchResult>> {
+    /// 搜索记忆 (重载1)
+    public func searchMemories(query: String): AgentMemResult<Array<MemorySearchResult>> {
+        return this.searchMemories(query, 10)
+    }
+
+    /// 搜索记忆 (重载2)
+    public func searchMemories(query: String, limit: UInt32): AgentMemResult<Array<MemorySearchResult>> {
         if (!this._initialized) {
             return AgentMemResult<Array<MemorySearchResult>>.Err(
                 AgentMemError.InternalError("Client not initialized")
@@ -414,11 +419,19 @@ public class AgentMemClient {
         }
     }
 
-    /// 带过滤器的搜索记忆
+    /// 带过滤器的搜索记忆 (重载1)
+    public func searchMemoriesFiltered(
+        query: String,
+        filter: SearchFilter
+    ): AgentMemResult<Array<MemorySearchResult>> {
+        return this.searchMemoriesFiltered(query, filter, 10)
+    }
+
+    /// 带过滤器的搜索记忆 (重载2)
     public func searchMemoriesFiltered(
         query: String,
         filter: SearchFilter,
-        limit: UInt32 = 10
+        limit: UInt32
     ): AgentMemResult<Array<MemorySearchResult>> {
         if (!this._initialized) {
             return AgentMemResult<Array<MemorySearchResult>>.Err(
@@ -466,11 +479,16 @@ public class AgentMemClient {
         }
     }
 
-    /// 搜索相似记忆
+    /// 搜索相似记忆 (重载1)
+    public func searchSimilarMemories(memoryId: String): AgentMemResult<Array<MemorySearchResult>> {
+        return this.searchSimilarMemories(memoryId, 10, 0.7)
+    }
+
+    /// 搜索相似记忆 (重载2)
     public func searchSimilarMemories(
         memoryId: String,
-        limit: UInt32 = 10,
-        threshold: Float32 = 0.7
+        limit: UInt32,
+        threshold: Float32
     ): AgentMemResult<Array<MemorySearchResult>> {
         if (!this._initialized) {
             return AgentMemResult<Array<MemorySearchResult>>.Err(

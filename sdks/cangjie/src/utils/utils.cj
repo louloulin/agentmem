@@ -109,10 +109,15 @@ public class SimpleMap {
             case None => return ""
         }
     }
-    
-    /// 获取大小
-    public func size(): Int64 {
-        return this.pairs.size
+
+    // 清空所有键值对
+    public func clear(): Unit {
+        this.pairs = Array<KeyValuePair>(0, {i => KeyValuePair("", "")})
+    }
+
+    // 获取大小
+    public func size(): UInt32 {
+        return UInt32(this.pairs.size)
     }
     
     /// 转换为字符串
@@ -151,7 +156,7 @@ public class StringUtils {
 /// 时间工具类
 public class TimeUtils {
     /// 获取当前时间戳
-    public static func getCurrentTimestamp(): Timestamp {
+    public static func getCurrentTimestamp(): UInt64 {
         return 1234567890 // 简化实现
     }
 }

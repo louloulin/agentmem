@@ -11,6 +11,7 @@ package agentmem.api
 
 import agentmem.core.*
 import agentmem.ffi.*
+import agentmem.utils.{TimeUtils}
 
 /// 管理功能管理器 - 提供系统管理和维护功能
 public class AdminManager {
@@ -46,7 +47,7 @@ public class AdminManager {
             let health = SystemHealth(
                 isConnected,
                 version,
-                getCurrentTimestamp(),
+                TimeUtils.getCurrentTimestamp(),
                 stats
             )
 
@@ -60,11 +61,16 @@ public class AdminManager {
         }
     }
 
-    /// 数据备份
+    /// 数据备份 (重载1)
+    public func backupData(outputPath: String): AgentMemResult<BackupInfo> {
+        return this.backupData(None<String>, outputPath, BackupFormat.Json)
+    }
+
+    /// 数据备份 (重载2)
     public func backupData(
-        agentId: Option<String> = None,
+        agentId: Option<String>,
         outputPath: String,
-        format: BackupFormat = BackupFormat.Json
+        format: BackupFormat
     ): AgentMemResult<BackupInfo> {
         let monitor = PerformanceMonitor("backup_data")
 
@@ -73,20 +79,18 @@ public class AdminManager {
             let formatStr = format.toString()
             
             let exportResult = this._client.exportMemories(targetAgentId, formatStr, outputPath)
-            match (exportResult) {
-                case Ok(_) => {
-                    let backupInfo = BackupInfo(
-                        outputPath,
-                        format,
-                        getCurrentTimestamp(),
-                        targetAgentId
-                    )
-                    monitor.finishAndLog()
-                    return AgentMemResult<BackupInfo>.Ok(backupInfo)
-                }
-                case Err(error) => {
-                    return AgentMemResult<BackupInfo>.Err(error)
-                }
+            if (exportResult.isOk()) {
+                let backupInfo = BackupInfo(
+                    outputPath,
+                    format,
+                    TimeUtils.getCurrentTimestamp(),
+                    targetAgentId
+                )
+                monitor.finishAndLog()
+                return AgentMemResult<BackupInfo>.Ok(backupInfo)
+            } else {
+                let error = exportResult.getErr()
+                return AgentMemResult<BackupInfo>.Err(error)
             }
             
         } catch (e: Exception) {
@@ -96,12 +100,17 @@ public class AdminManager {
         }
     }
 
-    /// 数据恢复
+    /// 数据恢复 (重载1)
+    public func restoreData(agentId: String, inputPath: String): AgentMemResult<RestoreInfo> {
+        return this.restoreData(agentId, inputPath, BackupFormat.Json, false)
+    }
+
+    /// 数据恢复 (重载2)
     public func restoreData(
         agentId: String,
         inputPath: String,
-        format: BackupFormat = BackupFormat.Json,
-        overwrite: Bool = false
+        format: BackupFormat,
+        overwrite: Bool
     ): AgentMemResult<RestoreInfo> {
         let monitor = PerformanceMonitor("restore_data")
 
@@ -109,23 +118,22 @@ public class AdminManager {
             let formatStr = format.toString()
             
             let importResult = this._client.importMemories(agentId, formatStr, inputPath)
-            match (importResult) {
-                case Ok(batchResult) => {
-                    let restoreInfo = RestoreInfo(
-                        inputPath,
-                        format,
-                        getCurrentTimestamp(),
-                        agentId,
-                        batchResult.successes.size,
-                        batchResult.failures.size,
-                        batchResult.failures
-                    )
-                    monitor.finishAndLog()
-                    return AgentMemResult<RestoreInfo>.Ok(restoreInfo)
-                }
-                case Err(error) => {
-                    return AgentMemResult<RestoreInfo>.Err(error)
-                }
+            if (importResult.isOk()) {
+                let batchResult = importResult.getOk()
+                let restoreInfo = RestoreInfo(
+                    inputPath,
+                    format,
+                    TimeUtils.getCurrentTimestamp(),
+                    agentId,
+                    batchResult.successes.size,
+                    batchResult.failures.size,
+                    batchResult.failures
+                )
+                monitor.finishAndLog()
+                return AgentMemResult<RestoreInfo>.Ok(restoreInfo)
+            } else {
+                let error = importResult.getErr()
+                return AgentMemResult<RestoreInfo>.Err(error)
             }
             
         } catch (e: Exception) {
@@ -135,46 +143,51 @@ public class AdminManager {
         }
     }
 
-    /// 数据压缩
+    /// 数据压缩 (重载1)
+    public func compressData(agentId: String): AgentMemResult<CompressionInfo> {
+        return this.compressData(agentId, 0.8)
+    }
+
+    /// 数据压缩 (重载2)
     public func compressData(
         agentId: String,
-        compressionRatio: Float32 = 0.8
+        compressionRatio: Float32
     ): AgentMemResult<CompressionInfo> {
         let monitor = PerformanceMonitor("compress_data")
 
         try {
             // 获取压缩前的统计信息
             let beforeStatsResult = this._client.getMemoryStats(agentId)
-            let beforeStats = match (beforeStatsResult) {
-                case Ok(stats) => Some(stats)
-                case Err(_) => None
+            let beforeStats = if (beforeStatsResult.isOk()) {
+                Some(beforeStatsResult.getOk())
+            } else {
+                None<MemoryStats>
             }
 
             // 执行压缩
             let compressResult = this._client.compressMemories(agentId, compressionRatio)
-            match (compressResult) {
-                case Ok(_) => {
-                    // 获取压缩后的统计信息
-                    let afterStatsResult = this._client.getMemoryStats(agentId)
-                    let afterStats = match (afterStatsResult) {
-                        case Ok(stats) => Some(stats)
-                        case Err(_) => None
-                    }
+            if (compressResult.isOk()) {
+                // 获取压缩后的统计信息
+                let afterStatsResult = this._client.getMemoryStats(agentId)
+                let afterStats = if (afterStatsResult.isOk()) {
+                    Some(afterStatsResult.getOk())
+                } else {
+                    None<MemoryStats>
+                }
 
-                    let compressionInfo = CompressionInfo(
-                        agentId,
-                        compressionRatio,
-                        getCurrentTimestamp(),
-                        beforeStats,
-                        afterStats
-                    )
-                    
-                    monitor.finishAndLog()
-                    return AgentMemResult<CompressionInfo>.Ok(compressionInfo)
-                }
-                case Err(error) => {
-                    return AgentMemResult<CompressionInfo>.Err(error)
-                }
+                let compressionInfo = CompressionInfo(
+                    agentId,
+                    compressionRatio,
+                    TimeUtils.getCurrentTimestamp(),
+                    beforeStats,
+                    afterStats
+                )
+
+                monitor.finishAndLog()
+                return AgentMemResult<CompressionInfo>.Ok(compressionInfo)
+            } else {
+                let error = compressResult.getErr()
+                return AgentMemResult<CompressionInfo>.Err(error)
             }
             
         } catch (e: Exception) {
@@ -196,7 +209,7 @@ public class AdminManager {
             var filter = SearchFilter()
             
             if (criteria.maxAge.isSome()) {
-                let cutoffTime = getCurrentTimestamp() - criteria.maxAge.getOrThrow()
+                let cutoffTime = TimeUtils.getCurrentTimestamp() - criteria.maxAge.getOrThrow()
                 filter.timeRange = Some((0, cutoffTime))
             }
             
@@ -208,39 +221,38 @@ public class AdminManager {
 
             // 搜索需要清理的记忆
             let searchResult = this._client.searchMemoriesFiltered("*", filter, 1000)
-            match (searchResult) {
-                case Ok(searchResults) => {
-                    var deletedCount: UInt32 = 0
-                    var failedCount: UInt32 = 0
-                    var errors = Array<String>()
+            if (searchResult.isOk()) {
+                let searchResults = searchResult.getOk()
+                var deletedCount: UInt32 = 0
+                var failedCount: UInt32 = 0
+                var errors = Array<String>()
 
-                    // 删除找到的记忆
-                    for (result in searchResults) {
-                        let deleteResult = this._client.deleteMemory(result.memory.id)
-                        match (deleteResult) {
-                            case Ok(_) => deletedCount = deletedCount + 1
-                            case Err(error) => {
-                                failedCount = failedCount + 1
-                                errors.append(error.getMessage())
-                            }
-                        }
+                // 删除找到的记忆
+                for (result in searchResults) {
+                    let deleteResult = this._client.deleteMemory(result.memory.id)
+                    if (deleteResult.isOk()) {
+                        deletedCount = deletedCount + 1
+                    } else {
+                        let error = deleteResult.getErr()
+                        failedCount = failedCount + 1
+                        errors = ArrayUtils.append(errors, error.getMessage())
                     }
+                }
 
-                    let cleanupInfo = CleanupInfo(
-                        agentId,
-                        criteria,
-                        getCurrentTimestamp(),
-                        deletedCount,
-                        failedCount,
-                        errors
-                    )
-                    
-                    monitor.finishAndLog()
-                    return AgentMemResult<CleanupInfo>.Ok(cleanupInfo)
-                }
-                case Err(error) => {
-                    return AgentMemResult<CleanupInfo>.Err(error)
-                }
+                let cleanupInfo = CleanupInfo(
+                    agentId,
+                    criteria,
+                    TimeUtils.getCurrentTimestamp(),
+                    deletedCount,
+                    failedCount,
+                    errors
+                )
+
+                monitor.finishAndLog()
+                return AgentMemResult<CleanupInfo>.Ok(cleanupInfo)
+            } else {
+                let error = searchResult.getErr()
+                return AgentMemResult<CleanupInfo>.Err(error)
             }
             
         } catch (e: Exception) {
@@ -250,9 +262,14 @@ public class AdminManager {
         }
     }
 
-    /// 性能监控
+    /// 性能监控 (重载1)
+    public func getPerformanceMetrics(): AgentMemResult<PerformanceMetrics> {
+        return this.getPerformanceMetrics(None<String>)
+    }
+
+    /// 性能监控 (重载2)
     public func getPerformanceMetrics(
-        agentId: Option<String> = None
+        agentId: Option<String>
     ): AgentMemResult<PerformanceMetrics> {
         try {
             let stats = if (agentId.isSome()) {
@@ -261,20 +278,19 @@ public class AdminManager {
                 this._client.getGlobalStats()
             }
 
-            match (stats) {
-                case Ok(memoryStats) => {
-                    let metrics = PerformanceMetrics(
-                        getCurrentTimestamp(),
-                        memoryStats,
-                        this.calculateResponseTime(),
-                        this.calculateThroughput(),
-                        this.getMemoryUsage()
-                    )
-                    return AgentMemResult<PerformanceMetrics>.Ok(metrics)
-                }
-                case Err(error) => {
-                    return AgentMemResult<PerformanceMetrics>.Err(error)
-                }
+            if (stats.isOk()) {
+                let memoryStats = stats.getOk()
+                let metrics = PerformanceMetrics(
+                    TimeUtils.getCurrentTimestamp(),
+                    memoryStats,
+                    this.calculateResponseTime(),
+                    this.calculateThroughput(),
+                    this.getMemoryUsage()
+                )
+                return AgentMemResult<PerformanceMetrics>.Ok(metrics)
+            } else {
+                let error = stats.getErr()
+                return AgentMemResult<PerformanceMetrics>.Err(error)
             }
             
         } catch (e: Exception) {
@@ -292,7 +308,7 @@ public class AdminManager {
             
             // 这里可以添加更多配置更新逻辑
             
-            return AgentMemResult<Unit>.Ok(Unit())
+            return AgentMemResult<Unit>.Ok(())
             
         } catch (e: Exception) {
             return AgentMemResult<Unit>.Err(
@@ -312,7 +328,7 @@ public class AdminManager {
                 version,
                 config,
                 isConnected,
-                getCurrentTimestamp()
+                TimeUtils.getCurrentTimestamp()
             )
             
             return AgentMemResult<SystemInfo>.Ok(systemInfo)
@@ -345,10 +361,10 @@ public class AdminManager {
 public struct SystemHealth {
     public var isConnected: Bool
     public var version: String
-    public var checkTime: Timestamp
+    public var checkTime: UInt64
     public var stats: Option<MemoryStats>
 
-    public init(isConnected: Bool, version: String, checkTime: Timestamp, stats: Option<MemoryStats>) {
+    public init(isConnected: Bool, version: String, checkTime: UInt64, stats: Option<MemoryStats>) {
         this.isConnected = isConnected
         this.version = version
         this.checkTime = checkTime
@@ -375,10 +391,10 @@ public enum BackupFormat {
 public struct BackupInfo {
     public var outputPath: String
     public var format: BackupFormat
-    public var backupTime: Timestamp
+    public var backupTime: UInt64
     public var agentId: String
 
-    public init(outputPath: String, format: BackupFormat, backupTime: Timestamp, agentId: String) {
+    public init(outputPath: String, format: BackupFormat, backupTime: UInt64, agentId: String) {
         this.outputPath = outputPath
         this.format = format
         this.backupTime = backupTime
@@ -390,7 +406,7 @@ public struct BackupInfo {
 public struct RestoreInfo {
     public var inputPath: String
     public var format: BackupFormat
-    public var restoreTime: Timestamp
+    public var restoreTime: UInt64
     public var agentId: String
     public var successCount: Int32
     public var failureCount: Int32
@@ -399,7 +415,7 @@ public struct RestoreInfo {
     public init(
         inputPath: String, 
         format: BackupFormat, 
-        restoreTime: Timestamp, 
+        restoreTime: UInt64,
         agentId: String,
         successCount: Int32,
         failureCount: Int32,
@@ -419,14 +435,14 @@ public struct RestoreInfo {
 public struct CompressionInfo {
     public var agentId: String
     public var compressionRatio: Float32
-    public var compressionTime: Timestamp
+    public var compressionTime: UInt64
     public var beforeStats: Option<MemoryStats>
     public var afterStats: Option<MemoryStats>
 
     public init(
         agentId: String,
         compressionRatio: Float32,
-        compressionTime: Timestamp,
+        compressionTime: UInt64,
         beforeStats: Option<MemoryStats>,
         afterStats: Option<MemoryStats>
     ) {
@@ -451,7 +467,7 @@ public struct CleanupCriteria {
 public struct CleanupInfo {
     public var agentId: String
     public var criteria: CleanupCriteria
-    public var cleanupTime: Timestamp
+    public var cleanupTime: UInt64
     public var deletedCount: UInt32
     public var failedCount: UInt32
     public var errors: Array<String>
@@ -459,7 +475,7 @@ public struct CleanupInfo {
     public init(
         agentId: String,
         criteria: CleanupCriteria,
-        cleanupTime: Timestamp,
+        cleanupTime: UInt64,
         deletedCount: UInt32,
         failedCount: UInt32,
         errors: Array<String>
@@ -475,14 +491,14 @@ public struct CleanupInfo {
 
 /// 性能指标
 public struct PerformanceMetrics {
-    public var timestamp: Timestamp
+    public var timestamp: UInt64
     public var memoryStats: MemoryStats
     public var averageResponseTime: Float32  // 毫秒
     public var throughput: Float32  // 请求/秒
     public var memoryUsage: UInt64  // 字节
 
     public init(
-        timestamp: Timestamp,
+        timestamp: UInt64,
         memoryStats: MemoryStats,
         averageResponseTime: Float32,
         throughput: Float32,
@@ -502,7 +518,13 @@ public struct SystemConfig {
     public var cacheEnabled: Bool
     public var compressionEnabled: Bool
 
-    public init(logLevel: LogLevel = LogLevel.Info, cacheEnabled: Bool = true, compressionEnabled: Bool = true) {
+    public init() {
+        this.logLevel = LogLevel.Info
+        this.cacheEnabled = true
+        this.compressionEnabled = true
+    }
+
+    public init(logLevel: LogLevel, cacheEnabled: Bool, compressionEnabled: Bool) {
         this.logLevel = logLevel
         this.cacheEnabled = cacheEnabled
         this.compressionEnabled = compressionEnabled
@@ -514,9 +536,9 @@ public struct SystemInfo {
     public var version: String
     public var config: ClientConfig
     public var isConnected: Bool
-    public var timestamp: Timestamp
+    public var timestamp: UInt64
 
-    public init(version: String, config: ClientConfig, isConnected: Bool, timestamp: Timestamp) {
+    public init(version: String, config: ClientConfig, isConnected: Bool, timestamp: UInt64) {
         this.version = version
         this.config = config
         this.isConnected = isConnected
