@@ -8,7 +8,7 @@ license = "MIT"
 output-type = "executable"
 src-dir = "src"
 compile-option = "-O2"
-link-option = "-L../lib -lagentmem_c"
+link-option = ""
 
 [dependencies]
 agentmem = { path = ".." }

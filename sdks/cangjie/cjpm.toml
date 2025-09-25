@@ -5,8 +5,9 @@ cjc-version = "0.60.5"
 description = "AgentMem 仓颉 SDK - 企业级智能记忆管理平台的仓颉语言接口"
 authors = ["AgentMem Team"]
 license = "MIT"
-output-type = "dynamic"
+output-type = "executable"
 src-dir = "src"
+main-file = "src/test_main.cj"
 compile-option = "-O2"
 link-option = "-L./lib -lagentmem_c"
 

@@ -27,3 +27,6 @@ public import agentmem.ffi.*
 
 // 导出示例代码（仅用于演示，生产环境可选）
 public import agentmem.examples.*
+
+// 导出测试套件（用于验证和基准测试）
+public import agentmem.tests.*
