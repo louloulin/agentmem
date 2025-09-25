@@ -12,7 +12,7 @@ package agentmem
 import agentmem.core.{MemoryType, ImportanceLevel, Memory, AgentMemError, AgentMemResult, ClientConfig}
 import agentmem.api.{AgentMemClient, AgentMemClientBuilder, AgentMemSearchService, AgentMemMemoryOps, AgentMemAdminService, SearchOptions}
 import agentmem.tests.{PerformanceTests, IntegrationTests}
-import agentmem.examples.{AdvancedUsageExample}
+import agentmem.examples.{AdvancedUsageExample, FFIDemo}
 // import agentmem.ffi.{SimpleFFITest}
 
 /// 简单的测试套件
@@ -105,6 +105,11 @@ main() {
     } else {
         println("  ❌ 高级示例运行失败")
     }
+
+    // FFI功能演示
+    println("🔧 运行FFI功能演示...")
+    FFIDemo.runDemo()
+    println("  ✓ FFI演示完成")
 
     println()
     testSuite.printSummary()

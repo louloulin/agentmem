@@ -85,6 +85,12 @@ typedef struct {
     uint64_t last_updated;
 } CMemoryStats;
 
+// Error handling functions
+const char* agentmem_get_last_error(void);
+uint32_t agentmem_get_last_error_code(void);
+void agentmem_clear_last_error(void);
+void agentmem_free_string(const char* str);
+
 // Client management functions
 AgentMemClient* agentmem_client_new(const char* config_json);
 void agentmem_client_destroy(AgentMemClient* client);
@@ -113,7 +119,6 @@ int32_t agentmem_get_memory_stats(AgentMemClient* client, const char* agent_id, 
 int32_t agentmem_get_global_stats(AgentMemClient* client, CMemoryStats* out_stats);
 
 // Memory management
-void agentmem_free_string(char* str);
 void agentmem_free_memory_array(CMemoryArray* arr);
 void agentmem_free_search_result_array(CSearchResultArray* arr);
 void agentmem_free_batch_result(CBatchResult* result);

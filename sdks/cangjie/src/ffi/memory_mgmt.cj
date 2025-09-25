@@ -365,15 +365,24 @@ public func createResourceGuard<T>(resource: T, cleanup: (T) -> Unit): ResourceG
 
 /// 错误处理工具
 public class FFIErrorHandler {
-    /// 获取最后的FFI错误（简化实现）
+    /// 获取最后的FFI错误
     public static func getLastError(): AgentMemError {
-        // 暂时返回通用错误，避免FFI调用
-        return AgentMemError.InternalError("FFI error (simplified implementation)")
+        let errorCode = unsafe { agentmem_get_last_error_code() }
+        let errorMessage = unsafe { agentmem_get_last_error() }
+        let message = CStringConverter.toString(errorMessage)
+
+        // 释放错误消息字符串
+        unsafe { agentmem_free_string(errorMessage) }
+
+        return match (AgentMemError.fromErrorCode(errorCode, message)) {
+            case Some(error) => error
+            case None => AgentMemError.InternalError(message)
+        }
     }
 
-    /// 清除最后的错误（简化实现）
+    /// 清除最后的错误
     public static func clearLastError(): Unit {
-        // 暂时为空实现
+        unsafe { agentmem_clear_last_error() }
     }
 
     /// 检查FFI调用结果并转换错误

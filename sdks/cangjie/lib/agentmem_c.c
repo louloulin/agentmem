@@ -21,25 +21,44 @@ struct AgentMemClient {
 };
 
 // Global error state
-static char* last_error = NULL;
+static char* last_error_message = NULL;
 static uint32_t last_error_code = 0;
+
+// Error handling functions
+const char* agentmem_get_last_error() {
+    return last_error_message ? last_error_message : "";
+}
+
+uint32_t agentmem_get_last_error_code() {
+    return last_error_code;
+}
+
+void agentmem_clear_last_error() {
+    if (last_error_message) {
+        free(last_error_message);
+        last_error_message = NULL;
+    }
+    last_error_code = 0;
+}
+
+void agentmem_free_string(const char* str) {
+    if (str) {
+        free((void*)str);
+    }
+}
 
 // Helper function to set error
 static void set_error(uint32_t code, const char* message) {
-    if (last_error) {
-        free(last_error);
-    }
-    last_error = strdup(message);
+    agentmem_clear_last_error();
     last_error_code = code;
+    if (message) {
+        last_error_message = strdup(message);
+    }
 }
 
 // Helper function to clear error
 static void clear_error(void) {
-    if (last_error) {
-        free(last_error);
-        last_error = NULL;
-    }
-    last_error_code = 0;
+    agentmem_clear_last_error();
 }
 
 // Helper function to duplicate string
@@ -176,12 +195,7 @@ int32_t agentmem_search_similar_memories(AgentMemClient* client, const char* mem
     return 0;
 }
 
-// Memory management
-void agentmem_free_string(char* str) {
-    if (str) {
-        free(str);
-    }
-}
+
 
 void agentmem_free_memory_array(CMemoryArray* arr) {
     if (arr && arr->memories) {
@@ -213,18 +227,7 @@ void agentmem_free_search_result_array(CSearchResultArray* arr) {
     }
 }
 
-// Error handling
-const char* agentmem_get_last_error(void) {
-    return last_error ? last_error : "No error";
-}
 
-uint32_t agentmem_get_last_error_code(void) {
-    return last_error_code;
-}
-
-void agentmem_clear_last_error(void) {
-    clear_error();
-}
 
 // Configuration and debugging
 void agentmem_set_log_level(uint32_t level) {
