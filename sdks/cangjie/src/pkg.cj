@@ -3,10 +3,14 @@
  */
 
 /**
- * AgentMem 仓颉 SDK 包定义
- * 
- * 这个文件定义了AgentMem SDK的包结构和导出的公共API。
- * 当前版本专注于核心功能，FFI绑定将在后续版本中完善。
+ * AgentMem 仓颉 SDK 静态库定义
+ *
+ * 这个文件定义了AgentMem SDK静态库的包结构和导出的公共API。
+ * 提供完整的企业级智能记忆管理平台的仓颉语言接口。
+ *
+ * @version 1.0.0
+ * @author AgentMem Team
+ * @license MIT
  */
 
 package agentmem
@@ -18,8 +22,8 @@ public import agentmem.utils.*
 // 导出API功能
 public import agentmem.api.*
 
-// 导出FFI功能（暂时禁用，需要完善集成）
-// public import agentmem.ffi.*
+// 导出FFI功能
+public import agentmem.ffi.*
 
-// 导出示例代码（暂时禁用，需要修复语法问题）
-// public import agentmem.examples.*
+// 导出示例代码（仅用于演示，生产环境可选）
+public import agentmem.examples.*
