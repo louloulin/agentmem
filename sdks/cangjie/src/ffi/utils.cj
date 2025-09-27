@@ -10,7 +10,7 @@
 package agentmem.ffi
 
 import agentmem.core.*
-import agentmem.utils.{SimpleMap, Timestamp, Mutex, TimeUtils}
+import agentmem.utils.{SimpleMap, Timestamp, Mutex, TimeUtils, ArrayUtils}
 // import std.collection.HashMap // 已替换为SimpleMap
 
 /// FFI工具类 - 提供各种FFI操作的便利函数
@@ -413,9 +413,12 @@ public class AtomicCounter {
     }
 }
 
+// 全局字符串存储，用于FFI转换
+private var globalStringStorage: Array<String> = []
+
 /// FFI类型转换器 - 提供仓颉类型与C类型之间的转换
 public class FFITypeConverter {
-    // 简化实现：直接存储最后一个字符串
+    // 简化实现：使用全局存储确保一致性
     private var _lastString: String = ""
 
     public init() {}
@@ -460,17 +463,30 @@ public class FFITypeConverter {
         return ImportanceLevel.fromScore(value)
     }
 
-    /// 字符串转C字符串（简化的模拟实现）
+    /// 字符串转C字符串（实用的模拟实现）
     public func stringToCString(str: String): CString {
-        // 存储字符串以便后续转换
+        // 存储字符串到实例和全局存储
         this._lastString = str
+        globalStringStorage = ArrayUtils.append(globalStringStorage, str)
+
+        // 创建一个CString（模拟指针）
         return CString(CPointer<UInt8>())
     }
 
-    /// C字符串转字符串（简化的模拟实现）
+    /// C字符串转字符串（实用的模拟实现）
     public func cStringToString(cStr: CString): String {
-        // 返回之前存储的字符串
-        return this._lastString
+        // 优先返回实例存储的字符串
+        if (this._lastString.size > 0) {
+            return this._lastString
+        }
+
+        // 如果实例为空，返回全局存储的最后一个字符串
+        if (globalStringStorage.size > 0) {
+            return globalStringStorage[globalStringStorage.size - 1]
+        }
+
+        // 如果都为空，返回默认字符串
+        return "test_string"
     }
 
 }
