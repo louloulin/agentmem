@@ -55,7 +55,7 @@ terraform apply
 ```
 */
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use chrono::{DateTime, Utc};
 use clap::{Parser, Subcommand};
 use colored::*;
@@ -64,7 +64,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
 use tokio::time::sleep;
-use tracing::{error, info, warn};
 use uuid::Uuid;
 
 #[derive(Parser)]
@@ -178,13 +177,25 @@ async fn main() -> Result<()> {
         Commands::Docker { build, run, status } => {
             demo_docker_deployment(build, run, status).await?;
         }
-        Commands::Kubernetes { deploy, status, scale } => {
+        Commands::Kubernetes {
+            deploy,
+            status,
+            scale,
+        } => {
             demo_kubernetes_deployment(deploy, status, scale).await?;
         }
-        Commands::Cloud { provider, environment, status } => {
+        Commands::Cloud {
+            provider,
+            environment,
+            status,
+        } => {
             demo_cloud_integration(&provider, &environment, status).await?;
         }
-        Commands::Monitoring { start, metrics, logs } => {
+        Commands::Monitoring {
+            start,
+            metrics,
+            logs,
+        } => {
             demo_monitoring_observability(start, metrics, logs).await?;
         }
         Commands::Demo => {
@@ -214,7 +225,7 @@ async fn demo_docker_deployment(build: bool, run: bool, status: bool) -> Result<
     if build {
         println!("{}", "📦 构建优化的 Docker 镜像...".yellow());
         let pb = create_progress_bar("构建镜像");
-        
+
         // 模拟构建过程
         for i in 0..100 {
             pb.set_position(i);
@@ -233,7 +244,7 @@ async fn demo_docker_deployment(build: bool, run: bool, status: bool) -> Result<
     if run {
         println!("{}", "🚀 启动容器集群...".yellow());
         let pb = create_progress_bar("启动服务");
-        
+
         // 模拟启动过程
         for i in 0..100 {
             pb.set_position(i);
@@ -264,7 +275,7 @@ async fn demo_kubernetes_deployment(deploy: bool, status: bool, scale: Option<u3
     if deploy {
         println!("{}", "🚀 部署到 Kubernetes 集群...".yellow());
         let pb = create_progress_bar("部署应用");
-        
+
         // 模拟部署过程
         for i in 0..100 {
             pb.set_position(i);
@@ -286,13 +297,13 @@ async fn demo_kubernetes_deployment(deploy: bool, status: bool, scale: Option<u3
     if let Some(replicas) = scale {
         println!("{}", format!("📈 扩缩容到 {} 副本...", replicas).yellow());
         let pb = create_progress_bar("扩缩容");
-        
+
         for i in 0..100 {
             pb.set_position(i);
             sleep(Duration::from_millis(20)).await;
         }
         pb.finish_with_message("✅ 扩缩容完成");
-        
+
         println!("🎯 扩缩容结果：");
         println!("  • 当前副本数: {}", replicas.to_string().green());
         println!("  • 负载均衡: 自动分发");
@@ -308,12 +319,17 @@ async fn demo_kubernetes_deployment(deploy: bool, status: bool, scale: Option<u3
 }
 
 async fn demo_cloud_integration(provider: &str, environment: &str, status: bool) -> Result<()> {
-    println!("{}", format!("☁️ {} 云平台集成演示", provider.to_uppercase()).green().bold());
+    println!(
+        "{}",
+        format!("☁️ {} 云平台集成演示", provider.to_uppercase())
+            .green()
+            .bold()
+    );
     println!();
 
     println!("{}", "🏗️ 基础设施即代码部署...".yellow());
     let pb = create_progress_bar("创建云资源");
-    
+
     // 模拟云资源创建
     for i in 0..100 {
         pb.set_position(i);
@@ -377,7 +393,7 @@ async fn demo_monitoring_observability(start: bool, metrics: bool, logs: bool) -
     if start {
         println!("{}", "🚀 启动监控栈...".yellow());
         let pb = create_progress_bar("启动监控服务");
-        
+
         for i in 0..100 {
             pb.set_position(i);
             sleep(Duration::from_millis(30)).await;
@@ -450,7 +466,9 @@ fn create_progress_bar(message: &str) -> ProgressBar {
     let pb = ProgressBar::new(100);
     pb.set_style(
         ProgressStyle::default_bar()
-            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos:>3}/{len:3} {msg}")
+            .template(
+                "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos:>3}/{len:3} {msg}",
+            )
             .unwrap()
             .progress_chars("█▉▊▋▌▍▎▏  "),
     );
@@ -461,7 +479,7 @@ fn create_progress_bar(message: &str) -> ProgressBar {
 async fn show_docker_status() -> Result<()> {
     println!("{}", "📊 Docker 容器状态".blue().bold());
     println!();
-    
+
     let containers = vec![
         ("agentmem-server", "运行中", "3/3", "45MB", "12%"),
         ("agentmem-postgres", "运行中", "1/1", "128MB", "8%"),
@@ -471,26 +489,31 @@ async fn show_docker_status() -> Result<()> {
         ("agentmem-grafana", "运行中", "1/1", "48MB", "4%"),
     ];
 
-    println!("{:<20} {:<8} {:<8} {:<10} {:<8}", "容器名称", "状态", "副本", "内存", "CPU");
+    println!(
+        "{:<20} {:<8} {:<8} {:<10} {:<8}",
+        "容器名称", "状态", "副本", "内存", "CPU"
+    );
     println!("{}", "─".repeat(60));
-    
+
     for (name, status, replicas, memory, cpu) in containers {
-        println!("{:<20} {:<8} {:<8} {:<10} {:<8}", 
-                name, 
-                status.green(), 
-                replicas, 
-                memory, 
-                cpu);
+        println!(
+            "{:<20} {:<8} {:<8} {:<10} {:<8}",
+            name,
+            status.green(),
+            replicas,
+            memory,
+            cpu
+        );
     }
     println!();
-    
+
     Ok(())
 }
 
 async fn show_kubernetes_status() -> Result<()> {
     println!("{}", "📊 Kubernetes 集群状态".blue().bold());
     println!();
-    
+
     let resources = vec![
         ("Deployment", "agentmem-server", "3/3", "Ready"),
         ("Service", "agentmem-service", "1", "Active"),
@@ -501,25 +524,35 @@ async fn show_kubernetes_status() -> Result<()> {
         ("Secret", "agentmem-secrets", "1", "Active"),
     ];
 
-    println!("{:<12} {:<20} {:<8} {:<8}", "资源类型", "名称", "副本/数量", "状态");
+    println!(
+        "{:<12} {:<20} {:<8} {:<8}",
+        "资源类型", "名称", "副本/数量", "状态"
+    );
     println!("{}", "─".repeat(50));
-    
+
     for (resource_type, name, count, status) in resources {
-        println!("{:<12} {:<20} {:<8} {:<8}", 
-                resource_type, 
-                name, 
-                count, 
-                status.green());
+        println!(
+            "{:<12} {:<20} {:<8} {:<8}",
+            resource_type,
+            name,
+            count,
+            status.green()
+        );
     }
     println!();
-    
+
     Ok(())
 }
 
 async fn show_cloud_status(provider: &str, environment: &str) -> Result<()> {
-    println!("{}", format!("📊 {} 云资源状态", provider.to_uppercase()).blue().bold());
+    println!(
+        "{}",
+        format!("📊 {} 云资源状态", provider.to_uppercase())
+            .blue()
+            .bold()
+    );
     println!();
-    
+
     let status = DeploymentStatus {
         id: Uuid::new_v4(),
         name: "agentmem-production".to_string(),
@@ -541,23 +574,32 @@ async fn show_cloud_status(provider: &str, environment: &str) -> Result<()> {
     println!("  • 部署 ID: {}", status.id);
     println!("  • 环境: {}", status.environment);
     println!("  • 状态: {}", status.status.green());
-    println!("  • 运行时间: {} 天", status.metrics.uptime.as_secs() / 86400);
+    println!(
+        "  • 运行时间: {} 天",
+        status.metrics.uptime.as_secs() / 86400
+    );
     println!();
-    
+
     println!("📈 性能指标：");
-    println!("  • 请求速率: {:.1} req/s", status.metrics.requests_per_second);
+    println!(
+        "  • 请求速率: {:.1} req/s",
+        status.metrics.requests_per_second
+    );
     println!("  • 错误率: {:.3}%", status.metrics.error_rate * 100.0);
-    println!("  • 响应时间 (P95): {:.0}ms", status.metrics.response_time_p95 * 1000.0);
+    println!(
+        "  • 响应时间 (P95): {:.0}ms",
+        status.metrics.response_time_p95 * 1000.0
+    );
     println!("  • 活跃连接: {}", status.metrics.active_connections);
     println!();
-    
+
     Ok(())
 }
 
 async fn show_metrics_dashboard() -> Result<()> {
     println!("{}", "📊 实时指标仪表板".blue().bold());
     println!();
-    
+
     // 模拟实时指标
     let metrics = vec![
         ("HTTP 请求速率", "1,247 req/s", "📈"),
@@ -574,25 +616,50 @@ async fn show_metrics_dashboard() -> Result<()> {
         println!("{} {:<20} {}", icon, name, value.green().bold());
     }
     println!();
-    
+
     Ok(())
 }
 
 async fn show_logs_analysis() -> Result<()> {
     println!("{}", "📋 日志分析".blue().bold());
     println!();
-    
+
     let log_entries = vec![
-        ("INFO", "2024-01-15 10:30:45", "HTTP request processed successfully", "agentmem-server"),
-        ("WARN", "2024-01-15 10:30:44", "High memory usage detected: 85%", "monitoring"),
-        ("INFO", "2024-01-15 10:30:43", "Database connection pool expanded", "postgres"),
-        ("INFO", "2024-01-15 10:30:42", "Cache hit for key: user:1234", "redis"),
-        ("ERROR", "2024-01-15 10:30:41", "Failed to connect to external API", "agentmem-server"),
+        (
+            "INFO",
+            "2024-01-15 10:30:45",
+            "HTTP request processed successfully",
+            "agentmem-server",
+        ),
+        (
+            "WARN",
+            "2024-01-15 10:30:44",
+            "High memory usage detected: 85%",
+            "monitoring",
+        ),
+        (
+            "INFO",
+            "2024-01-15 10:30:43",
+            "Database connection pool expanded",
+            "postgres",
+        ),
+        (
+            "INFO",
+            "2024-01-15 10:30:42",
+            "Cache hit for key: user:1234",
+            "redis",
+        ),
+        (
+            "ERROR",
+            "2024-01-15 10:30:41",
+            "Failed to connect to external API",
+            "agentmem-server",
+        ),
     ];
 
     println!("{:<6} {:<20} {:<50} {:<15}", "级别", "时间", "消息", "服务");
     println!("{}", "─".repeat(95));
-    
+
     for (level, timestamp, message, service) in log_entries {
         let level_colored = match level {
             "ERROR" => level.red(),
@@ -600,13 +667,12 @@ async fn show_logs_analysis() -> Result<()> {
             "INFO" => level.green(),
             _ => level.normal(),
         };
-        println!("{:<6} {:<20} {:<50} {:<15}", 
-                level_colored, 
-                timestamp, 
-                message, 
-                service);
+        println!(
+            "{:<6} {:<20} {:<50} {:<15}",
+            level_colored, timestamp, message, service
+        );
     }
     println!();
-    
+
     Ok(())
 }

@@ -25,25 +25,23 @@ pub use benchmark::{BenchmarkSuite, MemoryBenchmarkResults, VectorBenchmarkResul
 pub use cache::{CacheConfig, CacheManager, CacheStats};
 pub use concurrency::{ConcurrencyConfig, ConcurrencyManager};
 pub use config_manager::{
-    UnifiedConfigManager, AgentMemConfig, LLMConfig, VectorStoreConfig,
-    GraphStoreConfig, EmbedderConfig, IntelligenceConfig,
-    TelemetryConfig as ConfigTelemetryConfig,
-    PerformanceConfig as ConfigPerformanceConfig,
-    ConfigSource, FileConfigSource, EnvConfigSource
+    AgentMemConfig, ConfigSource, EmbedderConfig, EnvConfigSource, FileConfigSource,
+    GraphStoreConfig, IntelligenceConfig, LLMConfig, PerformanceConfig as ConfigPerformanceConfig,
+    TelemetryConfig as ConfigTelemetryConfig, UnifiedConfigManager, VectorStoreConfig,
 };
 pub use error_recovery::{
-    ProductionErrorHandler, ErrorRecoveryConfig, RetryPolicy, CircuitBreaker,
-    CircuitBreakerConfig, ErrorType, BackoffStrategy, FallbackStrategy
+    BackoffStrategy, CircuitBreaker, CircuitBreakerConfig, ErrorRecoveryConfig, ErrorType,
+    FallbackStrategy, ProductionErrorHandler, RetryPolicy,
 };
 pub use metrics::{MetricsCollector, PerformanceMetrics};
 pub use optimization::{
-    OptimizationEngine, CachePerformanceStats, QueryPerformanceStats, OptimizationRecord
+    CachePerformanceStats, OptimizationEngine, OptimizationRecord, QueryPerformanceStats,
 };
 pub use pool::{MemoryPool, ObjectPool, PoolConfig};
 pub use query::{OptimizationHint, QueryOptimizer, QueryPlan};
 pub use telemetry::{
-    TelemetrySystem, TelemetryConfig, EventTracker, PerformanceMonitor,
-    AdaptiveOptimizer, MemoryEvent, EventType, TelemetryReport
+    AdaptiveOptimizer, EventTracker, EventType, MemoryEvent, PerformanceMonitor, TelemetryConfig,
+    TelemetryReport, TelemetrySystem,
 };
 
 use agent_mem_traits::Result;

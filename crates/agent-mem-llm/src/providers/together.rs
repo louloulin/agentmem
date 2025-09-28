@@ -1,9 +1,11 @@
 //! Together AI LLM 提供商实现
-//! 
+//!
 //! Together AI 是一个开源模型托管平台，
 //! 提供多种开源 LLM 的高性能推理服务。
 
-use agent_mem_traits::{AgentMemError, LLMConfig, LLMProvider, Message, MessageRole, ModelInfo, Result};
+use agent_mem_traits::{
+    AgentMemError, LLMConfig, LLMProvider, Message, MessageRole, ModelInfo, Result,
+};
 use async_trait::async_trait;
 use futures::Stream;
 use reqwest::Client;
@@ -84,7 +86,9 @@ impl TogetherProvider {
     /// 创建新的 Together 提供商实例
     pub fn new(config: LLMConfig) -> Result<Self> {
         // 验证必需的配置
-        let api_key = config.api_key.as_ref()
+        let _api_key = config
+            .api_key
+            .as_ref()
             .ok_or_else(|| AgentMemError::config_error("Together API key is required"))?;
 
         if config.model.is_empty() {
@@ -94,9 +98,12 @@ impl TogetherProvider {
         let client = Client::builder()
             .timeout(Duration::from_secs(60)) // Together 可能需要更长时间
             .build()
-            .map_err(|e| AgentMemError::llm_error(&format!("Failed to create HTTP client: {}", e)))?;
+            .map_err(|e| {
+                AgentMemError::llm_error(&format!("Failed to create HTTP client: {}", e))
+            })?;
 
-        let base_url = config.base_url
+        let base_url = config
+            .base_url
             .clone()
             .unwrap_or_else(|| "https://api.together.xyz/v1".to_string());
 
@@ -151,11 +158,10 @@ impl TogetherProvider {
                 .map_err(|e| AgentMemError::llm_error(&format!("Request failed: {}", e)))?;
 
             if response.status().is_success() {
-                let together_response: TogetherResponse = response
-                    .json()
-                    .await
-                    .map_err(|e| AgentMemError::llm_error(&format!("Failed to parse response: {}", e)))?;
-                
+                let together_response: TogetherResponse = response.json().await.map_err(|e| {
+                    AgentMemError::llm_error(&format!("Failed to parse response: {}", e))
+                })?;
+
                 return Ok(together_response);
             } else if response.status().is_server_error() && retries < max_retries {
                 retries += 1;
@@ -167,19 +173,17 @@ impl TogetherProvider {
                     .text()
                     .await
                     .unwrap_or_else(|_| "Unknown error".to_string());
-                
+
                 // 尝试解析 Together 错误响应
                 if let Ok(together_error) = serde_json::from_str::<TogetherError>(&error_text) {
                     return Err(AgentMemError::llm_error(&format!(
-                        "Together API error: {} ({})", 
-                        together_error.error.message, 
-                        together_error.error.error_type
+                        "Together API error: {} ({})",
+                        together_error.error.message, together_error.error.error_type
                     )));
                 } else {
                     return Err(AgentMemError::llm_error(&format!(
-                        "HTTP error {}: {}", 
-                        status, 
-                        error_text
+                        "HTTP error {}: {}",
+                        status, error_text
                     )));
                 }
             }
@@ -193,12 +197,13 @@ impl TogetherProvider {
         }
 
         let choice = &response.choices[0];
-        
+
         // 检查完成原因
         if let Some(finish_reason) = &choice.finish_reason {
             if finish_reason != "stop" && finish_reason != "length" && finish_reason != "eos" {
                 return Err(AgentMemError::llm_error(&format!(
-                    "Generation stopped due to: {}", finish_reason
+                    "Generation stopped due to: {}",
+                    finish_reason
                 )));
             }
         }
@@ -265,7 +270,7 @@ impl LLMProvider for TogetherProvider {
             max_tokens: self.config.max_tokens,
             temperature: self.config.temperature,
             top_p: self.config.top_p,
-            top_k: None, // Together 特有参数，可以根据需要设置
+            top_k: None,              // Together 特有参数，可以根据需要设置
             repetition_penalty: None, // Together 特有参数
             stop: None,
             stream: Some(false),
@@ -275,10 +280,15 @@ impl LLMProvider for TogetherProvider {
         self.extract_response_text(&response)
     }
 
-    async fn generate_stream(&self, _messages: &[Message]) -> Result<Box<dyn Stream<Item = Result<String>> + Send + Unpin>> {
+    async fn generate_stream(
+        &self,
+        _messages: &[Message],
+    ) -> Result<Box<dyn Stream<Item = Result<String>> + Send + Unpin>> {
         // Together 流式生成需要额外的实现
         // 目前返回错误，表示不支持
-        Err(AgentMemError::llm_error("Streaming not yet implemented for Together"))
+        Err(AgentMemError::llm_error(
+            "Streaming not yet implemented for Together",
+        ))
     }
 
     fn get_model_info(&self) -> ModelInfo {

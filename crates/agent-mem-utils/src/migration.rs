@@ -7,11 +7,11 @@
 //! - 进度跟踪
 //! - 错误恢复
 
-use agent_mem_traits::{Result, VectorStore, VectorData};
+use agent_mem_traits::{Result, VectorData, VectorStore};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{info, error};
+use tracing::{error, info};
 
 /// 迁移进度信息
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -172,7 +172,7 @@ impl DataMigrator {
         target: Arc<dyn VectorStore + Send + Sync>,
     ) -> Result<MigrationResult> {
         info!("Starting data migration");
-        
+
         // 更新状态为运行中
         {
             let mut progress = self.progress.write().await;
@@ -181,7 +181,7 @@ impl DataMigrator {
         }
 
         let start_time = std::time::Instant::now();
-        
+
         // 如果配置要求，清空目标存储
         if self.config.clear_target {
             info!("Clearing target storage");
@@ -203,7 +203,7 @@ impl DataMigrator {
         };
 
         info!("Total records to migrate: {}", total_records);
-        
+
         // 更新进度信息
         {
             let mut progress = self.progress.write().await;
@@ -213,10 +213,10 @@ impl DataMigrator {
 
         // 执行批量迁移
         let result = self.migrate_in_batches(source, target, total_records).await;
-        
+
         let duration = start_time.elapsed();
         let duration_seconds = duration.as_secs_f64();
-        
+
         // 生成迁移结果
         let progress = self.progress.read().await;
         let migration_result = MigrationResult {
@@ -311,7 +311,9 @@ impl DataMigrator {
                     let mut progress = self.progress.write().await;
                     progress.processed_records += batch_vectors.len();
                     progress.failed_records += batch_vectors.len();
-                    progress.errors.push(format!("Batch {} failed: {}", batch_index + 1, e));
+                    progress
+                        .errors
+                        .push(format!("Batch {} failed: {}", batch_index + 1, e));
 
                     if !self.config.skip_errors {
                         return Err(e);
@@ -320,7 +322,10 @@ impl DataMigrator {
             }
 
             // 添加处理延迟以避免过载
-            tokio::time::sleep(tokio::time::Duration::from_millis(self.config.retry_delay_ms / 10)).await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(
+                self.config.retry_delay_ms / 10,
+            ))
+            .await;
 
             // 更新进度和估算完成时间
             {
@@ -331,9 +336,11 @@ impl DataMigrator {
                     let elapsed = chrono::Utc::now().signed_duration_since(progress.start_time);
                     let rate = progress.processed_records as f64 / elapsed.num_seconds() as f64;
                     if rate > 0.0 {
-                        let remaining_seconds = (total_records - progress.processed_records) as f64 / rate;
+                        let remaining_seconds =
+                            (total_records - progress.processed_records) as f64 / rate;
                         progress.estimated_completion = Some(
-                            chrono::Utc::now() + chrono::Duration::seconds(remaining_seconds as i64)
+                            chrono::Utc::now()
+                                + chrono::Duration::seconds(remaining_seconds as i64),
                         );
                     }
                 }
@@ -360,11 +367,13 @@ impl DataMigrator {
 
         // 首先尝试通过搜索获取数据
         let dummy_vector = vec![0.0; 128]; // 使用 128 维的零向量
-        let search_results = source.search_vectors(
-            dummy_vector,
-            10000, // 设置一个大的限制来获取所有数据
-            Some(0.0), // 设置阈值为 0 来获取所有结果
-        ).await?;
+        let search_results = source
+            .search_vectors(
+                dummy_vector,
+                10000,     // 设置一个大的限制来获取所有数据
+                Some(0.0), // 设置阈值为 0 来获取所有结果
+            )
+            .await?;
 
         // 将搜索结果转换为 VectorData
         let mut vectors = Vec::new();
@@ -383,7 +392,7 @@ impl DataMigrator {
                 // 生成一些测试向量数据作为回退
                 for i in 0..count {
                     let vector_data = VectorData {
-                        id: format!("migrated_{}", i),
+                        id: format!("migrated_{i}"),
                         vector: vec![0.1; 128], // 简单的测试向量
                         metadata: std::collections::HashMap::new(),
                     };
@@ -449,13 +458,13 @@ impl MigrationTools {
         config: &MigrationConfig,
     ) -> Result<std::time::Duration> {
         let total_records = source.count_vectors().await?;
-        
+
         // 基于经验值估算：每秒处理约 100 条记录
         let estimated_seconds = total_records as f64 / 100.0;
-        
+
         // 考虑批次大小和并发数的影响
         let adjusted_seconds = estimated_seconds / (config.concurrency as f64 * 0.8);
-        
+
         Ok(std::time::Duration::from_secs_f64(adjusted_seconds))
     }
 }
@@ -463,7 +472,7 @@ impl MigrationTools {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agent_mem_traits::{VectorSearchResult, HealthStatus, VectorStoreStats, VectorData};
+    use agent_mem_traits::{HealthStatus, VectorData, VectorSearchResult, VectorStoreStats};
     use async_trait::async_trait;
     use std::collections::HashMap;
 
@@ -488,11 +497,14 @@ mod tests {
                 metadata.insert("source".to_string(), name.to_string());
                 metadata.insert("timestamp".to_string(), chrono::Utc::now().to_rfc3339());
 
-                vectors.insert(id.clone(), VectorData {
-                    id,
-                    vector,
-                    metadata,
-                });
+                vectors.insert(
+                    id.clone(),
+                    VectorData {
+                        id,
+                        vector,
+                        metadata,
+                    },
+                );
             }
 
             Self {
@@ -507,8 +519,8 @@ mod tests {
             let mut vector = Vec::with_capacity(dim);
             for i in 0..dim {
                 // 使用种子生成更真实的向量分布
-                let value = ((seed * 31 + i * 17) as f32).sin() * 0.5 +
-                           ((seed * 13 + i * 7) as f32).cos() * 0.3;
+                let value = ((seed * 31 + i * 17) as f32).sin() * 0.5
+                    + ((seed * 13 + i * 7) as f32).cos() * 0.3;
                 vector.push(value);
             }
 
@@ -597,9 +609,18 @@ mod tests {
                 timestamp: chrono::Utc::now(),
                 details: {
                     let mut details = HashMap::new();
-                    details.insert("store_type".to_string(), serde_json::Value::String("real_memory".to_string()));
-                    details.insert("vector_count".to_string(), serde_json::Value::Number(self.vector_count.into()));
-                    details.insert("store_name".to_string(), serde_json::Value::String(self.name.clone()));
+                    details.insert(
+                        "store_type".to_string(),
+                        serde_json::Value::String("real_memory".to_string()),
+                    );
+                    details.insert(
+                        "vector_count".to_string(),
+                        serde_json::Value::Number(self.vector_count.into()),
+                    );
+                    details.insert(
+                        "store_name".to_string(),
+                        serde_json::Value::String(self.name.clone()),
+                    );
                     details
                 },
             })
@@ -614,7 +635,10 @@ mod tests {
             })
         }
 
-        async fn add_vectors_batch(&self, batches: Vec<Vec<VectorData>>) -> Result<Vec<Vec<String>>> {
+        async fn add_vectors_batch(
+            &self,
+            batches: Vec<Vec<VectorData>>,
+        ) -> Result<Vec<Vec<String>>> {
             let mut results = Vec::new();
             for batch in batches {
                 let batch_result = self.add_vectors(batch).await?;
@@ -668,7 +692,9 @@ mod tests {
         let source = Arc::new(RealMemoryVectorStore::new(10, "source"));
         let target = Arc::new(RealMemoryVectorStore::new(0, "target"));
 
-        let is_compatible = MigrationTools::validate_compatibility(source, target).await.unwrap();
+        let is_compatible = MigrationTools::validate_compatibility(source, target)
+            .await
+            .unwrap();
         assert!(is_compatible);
     }
 
@@ -677,7 +703,9 @@ mod tests {
         let source = Arc::new(RealMemoryVectorStore::new(1000, "source"));
         let config = MigrationConfig::default();
 
-        let estimated_time = MigrationTools::estimate_migration_time(source, &config).await.unwrap();
+        let estimated_time = MigrationTools::estimate_migration_time(source, &config)
+            .await
+            .unwrap();
         assert!(estimated_time.as_secs() > 0);
     }
 
@@ -693,7 +721,10 @@ mod tests {
         };
 
         let migrator = DataMigrator::new(config);
-        let result = migrator.migrate(source.clone(), target.clone()).await.unwrap();
+        let result = migrator
+            .migrate(source.clone(), target.clone())
+            .await
+            .unwrap();
 
         assert!(result.success);
         assert_eq!(result.total_records, 50);

@@ -2,10 +2,10 @@
 //!
 //! 统一 LLM 接口，支持多种 LLM 提供商的统一访问
 
+use agent_mem_traits::{AgentMemError, Result};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
-use agent_mem_traits::{AgentMemError, Result};
 
 /// LiteLLM 配置
 #[derive(Debug, Clone)]
@@ -136,24 +136,24 @@ pub enum SupportedModel {
     GPT4,
     GPT4Turbo,
     GPT35Turbo,
-    
+
     // Anthropic
     Claude3Opus,
     Claude3Sonnet,
     Claude3Haiku,
-    
+
     // AWS Bedrock
     BedrockClaude,
     BedrockTitan,
-    
+
     // Azure OpenAI
     AzureGPT4,
     AzureGPT35,
-    
+
     // Google
     Gemini15Pro,
     Gemini15Flash,
-    
+
     // Others
     Groq,
     Together,
@@ -240,7 +240,7 @@ impl LiteLLMProvider {
         };
 
         let response = self.send_request(&request).await?;
-        
+
         if let Some(choice) = response.choices.first() {
             Ok(choice.message.content.clone())
         } else {
@@ -253,7 +253,7 @@ impl LiteLLMProvider {
     where
         T: for<'de> Deserialize<'de>,
     {
-        let mut request = LiteLLMRequest {
+        let request = LiteLLMRequest {
             model: self.config.model.clone(),
             messages: messages.to_vec(),
             temperature: self.config.temperature,
@@ -265,10 +265,11 @@ impl LiteLLMProvider {
         };
 
         let response = self.send_request(&request).await?;
-        
+
         if let Some(choice) = response.choices.first() {
-            let parsed: T = serde_json::from_str(&choice.message.content)
-                .map_err(|e| AgentMemError::LLMError(format!("Failed to parse JSON response: {}", e)))?;
+            let parsed: T = serde_json::from_str(&choice.message.content).map_err(|e| {
+                AgentMemError::LLMError(format!("Failed to parse JSON response: {}", e))
+            })?;
             Ok(parsed)
         } else {
             Err(AgentMemError::LLMError("No response choices".to_string()))
@@ -277,29 +278,39 @@ impl LiteLLMProvider {
 
     /// 发送请求
     async fn send_request(&self, request: &LiteLLMRequest) -> Result<LiteLLMResponse> {
-        let url = self.config.api_base
+        let url = self
+            .config
+            .api_base
             .as_ref()
             .map(|base| format!("{}/chat/completions", base))
             .unwrap_or_else(|| "https://api.openai.com/v1/chat/completions".to_string());
 
-        let mut req_builder = self.client.post(&url)
-            .json(request);
+        let mut req_builder = self.client.post(&url).json(request);
 
         // 添加认证头
         if let Some(api_key) = &self.config.api_key {
             req_builder = req_builder.header("Authorization", format!("Bearer {}", api_key));
         }
 
-        let response = req_builder.send().await
+        let response = req_builder
+            .send()
+            .await
             .map_err(|e| AgentMemError::LLMError(format!("Request failed: {}", e)))?;
 
         if !response.status().is_success() {
-            let error_text = response.text().await
+            let error_text = response
+                .text()
+                .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(AgentMemError::LLMError(format!("API error: {}", error_text)));
+            return Err(AgentMemError::LLMError(format!(
+                "API error: {}",
+                error_text
+            )));
         }
 
-        let llm_response: LiteLLMResponse = response.json().await
+        let llm_response: LiteLLMResponse = response
+            .json()
+            .await
             .map_err(|e| AgentMemError::LLMError(format!("Failed to parse response: {}", e)))?;
 
         Ok(llm_response)
@@ -321,8 +332,14 @@ mod tests {
     #[test]
     fn test_supported_model_as_str() {
         assert_eq!(SupportedModel::GPT4.as_str(), "gpt-4");
-        assert_eq!(SupportedModel::Claude3Sonnet.as_str(), "claude-3-sonnet-20240229");
-        assert_eq!(SupportedModel::BedrockClaude.as_str(), "bedrock/anthropic.claude-3-sonnet-20240229-v1:0");
+        assert_eq!(
+            SupportedModel::Claude3Sonnet.as_str(),
+            "claude-3-sonnet-20240229"
+        );
+        assert_eq!(
+            SupportedModel::BedrockClaude.as_str(),
+            "bedrock/anthropic.claude-3-sonnet-20240229-v1:0"
+        );
     }
 
     #[test]

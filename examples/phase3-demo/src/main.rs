@@ -156,11 +156,11 @@ async fn demo_storage_backends() -> Result<()> {
             println!("   ✅ Built-in semantic search");
 
             // Demo embedding storage (would work with real Weaviate instance)
-            let metadata = HashMap::from([
+            let _metadata = HashMap::from([
                 ("content".to_string(), "Demo memory content".to_string()),
                 ("agent_id".to_string(), "demo-agent".to_string()),
             ]);
-            let embedding = vec![0.1, 0.2, 0.3, 0.4, 0.5]; // Demo embedding
+            let _embedding = vec![0.1, 0.2, 0.3, 0.4, 0.5]; // Demo embedding
             println!("   📝 Demo: store_embedding('demo-memory', embedding, metadata)");
         }
         Err(e) => println!("   ⚠️  Demo mode: {}", e),
@@ -184,11 +184,11 @@ async fn demo_storage_backends() -> Result<()> {
             println!("   ✅ High-performance vector search");
             println!("   ✅ Scalable architecture");
 
-            let metadata = HashMap::from([
+            let _metadata = HashMap::from([
                 ("content".to_string(), "High-performance memory".to_string()),
                 ("user_id".to_string(), "demo-user".to_string()),
             ]);
-            let embedding = vec![0.9, 0.8, 0.7, 0.6, 0.5]; // Demo embedding
+            let _embedding = vec![0.9, 0.8, 0.7, 0.6, 0.5]; // Demo embedding
             println!("   📝 Demo: search_similar(query_embedding, limit=10, threshold=0.8)");
         }
         Err(e) => println!("   ⚠️  Demo mode: {}", e),
@@ -212,14 +212,14 @@ async fn demo_storage_backends() -> Result<()> {
             println!("   ✅ Enterprise-grade search");
             println!("   ✅ Dense vector support");
 
-            let metadata = HashMap::from([
+            let _metadata = HashMap::from([
                 (
                     "content".to_string(),
                     "Enterprise memory storage".to_string(),
                 ),
                 ("category".to_string(), "business".to_string()),
             ]);
-            let embedding = vec![0.5, 0.6, 0.7, 0.8, 0.9]; // Demo embedding
+            let _embedding = vec![0.5, 0.6, 0.7, 0.8, 0.9]; // Demo embedding
             println!("   📝 Demo: kNN search with cosine similarity");
         }
         Err(e) => println!("   ⚠️  Demo mode: {}", e),

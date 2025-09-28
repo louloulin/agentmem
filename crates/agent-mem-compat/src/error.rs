@@ -80,23 +80,21 @@ pub enum Mem0Error {
 impl From<agent_mem_traits::AgentMemError> for Mem0Error {
     fn from(error: agent_mem_traits::AgentMemError) -> Self {
         match error {
-            agent_mem_traits::AgentMemError::NotFound(msg) => {
-                Mem0Error::MemoryNotFound { id: msg }
-            }
+            agent_mem_traits::AgentMemError::NotFound(msg) => Mem0Error::MemoryNotFound { id: msg },
             agent_mem_traits::AgentMemError::StorageError(msg) => {
                 Mem0Error::StorageError { message: msg }
             }
             agent_mem_traits::AgentMemError::EmbeddingError(msg) => {
                 Mem0Error::EmbeddingError { message: msg }
             }
-            agent_mem_traits::AgentMemError::LLMError(msg) => {
-                Mem0Error::LlmError { message: msg }
-            }
+            agent_mem_traits::AgentMemError::LLMError(msg) => Mem0Error::LlmError { message: msg },
             agent_mem_traits::AgentMemError::NetworkError(msg) => {
                 Mem0Error::NetworkError { message: msg }
             }
             agent_mem_traits::AgentMemError::SerializationError(err) => {
-                Mem0Error::SerializationError { message: err.to_string() }
+                Mem0Error::SerializationError {
+                    message: err.to_string(),
+                }
             }
             agent_mem_traits::AgentMemError::ConfigError(msg) => {
                 Mem0Error::ConfigError { message: msg }
@@ -110,9 +108,9 @@ impl From<agent_mem_traits::AgentMemError> for Mem0Error {
             agent_mem_traits::AgentMemError::ValidationError(msg) => {
                 Mem0Error::InvalidContent { reason: msg }
             }
-            _ => {
-                Mem0Error::InternalError { message: error.to_string() }
-            }
+            _ => Mem0Error::InternalError {
+                message: error.to_string(),
+            },
         }
     }
 }

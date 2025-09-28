@@ -1,5 +1,5 @@
 //! 嵌入模型真实化演示
-//! 
+//!
 //! 本示例演示了：
 //! 1. 移除Mock嵌入实现
 //! 2. 使用真实的嵌入提供商
@@ -7,9 +7,8 @@
 //! 4. 回退机制
 
 use agent_mem_embeddings::{EmbeddingConfig, RealEmbeddingFactory};
-use agent_mem_traits::Embedder;
 use anyhow::Result;
-use tracing::{info, warn, error};
+use tracing::{error, info};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -72,7 +71,7 @@ async fn test_openai_embeddings() {
             info!("   ✅ OpenAI 嵌入提供商创建成功");
             info!("   📏 维度: {}", embedder.dimension());
             info!("   🏷️  模型: {}", embedder.model_name());
-            
+
             // 测试嵌入生成（会因为demo密钥失败，这是预期的）
             match embedder.embed("Hello, world!").await {
                 Ok(embedding) => {
@@ -84,7 +83,10 @@ async fn test_openai_embeddings() {
             }
         }
         Err(e) => {
-            info!("   ⚠️  OpenAI 嵌入提供商创建失败（预期，因为使用demo密钥）: {}", e);
+            info!(
+                "   ⚠️  OpenAI 嵌入提供商创建失败（预期，因为使用demo密钥）: {}",
+                e
+            );
         }
     }
 }
@@ -105,7 +107,10 @@ async fn test_huggingface_embeddings() {
             info!("   🏷️  模型: {}", embedder.model_name());
         }
         Err(e) => {
-            info!("   ⚠️  HuggingFace 嵌入提供商创建失败（预期，因为使用demo密钥）: {}", e);
+            info!(
+                "   ⚠️  HuggingFace 嵌入提供商创建失败（预期，因为使用demo密钥）: {}",
+                e
+            );
         }
     }
 }
@@ -126,7 +131,10 @@ async fn test_cohere_embeddings() {
             info!("   🏷️  模型: {}", embedder.model_name());
         }
         Err(e) => {
-            info!("   ⚠️  Cohere 嵌入提供商创建失败（预期，因为使用demo密钥）: {}", e);
+            info!(
+                "   ⚠️  Cohere 嵌入提供商创建失败（预期，因为使用demo密钥）: {}",
+                e
+            );
         }
     }
 }
@@ -145,7 +153,7 @@ async fn test_local_embeddings() {
             info!("   ✅ 本地嵌入提供商创建成功");
             info!("   📏 维度: {}", embedder.dimension());
             info!("   🏷️  模型: {}", embedder.model_name());
-            
+
             // 本地模型可能可以工作
             match embedder.embed("Hello, world!").await {
                 Ok(embedding) => {
@@ -214,7 +222,10 @@ async fn test_retry_and_fallback() {
     info!("   🔄 测试回退机制（HuggingFace -> OpenAI）...");
     match RealEmbeddingFactory::create_with_fallback(&fallback_config).await {
         Ok(embedder) => {
-            info!("   ✅ 回退机制成功，使用提供商: {}", embedder.provider_name());
+            info!(
+                "   ✅ 回退机制成功，使用提供商: {}",
+                embedder.provider_name()
+            );
         }
         Err(e) => {
             info!("   ⚠️  回退机制失败（预期，因为使用demo密钥）: {}", e);
@@ -226,10 +237,21 @@ async fn test_health_checks() {
     info!("   🏥 支持的嵌入提供商:");
     for provider in RealEmbeddingFactory::supported_providers() {
         let supported = RealEmbeddingFactory::is_provider_supported(provider);
-        info!("      - {}: {}", provider, if supported { "✅" } else { "❌" });
+        info!(
+            "      - {}: {}",
+            provider,
+            if supported { "✅" } else { "❌" }
+        );
     }
 
     // 测试不支持的提供商
     let unsupported = RealEmbeddingFactory::is_provider_supported("anthropic");
-    info!("   🚫 Anthropic 支持状态: {}", if unsupported { "❌ 错误" } else { "✅ 正确移除" });
+    info!(
+        "   🚫 Anthropic 支持状态: {}",
+        if unsupported {
+            "❌ 错误"
+        } else {
+            "✅ 正确移除"
+        }
+    );
 }

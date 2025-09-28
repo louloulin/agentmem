@@ -6,10 +6,10 @@
 //! - 时间衰减计算
 //! - 用户行为分析
 
-use agent_mem_traits::{Result, Message};
-use agent_mem_llm::LLMProvider;
+use crate::fact_extraction::{Entity, EntityType, Relation, RelationType, StructuredFact};
 use agent_mem_core::Memory;
-use crate::fact_extraction::{StructuredFact, Entity, Relation, EntityType, RelationType};
+use agent_mem_llm::LLMProvider;
+use agent_mem_traits::{Message, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -109,10 +109,7 @@ pub struct ImportanceEvaluator {
 
 impl ImportanceEvaluator {
     /// 创建新的重要性评估器
-    pub fn new(
-        llm: Arc<dyn LLMProvider + Send + Sync>,
-        config: ImportanceEvaluatorConfig,
-    ) -> Self {
+    pub fn new(llm: Arc<dyn LLMProvider + Send + Sync>, config: ImportanceEvaluatorConfig) -> Self {
         Self { llm, config }
     }
 
@@ -126,14 +123,16 @@ impl ImportanceEvaluator {
         info!("开始评估记忆重要性: {}", memory.id);
 
         // 计算各个评估因子
-        let factors = self.calculate_importance_factors(memory, facts, context_memories).await?;
-        
+        let factors = self
+            .calculate_importance_factors(memory, facts, context_memories)
+            .await?;
+
         // 计算综合重要性分数
         let importance_score = self.calculate_weighted_score(&factors);
-        
+
         // 评估置信度
         let confidence = self.calculate_confidence(&factors);
-        
+
         // 生成评估原因
         let reasoning = self.generate_reasoning(&factors, importance_score).await?;
 
@@ -155,15 +154,17 @@ impl ImportanceEvaluator {
         context_memories: &[Memory],
     ) -> Result<Vec<ImportanceEvaluation>> {
         info!("开始批量评估 {} 个记忆的重要性", memories.len());
-        
+
         let mut evaluations = Vec::new();
-        
+
         for memory in memories {
             let facts = facts_map.get(&memory.id).cloned().unwrap_or_default();
-            let evaluation = self.evaluate_importance(memory, &facts, context_memories).await?;
+            let evaluation = self
+                .evaluate_importance(memory, &facts, context_memories)
+                .await?;
             evaluations.push(evaluation);
         }
-        
+
         info!("完成批量重要性评估");
         Ok(evaluations)
     }
@@ -179,22 +180,24 @@ impl ImportanceEvaluator {
 
         // 1. 内容复杂度分析
         factors.content_complexity = self.analyze_content_complexity(&memory.content).await?;
-        
+
         // 2. 实体重要性分析
         factors.entity_importance = self.analyze_entity_importance(facts);
-        
+
         // 3. 关系重要性分析
         factors.relation_importance = self.analyze_relation_importance(facts);
-        
+
         // 4. 时间相关性分析
         factors.temporal_relevance = self.analyze_temporal_relevance(memory);
-        
+
         // 5. 用户交互分析
         factors.user_interaction = self.analyze_user_interaction(memory);
-        
+
         // 6. 上下文相关性分析
-        factors.contextual_relevance = self.analyze_contextual_relevance(memory, context_memories).await?;
-        
+        factors.contextual_relevance = self
+            .analyze_contextual_relevance(memory, context_memories)
+            .await?;
+
         // 7. 情感强度分析
         factors.emotional_intensity = self.analyze_emotional_intensity(&memory.content).await?;
 
@@ -207,7 +210,7 @@ impl ImportanceEvaluator {
         let length_score = (content.len() as f32 / 1000.0).min(1.0);
         let word_count = content.split_whitespace().count() as f32;
         let word_score = (word_count / 100.0).min(1.0);
-        
+
         // 计算句子复杂度
         let sentence_count = content.matches(['。', '.', '!', '?']).count() as f32;
         let avg_sentence_length = if sentence_count > 0.0 {
@@ -216,7 +219,7 @@ impl ImportanceEvaluator {
             word_count
         };
         let sentence_complexity = (avg_sentence_length / 20.0).min(1.0);
-        
+
         // 综合复杂度分数
         let complexity = (length_score + word_score + sentence_complexity) / 3.0;
         Ok(complexity)
@@ -254,7 +257,7 @@ impl ImportanceEvaluator {
                     EntityType::Technology => 0.5,
                     EntityType::Other(_) => 0.2,
                 };
-                
+
                 total_importance += entity_weight * entity.confidence;
                 entity_count += 1;
             }
@@ -290,7 +293,7 @@ impl ImportanceEvaluator {
                     RelationType::Causes => 0.8,
                     RelationType::Other(_) => 0.3,
                 };
-                
+
                 total_importance += relation_weight * relation.confidence;
                 relation_count += 1;
             }
@@ -307,10 +310,10 @@ impl ImportanceEvaluator {
     fn analyze_temporal_relevance(&self, memory: &Memory) -> f32 {
         let now = chrono::Utc::now();
         let age_days = (now - memory.created_at).num_days() as f32;
-        
+
         // 应用时间衰减
         let decay = self.config.time_decay_factor.powf(age_days);
-        
+
         // 最近的记忆更重要
         decay
     }
@@ -320,7 +323,7 @@ impl ImportanceEvaluator {
         // 基于记忆的访问次数、更新次数等计算用户交互分数
         // 这里使用简化的计算方式
         let base_score = 0.5;
-        
+
         // 如果有用户ID，说明是用户特定的记忆，重要性更高
         if memory.metadata.contains_key("user_id") {
             base_score + 0.3
@@ -343,8 +346,10 @@ impl ImportanceEvaluator {
         let mut total_relevance = 0.0;
         let mut count = 0;
 
-        for context_memory in context_memories.iter().take(10) { // 限制比较数量
-            let relevance = self.calculate_content_similarity(&memory.content, &context_memory.content);
+        for context_memory in context_memories.iter().take(10) {
+            // 限制比较数量
+            let relevance =
+                self.calculate_content_similarity(&memory.content, &context_memory.content);
             total_relevance += relevance;
             count += 1;
         }
@@ -360,17 +365,17 @@ impl ImportanceEvaluator {
     async fn analyze_emotional_intensity(&self, content: &str) -> Result<f32> {
         // 简化的情感强度分析
         let emotional_keywords = [
-            "爱", "恨", "喜欢", "讨厌", "开心", "难过", "愤怒", "兴奋",
-            "担心", "害怕", "惊讶", "失望", "满意", "不满", "感动", "震惊"
+            "爱", "恨", "喜欢", "讨厌", "开心", "难过", "愤怒", "兴奋", "担心", "害怕", "惊讶",
+            "失望", "满意", "不满", "感动", "震惊",
         ];
-        
+
         let emotional_count = emotional_keywords
             .iter()
             .map(|&keyword| content.matches(keyword).count())
             .sum::<usize>();
-        
+
         let word_count = content.split_whitespace().count();
-        
+
         if word_count > 0 {
             let emotional_ratio = emotional_count as f32 / word_count as f32;
             Ok((emotional_ratio * 10.0).min(1.0))
@@ -384,10 +389,10 @@ impl ImportanceEvaluator {
         // 简化的相似性计算
         let words1: std::collections::HashSet<&str> = content1.split_whitespace().collect();
         let words2: std::collections::HashSet<&str> = content2.split_whitespace().collect();
-        
+
         let intersection = words1.intersection(&words2).count();
         let union = words1.union(&words2).count();
-        
+
         if union > 0 {
             intersection as f32 / union as f32
         } else {
@@ -404,7 +409,7 @@ impl ImportanceEvaluator {
             + factors.user_interaction * self.config.user_interaction_weight
             + factors.contextual_relevance * self.config.contextual_relevance_weight
             + factors.emotional_intensity * self.config.emotional_intensity_weight;
-        
+
         score.clamp(0.0, 1.0)
     }
 
@@ -420,13 +425,14 @@ impl ImportanceEvaluator {
             factors.contextual_relevance,
             factors.emotional_intensity,
         ];
-        
+
         let mean = factor_values.iter().sum::<f32>() / factor_values.len() as f32;
         let variance = factor_values
             .iter()
             .map(|&x| (x - mean).powi(2))
-            .sum::<f32>() / factor_values.len() as f32;
-        
+            .sum::<f32>()
+            / factor_values.len() as f32;
+
         // 方差越小，置信度越高
         (1.0 - variance).clamp(0.0, 1.0)
     }
@@ -434,7 +440,7 @@ impl ImportanceEvaluator {
     /// 生成评估原因
     async fn generate_reasoning(&self, factors: &ImportanceFactors, score: f32) -> Result<String> {
         let mut reasons = Vec::new();
-        
+
         if factors.content_complexity > 0.7 {
             reasons.push("内容复杂度较高");
         }
@@ -456,13 +462,13 @@ impl ImportanceEvaluator {
         if factors.emotional_intensity > 0.7 {
             reasons.push("情感强度较高");
         }
-        
+
         let reasoning = if reasons.is_empty() {
             format!("综合评估分数: {:.2}", score)
         } else {
             format!("{}，综合评估分数: {:.2}", reasons.join("，"), score)
         };
-        
+
         Ok(reasoning)
     }
 }

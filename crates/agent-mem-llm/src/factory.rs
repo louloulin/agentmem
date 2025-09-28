@@ -4,15 +4,15 @@
 use crate::providers::AzureProvider;
 #[cfg(feature = "gemini")]
 use crate::providers::GeminiProvider;
+use crate::providers::LiteLLMProvider;
 use crate::providers::OllamaProvider; // 移除条件编译，确保总是可用
 use crate::providers::{AnthropicProvider, OpenAIProvider};
 use crate::providers::{ClaudeProvider, CohereProvider, MistralProvider, PerplexityProvider};
-use crate::providers::LiteLLMProvider;
 
 use agent_mem_traits::{AgentMemError, LLMConfig, LLMProvider, Message, ModelInfo, Result};
 use async_trait::async_trait;
 use std::sync::Arc;
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
 
 /// LLM提供商枚举，包装不同的提供商实现
 pub enum LLMProviderEnum {
@@ -63,7 +63,7 @@ impl LLMProvider for LLMProviderEnum {
                     })
                     .collect();
                 provider.generate_response(&litellm_messages).await
-            },
+            }
             LLMProviderEnum::Mistral(provider) => provider.generate(messages).await,
             LLMProviderEnum::Perplexity(provider) => provider.generate(messages).await,
         }
@@ -88,8 +88,10 @@ impl LLMProvider for LLMProviderEnum {
             LLMProviderEnum::Cohere(provider) => provider.generate_stream(messages).await,
             LLMProviderEnum::LiteLLM(_provider) => {
                 // LiteLLM doesn't support streaming yet, return error
-                Err(AgentMemError::LLMError("LiteLLM streaming not supported".to_string()))
-            },
+                Err(AgentMemError::LLMError(
+                    "LiteLLM streaming not supported".to_string(),
+                ))
+            }
             LLMProviderEnum::Mistral(provider) => provider.generate_stream(messages).await,
             LLMProviderEnum::Perplexity(provider) => provider.generate_stream(messages).await,
         }
@@ -138,7 +140,7 @@ impl LLMProvider for LLMProviderEnum {
             LLMProviderEnum::LiteLLM(_provider) => {
                 // Basic validation - LiteLLM handles most validation internally
                 Ok(())
-            },
+            }
             LLMProviderEnum::Mistral(provider) => provider.validate_config(),
             LLMProviderEnum::Perplexity(provider) => provider.validate_config(),
         }
@@ -476,17 +478,25 @@ pub struct RealLLMFactory;
 
 impl RealLLMFactory {
     /// 创建真实的 LLM 提供商，带有降级机制
-    pub async fn create_with_fallback(config: &LLMConfig) -> Result<Arc<dyn LLMProvider + Send + Sync>> {
+    pub async fn create_with_fallback(
+        config: &LLMConfig,
+    ) -> Result<Arc<dyn LLMProvider + Send + Sync>> {
         info!("Creating real LLM provider: {}", config.provider);
 
         // 尝试创建主要提供商
         match Self::create_primary_provider(config).await {
             Ok(provider) => {
-                info!("Successfully created primary LLM provider: {}", config.provider);
+                info!(
+                    "Successfully created primary LLM provider: {}",
+                    config.provider
+                );
                 Ok(provider)
-            },
+            }
             Err(e) => {
-                warn!("Failed to create primary provider {}: {}", config.provider, e);
+                warn!(
+                    "Failed to create primary provider {}: {}",
+                    config.provider, e
+                );
 
                 // 尝试降级到本地 Ollama
                 if config.provider != "ollama" {
@@ -501,47 +511,52 @@ impl RealLLMFactory {
     }
 
     /// 创建主要的 LLM 提供商
-    async fn create_primary_provider(config: &LLMConfig) -> Result<Arc<dyn LLMProvider + Send + Sync>> {
+    async fn create_primary_provider(
+        config: &LLMConfig,
+    ) -> Result<Arc<dyn LLMProvider + Send + Sync>> {
         match config.provider.as_str() {
             "openai" => {
                 let provider = OpenAIProvider::new(config.clone())?;
                 // 验证连接
                 Self::validate_provider(&provider).await?;
                 Ok(Arc::new(provider))
-            },
+            }
             "anthropic" => {
                 let provider = AnthropicProvider::new(config.clone())?;
                 Self::validate_provider(&provider).await?;
                 Ok(Arc::new(provider))
-            },
+            }
             "ollama" => {
                 let provider = OllamaProvider::new(config.clone())?;
                 Self::validate_provider(&provider).await?;
                 Ok(Arc::new(provider))
-            },
+            }
             "claude" => {
                 let provider = ClaudeProvider::new(config.clone())?;
                 Self::validate_provider(&provider).await?;
                 Ok(Arc::new(provider))
-            },
+            }
             "cohere" => {
                 let provider = CohereProvider::new(config.clone())?;
                 Self::validate_provider(&provider).await?;
                 Ok(Arc::new(provider))
-            },
+            }
             "mistral" => {
                 let provider = MistralProvider::new(config.clone())?;
                 Self::validate_provider(&provider).await?;
                 Ok(Arc::new(provider))
-            },
+            }
             "perplexity" => {
                 let provider = PerplexityProvider::new(config.clone())?;
                 Self::validate_provider(&provider).await?;
                 Ok(Arc::new(provider))
-            },
+            }
             // LiteLLM 需要特殊配置，暂时跳过
             // "litellm" => { ... },
-            _ => Err(AgentMemError::config_error(&format!("Unsupported LLM provider: {}", config.provider)))
+            _ => Err(AgentMemError::config_error(&format!(
+                "Unsupported LLM provider: {}",
+                config.provider
+            ))),
         }
     }
 
@@ -567,10 +582,12 @@ impl RealLLMFactory {
             Ok(_) => {
                 info!("Successfully connected to fallback Ollama provider");
                 Ok(Arc::new(provider))
-            },
+            }
             Err(e) => {
                 error!("Fallback Ollama provider also failed: {}", e);
-                Err(AgentMemError::llm_error("All LLM providers failed, including fallback"))
+                Err(AgentMemError::llm_error(
+                    "All LLM providers failed, including fallback",
+                ))
             }
         }
     }
@@ -579,27 +596,27 @@ impl RealLLMFactory {
     async fn validate_provider(provider: &dyn LLMProvider) -> Result<()> {
         use agent_mem_traits::{Message, MessageRole};
 
-        let test_messages = vec![
-            Message {
-                role: MessageRole::User,
-                content: "Hello".to_string(),
-                timestamp: None,
-            }
-        ];
+        let test_messages = vec![Message {
+            role: MessageRole::User,
+            content: "Hello".to_string(),
+            timestamp: None,
+        }];
 
         // 尝试简单的生成请求来验证连接
         match tokio::time::timeout(
             std::time::Duration::from_secs(10),
-            provider.generate(&test_messages)
-        ).await {
+            provider.generate(&test_messages),
+        )
+        .await
+        {
             Ok(Ok(_)) => {
                 info!("LLM provider validation successful");
                 Ok(())
-            },
+            }
             Ok(Err(e)) => {
                 warn!("LLM provider validation failed: {}", e);
                 Err(e)
-            },
+            }
             Err(_) => {
                 warn!("LLM provider validation timed out");
                 Err(AgentMemError::llm_error("Provider validation timeout"))
@@ -608,19 +625,31 @@ impl RealLLMFactory {
     }
 
     /// 创建带重试机制的 LLM 提供商
-    pub async fn create_with_retry(config: &LLMConfig, max_retries: u32) -> Result<Arc<dyn LLMProvider + Send + Sync>> {
+    pub async fn create_with_retry(
+        config: &LLMConfig,
+        max_retries: u32,
+    ) -> Result<Arc<dyn LLMProvider + Send + Sync>> {
         let mut last_error = None;
 
         for attempt in 1..=max_retries {
-            info!("Attempting to create LLM provider (attempt {}/{})", attempt, max_retries);
+            info!(
+                "Attempting to create LLM provider (attempt {}/{})",
+                attempt, max_retries
+            );
 
             match Self::create_with_fallback(config).await {
                 Ok(provider) => {
-                    info!("✅ Successfully created LLM provider on attempt {}", attempt);
+                    info!(
+                        "✅ Successfully created LLM provider on attempt {}",
+                        attempt
+                    );
                     return Ok(provider);
-                },
+                }
                 Err(e) => {
-                    warn!("❌ Failed to create LLM provider on attempt {}: {}", attempt, e);
+                    warn!(
+                        "❌ Failed to create LLM provider on attempt {}: {}",
+                        attempt, e
+                    );
                     last_error = Some(e);
 
                     if attempt < max_retries {
@@ -632,6 +661,8 @@ impl RealLLMFactory {
             }
         }
 
-        Err(last_error.unwrap_or_else(|| AgentMemError::config_error("Failed to create LLM provider after all retries")))
+        Err(last_error.unwrap_or_else(|| {
+            AgentMemError::config_error("Failed to create LLM provider after all retries")
+        }))
     }
 }

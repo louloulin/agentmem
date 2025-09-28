@@ -1,5 +1,5 @@
 //! Enterprise Security Management System
-//! 
+//!
 //! Comprehensive enterprise-grade security features including:
 //! - RBAC (Role-Based Access Control)
 //! - AES-256 End-to-End Encryption
@@ -7,17 +7,20 @@
 //! - Complete Audit Logging
 //! - Data Masking and PII Protection
 
-use agent_mem_traits::{Result, AgentMemError, Session};
+use aes_gcm::{
+    aead::{Aead, KeyInit},
+    Aes256Gcm, Key, Nonce,
+};
+use agent_mem_traits::{AgentMemError, Result, Session};
+use chrono::{DateTime, Duration, Utc};
+use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use chrono::{DateTime, Utc, Duration};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
-use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey};
-use aes_gcm::{Aes256Gcm, Key, Nonce, aead::{Aead, KeyInit}};
-use rand::{Rng, thread_rng};
-use tracing::{info, warn, error, debug};
 
 /// Enterprise security configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -108,26 +111,26 @@ pub enum Permission {
     SearchMemory,
     ExportMemory,
     ImportMemory,
-    
+
     // User management
     CreateUser,
     ReadUser,
     UpdateUser,
     DeleteUser,
     ManageRoles,
-    
+
     // System administration
     SystemAdmin,
     ViewAuditLogs,
     ManageConfig,
     ViewMetrics,
     ManageBackups,
-    
+
     // Security operations
     ManageSecurity,
     ViewSecurityLogs,
     ManageEncryption,
-    
+
     // API access
     ApiAccess,
     AdminApiAccess,
@@ -199,13 +202,13 @@ pub enum AuditEventType {
     TokenGenerated,
     TokenValidated,
     TokenExpired,
-    
+
     // Authorization events
     AccessGranted,
     AccessDenied,
     RoleAssigned,
     RoleRevoked,
-    
+
     // Memory operations
     MemoryCreated,
     MemoryRead,
@@ -214,14 +217,14 @@ pub enum AuditEventType {
     MemorySearched,
     MemoryExported,
     MemoryImported,
-    
+
     // System events
     ConfigChanged,
     BackupCreated,
     BackupRestored,
     SystemStarted,
     SystemStopped,
-    
+
     // Security events
     SecurityViolation,
     EncryptionKeyRotated,
@@ -308,7 +311,10 @@ pub struct EnterpriseSecurityManager {
 impl EnterpriseSecurityManager {
     /// Create new enterprise security manager
     pub fn new(config: EnterpriseSecurityConfig) -> Result<Self> {
-        info!("Initializing EnterpriseSecurityManager with config: {:?}", config);
+        info!(
+            "Initializing EnterpriseSecurityManager with config: {:?}",
+            config
+        );
 
         // Initialize JWT keys
         let jwt_encoding_key = EncodingKey::from_secret(config.jwt_secret.as_ref());
@@ -319,7 +325,9 @@ impl EnterpriseSecurityManager {
             .map_err(|e| AgentMemError::config_error(&format!("Invalid encryption key: {}", e)))?;
 
         if encryption_key.len() != 32 {
-            return Err(AgentMemError::config_error("Encryption key must be 32 bytes"));
+            return Err(AgentMemError::config_error(
+                "Encryption key must be 32 bytes",
+            ));
         }
 
         let key = Key::<Aes256Gcm>::from_slice(&encryption_key);
@@ -362,14 +370,31 @@ impl EnterpriseSecurityManager {
                 name: "Administrator".to_string(),
                 description: "Full system administrator with all permissions".to_string(),
                 permissions: [
-                    Permission::ReadMemory, Permission::WriteMemory, Permission::DeleteMemory,
-                    Permission::SearchMemory, Permission::ExportMemory, Permission::ImportMemory,
-                    Permission::CreateUser, Permission::ReadUser, Permission::UpdateUser,
-                    Permission::DeleteUser, Permission::ManageRoles, Permission::SystemAdmin,
-                    Permission::ViewAuditLogs, Permission::ManageConfig, Permission::ViewMetrics,
-                    Permission::ManageBackups, Permission::ManageSecurity, Permission::ViewSecurityLogs,
-                    Permission::ManageEncryption, Permission::ApiAccess, Permission::AdminApiAccess,
-                ].iter().cloned().collect(),
+                    Permission::ReadMemory,
+                    Permission::WriteMemory,
+                    Permission::DeleteMemory,
+                    Permission::SearchMemory,
+                    Permission::ExportMemory,
+                    Permission::ImportMemory,
+                    Permission::CreateUser,
+                    Permission::ReadUser,
+                    Permission::UpdateUser,
+                    Permission::DeleteUser,
+                    Permission::ManageRoles,
+                    Permission::SystemAdmin,
+                    Permission::ViewAuditLogs,
+                    Permission::ManageConfig,
+                    Permission::ViewMetrics,
+                    Permission::ManageBackups,
+                    Permission::ManageSecurity,
+                    Permission::ViewSecurityLogs,
+                    Permission::ManageEncryption,
+                    Permission::ApiAccess,
+                    Permission::AdminApiAccess,
+                ]
+                .iter()
+                .cloned()
+                .collect(),
                 level: 100,
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
@@ -379,9 +404,14 @@ impl EnterpriseSecurityManager {
                 name: "Regular User".to_string(),
                 description: "Regular user with basic memory operations".to_string(),
                 permissions: [
-                    Permission::ReadMemory, Permission::WriteMemory, Permission::SearchMemory,
+                    Permission::ReadMemory,
+                    Permission::WriteMemory,
+                    Permission::SearchMemory,
                     Permission::ApiAccess,
-                ].iter().cloned().collect(),
+                ]
+                .iter()
+                .cloned()
+                .collect(),
                 level: 10,
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
@@ -391,8 +421,13 @@ impl EnterpriseSecurityManager {
                 name: "Read Only".to_string(),
                 description: "Read-only access to memories".to_string(),
                 permissions: [
-                    Permission::ReadMemory, Permission::SearchMemory, Permission::ApiAccess,
-                ].iter().cloned().collect(),
+                    Permission::ReadMemory,
+                    Permission::SearchMemory,
+                    Permission::ApiAccess,
+                ]
+                .iter()
+                .cloned()
+                .collect(),
                 level: 5,
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
@@ -445,7 +480,13 @@ impl EnterpriseSecurityManager {
     }
 
     /// Authenticate user and create session
-    pub async fn authenticate(&self, username: &str, password: &str, ip_address: &str, user_agent: &str) -> Result<UserSession> {
+    pub async fn authenticate(
+        &self,
+        username: &str,
+        password: &str,
+        ip_address: &str,
+        user_agent: &str,
+    ) -> Result<UserSession> {
         info!("Authentication attempt for user: {}", username);
 
         // Check IP whitelist if enabled
@@ -464,22 +505,30 @@ impl EnterpriseSecurityManager {
                 Some("IP not in whitelist".to_string()),
                 HashMap::new(),
                 80,
-            ).await?;
+            )
+            .await?;
             return Err(AgentMemError::auth_error("IP address not allowed"));
         }
 
         let mut users = self.users.write().await;
-        let user = users.values_mut()
+        let user = users
+            .values_mut()
             .find(|u| u.username == username && u.active)
             .ok_or_else(|| {
-                warn!("Authentication failed: User {} not found or inactive", username);
+                warn!(
+                    "Authentication failed: User {} not found or inactive",
+                    username
+                );
                 AgentMemError::auth_error("Invalid credentials")
             })?;
 
         // Check if account is locked
         if let Some(locked_until) = user.locked_until {
             if Utc::now() < locked_until {
-                warn!("Authentication failed: Account {} is locked until {}", username, locked_until);
+                warn!(
+                    "Authentication failed: Account {} is locked until {}",
+                    username, locked_until
+                );
                 self.log_audit_event(
                     AuditEventType::LoginFailure,
                     Some(user.id.clone()),
@@ -493,7 +542,8 @@ impl EnterpriseSecurityManager {
                     Some("Account locked".to_string()),
                     HashMap::new(),
                     90,
-                ).await?;
+                )
+                .await?;
                 return Err(AgentMemError::auth_error("Account is locked"));
             } else {
                 // Unlock account if lock period has expired
@@ -510,11 +560,19 @@ impl EnterpriseSecurityManager {
 
             // Lock account if too many failed attempts
             if user.failed_attempts >= self.config.max_failed_attempts {
-                user.locked_until = Some(Utc::now() + Duration::minutes(self.config.lockout_duration_minutes as i64));
-                warn!("Account {} locked due to {} failed attempts", username, user.failed_attempts);
+                user.locked_until = Some(
+                    Utc::now() + Duration::minutes(self.config.lockout_duration_minutes as i64),
+                );
+                warn!(
+                    "Account {} locked due to {} failed attempts",
+                    username, user.failed_attempts
+                );
             }
 
-            warn!("Authentication failed: Invalid password for user {}", username);
+            warn!(
+                "Authentication failed: Invalid password for user {}",
+                username
+            );
             self.log_audit_event(
                 AuditEventType::LoginFailure,
                 Some(user.id.clone()),
@@ -528,7 +586,8 @@ impl EnterpriseSecurityManager {
                 Some("Invalid password".to_string()),
                 HashMap::new(),
                 70,
-            ).await?;
+            )
+            .await?;
             return Err(AgentMemError::auth_error("Invalid credentials"));
         }
 
@@ -538,7 +597,9 @@ impl EnterpriseSecurityManager {
 
         // Generate JWT token
         let session_id = Uuid::new_v4().to_string();
-        let token = self.generate_jwt_token(&user.id, &user.username, &user.roles, &session_id).await?;
+        let token = self
+            .generate_jwt_token(&user.id, &user.username, &user.roles, &session_id)
+            .await?;
 
         // Create session
         let session = UserSession {
@@ -571,13 +632,20 @@ impl EnterpriseSecurityManager {
             None,
             HashMap::new(),
             10,
-        ).await?;
+        )
+        .await?;
 
         Ok(session)
     }
 
     /// Generate JWT token
-    async fn generate_jwt_token(&self, user_id: &str, username: &str, roles: &[String], session_id: &str) -> Result<String> {
+    async fn generate_jwt_token(
+        &self,
+        user_id: &str,
+        username: &str,
+        roles: &[String],
+        session_id: &str,
+    ) -> Result<String> {
         let now = Utc::now();
         let exp = now + Duration::hours(self.config.jwt_expiry_hours);
 
@@ -603,7 +671,8 @@ impl EnterpriseSecurityManager {
 
         // Check if session is still active
         let sessions = self.sessions.read().await;
-        let session = sessions.get(&claims.session_id)
+        let session = sessions
+            .get(&claims.session_id)
             .ok_or_else(|| AgentMemError::auth_error("Session not found"))?;
 
         if !session.active || Utc::now() > session.expires_at {
@@ -625,7 +694,8 @@ impl EnterpriseSecurityManager {
         }
 
         let users = self.users.read().await;
-        let user = users.get(user_id)
+        let user = users
+            .get(user_id)
             .ok_or_else(|| AgentMemError::auth_error("User not found"))?;
 
         let roles = self.roles.read().await;
@@ -650,7 +720,9 @@ impl EnterpriseSecurityManager {
         let nonce_bytes: [u8; 12] = rng.gen();
         let nonce = Nonce::from_slice(&nonce_bytes);
 
-        let ciphertext = self.cipher.encrypt(nonce, data.as_bytes())
+        let ciphertext = self
+            .cipher
+            .encrypt(nonce, data.as_bytes())
             .map_err(|e| AgentMemError::internal_error(&format!("Encryption failed: {}", e)))?;
 
         // Combine nonce and ciphertext
@@ -676,7 +748,9 @@ impl EnterpriseSecurityManager {
         let (nonce_bytes, ciphertext) = data.split_at(12);
         let nonce = Nonce::from_slice(nonce_bytes);
 
-        let plaintext = self.cipher.decrypt(nonce, ciphertext)
+        let plaintext = self
+            .cipher
+            .decrypt(nonce, ciphertext)
             .map_err(|e| AgentMemError::internal_error(&format!("Decryption failed: {}", e)))?;
 
         String::from_utf8(plaintext)
@@ -694,22 +768,30 @@ impl EnterpriseSecurityManager {
         // Mask email addresses
         let email_regex = regex::Regex::new(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b")
             .map_err(|e| AgentMemError::internal_error(&format!("Regex error: {}", e)))?;
-        masked_data = email_regex.replace_all(&masked_data, "***@***.***").to_string();
+        masked_data = email_regex
+            .replace_all(&masked_data, "***@***.***")
+            .to_string();
 
         // Mask phone numbers
         let phone_regex = regex::Regex::new(r"\b\d{3}-\d{3}-\d{4}\b")
             .map_err(|e| AgentMemError::internal_error(&format!("Regex error: {}", e)))?;
-        masked_data = phone_regex.replace_all(&masked_data, "***-***-****").to_string();
+        masked_data = phone_regex
+            .replace_all(&masked_data, "***-***-****")
+            .to_string();
 
         // Mask credit card numbers
         let cc_regex = regex::Regex::new(r"\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b")
             .map_err(|e| AgentMemError::internal_error(&format!("Regex error: {}", e)))?;
-        masked_data = cc_regex.replace_all(&masked_data, "**** **** **** ****").to_string();
+        masked_data = cc_regex
+            .replace_all(&masked_data, "**** **** **** ****")
+            .to_string();
 
         // Mask SSN
         let ssn_regex = regex::Regex::new(r"\b\d{3}-\d{2}-\d{4}\b")
             .map_err(|e| AgentMemError::internal_error(&format!("Regex error: {}", e)))?;
-        masked_data = ssn_regex.replace_all(&masked_data, "***-**-****").to_string();
+        masked_data = ssn_regex
+            .replace_all(&masked_data, "***-**-****")
+            .to_string();
 
         Ok(masked_data)
     }
@@ -767,15 +849,17 @@ impl EnterpriseSecurityManager {
         let audit_logs = self.audit_logs.read().await;
         let limit = limit.unwrap_or(100);
 
-        Ok(audit_logs.iter()
-            .rev()
-            .take(limit)
-            .cloned()
-            .collect())
+        Ok(audit_logs.iter().rev().take(limit).cloned().collect())
     }
 
     /// Create new user
-    pub async fn create_user(&self, username: &str, email: &str, password: &str, roles: Vec<String>) -> Result<String> {
+    pub async fn create_user(
+        &self,
+        username: &str,
+        email: &str,
+        password: &str,
+        roles: Vec<String>,
+    ) -> Result<String> {
         let user_id = Uuid::new_v4().to_string();
         let password_hash = self.hash_password(password).await?;
 
@@ -820,7 +904,8 @@ impl EnterpriseSecurityManager {
                 None,
                 HashMap::new(),
                 10,
-            ).await?;
+            )
+            .await?;
         }
 
         Ok(())

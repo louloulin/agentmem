@@ -1,5 +1,5 @@
 //! 统一配置管理系统
-//! 
+//!
 //! 提供配置加载、验证、热重载和环境变量支持
 
 use agent_mem_traits::{AgentMemError, Result};
@@ -17,10 +17,10 @@ use tracing::{debug, info, warn};
 pub trait ConfigSource: Send + Sync {
     /// 加载配置
     fn load_config(&self) -> Result<AgentMemConfig>;
-    
+
     /// 获取配置源名称
     fn source_name(&self) -> &str;
-    
+
     /// 检查配置是否已更改
     fn has_changed(&self) -> bool;
 }
@@ -42,27 +42,35 @@ impl FileConfigSource {
 
 impl ConfigSource for FileConfigSource {
     fn load_config(&self) -> Result<AgentMemConfig> {
-        let content = fs::read_to_string(&self.file_path)
-            .map_err(|e| AgentMemError::config_error(format!("Failed to read config file {}: {}", self.file_path, e)))?;
-        
+        let content = fs::read_to_string(&self.file_path).map_err(|e| {
+            AgentMemError::config_error(format!(
+                "Failed to read config file {}: {}",
+                self.file_path, e
+            ))
+        })?;
+
         let config: AgentMemConfig = if self.file_path.ends_with(".json") {
-            serde_json::from_str(&content)
-                .map_err(|e| AgentMemError::config_error(format!("Failed to parse JSON config: {}", e)))?
+            serde_json::from_str(&content).map_err(|e| {
+                AgentMemError::config_error(format!("Failed to parse JSON config: {}", e))
+            })?
         } else if self.file_path.ends_with(".yaml") || self.file_path.ends_with(".yml") {
-            serde_yaml::from_str(&content)
-                .map_err(|e| AgentMemError::config_error(format!("Failed to parse YAML config: {}", e)))?
+            serde_yaml::from_str(&content).map_err(|e| {
+                AgentMemError::config_error(format!("Failed to parse YAML config: {}", e))
+            })?
         } else {
-            return Err(AgentMemError::config_error("Unsupported config file format".to_string()));
+            return Err(AgentMemError::config_error(
+                "Unsupported config file format".to_string(),
+            ));
         };
-        
+
         info!("Loaded configuration from file: {}", self.file_path);
         Ok(config)
     }
-    
+
     fn source_name(&self) -> &str {
         &self.file_path
     }
-    
+
     fn has_changed(&self) -> bool {
         if let Ok(metadata) = fs::metadata(&self.file_path) {
             if let Ok(modified) = metadata.modified() {
@@ -87,7 +95,7 @@ impl EnvConfigSource {
 impl ConfigSource for EnvConfigSource {
     fn load_config(&self) -> Result<AgentMemConfig> {
         let mut config = AgentMemConfig::default();
-        
+
         // 加载 LLM 配置
         if let Ok(provider) = env::var(format!("{}_LLM_PROVIDER", self.prefix)) {
             config.llm.provider = provider;
@@ -98,7 +106,7 @@ impl ConfigSource for EnvConfigSource {
         if let Ok(model) = env::var(format!("{}_LLM_MODEL", self.prefix)) {
             config.llm.model = model;
         }
-        
+
         // 加载向量存储配置
         if let Ok(provider) = env::var(format!("{}_VECTOR_STORE_PROVIDER", self.prefix)) {
             config.vector_store.provider = provider;
@@ -106,22 +114,25 @@ impl ConfigSource for EnvConfigSource {
         if let Ok(url) = env::var(format!("{}_VECTOR_STORE_URL", self.prefix)) {
             config.vector_store.url = Some(url);
         }
-        
+
         // 加载性能配置
         if let Ok(batch_size) = env::var(format!("{}_BATCH_SIZE", self.prefix)) {
             if let Ok(size) = batch_size.parse::<usize>() {
                 config.performance.batch_size = size;
             }
         }
-        
-        info!("Loaded configuration from environment variables with prefix: {}", self.prefix);
+
+        info!(
+            "Loaded configuration from environment variables with prefix: {}",
+            self.prefix
+        );
         Ok(config)
     }
-    
+
     fn source_name(&self) -> &str {
         "environment"
     }
-    
+
     fn has_changed(&self) -> bool {
         // 环境变量配置通常不会在运行时改变
         false
@@ -156,7 +167,7 @@ impl UnifiedConfigManager {
     /// 加载配置
     pub async fn load_config(&self) -> Result<AgentMemConfig> {
         let mut merged_config = AgentMemConfig::default();
-        
+
         // 按顺序合并所有配置源
         for source in &self.config_sources {
             match source.load_config() {
@@ -169,13 +180,13 @@ impl UnifiedConfigManager {
                 }
             }
         }
-        
+
         // 验证配置
         merged_config.validate()?;
-        
+
         // 更新缓存
         *self.config_cache.write().await = merged_config.clone();
-        
+
         info!("Configuration loaded and validated successfully");
         Ok(merged_config)
     }
@@ -190,19 +201,21 @@ impl UnifiedConfigManager {
         if !self.hot_reload {
             return;
         }
-        
-        let sources = self.config_sources.iter()
+
+        let sources = self
+            .config_sources
+            .iter()
             .map(|s| s.source_name().to_string())
             .collect::<Vec<_>>();
         let config_cache = self.config_cache.clone();
         let reload_interval = self.reload_interval;
-        
+
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(reload_interval);
-            
+
             loop {
                 interval.tick().await;
-                
+
                 // 检查配置源是否有变化
                 let mut has_changes = false;
                 for source_name in &sources {
@@ -210,7 +223,7 @@ impl UnifiedConfigManager {
                     // 简化实现，实际应该检查文件修改时间等
                     debug!("Checking for changes in config source: {}", source_name);
                 }
-                
+
                 if has_changes {
                     info!("Configuration changes detected, reloading...");
                     // 这里应该重新加载配置
@@ -218,83 +231,185 @@ impl UnifiedConfigManager {
                 }
             }
         });
-        
+
         info!("Hot reload started with interval: {:?}", reload_interval);
     }
 
     /// 合并配置
-    fn merge_configs(&self, base: AgentMemConfig, override_config: AgentMemConfig) -> AgentMemConfig {
+    fn merge_configs(
+        &self,
+        base: AgentMemConfig,
+        override_config: AgentMemConfig,
+    ) -> AgentMemConfig {
         AgentMemConfig {
             llm: self.merge_llm_config(base.llm, override_config.llm),
-            vector_store: self.merge_vector_store_config(base.vector_store, override_config.vector_store),
+            vector_store: self
+                .merge_vector_store_config(base.vector_store, override_config.vector_store),
             graph_store: override_config.graph_store.or(base.graph_store),
             embedder: self.merge_embedder_config(base.embedder, override_config.embedder),
-            intelligence: self.merge_intelligence_config(base.intelligence, override_config.intelligence),
+            intelligence: self
+                .merge_intelligence_config(base.intelligence, override_config.intelligence),
             telemetry: self.merge_telemetry_config(base.telemetry, override_config.telemetry),
-            performance: self.merge_performance_config(base.performance, override_config.performance),
+            performance: self
+                .merge_performance_config(base.performance, override_config.performance),
         }
     }
 
     fn merge_llm_config(&self, base: LLMConfig, override_config: LLMConfig) -> LLMConfig {
         LLMConfig {
-            provider: if override_config.provider.is_empty() { base.provider } else { override_config.provider },
+            provider: if override_config.provider.is_empty() {
+                base.provider
+            } else {
+                override_config.provider
+            },
             api_key: override_config.api_key.or(base.api_key),
-            model: if override_config.model.is_empty() { base.model } else { override_config.model },
+            model: if override_config.model.is_empty() {
+                base.model
+            } else {
+                override_config.model
+            },
             base_url: override_config.base_url.or(base.base_url),
-            timeout: if override_config.timeout == Duration::default() { base.timeout } else { override_config.timeout },
-            max_tokens: if override_config.max_tokens == 0 { base.max_tokens } else { override_config.max_tokens },
-            temperature: if override_config.temperature == 0.0 { base.temperature } else { override_config.temperature },
+            timeout: if override_config.timeout == Duration::default() {
+                base.timeout
+            } else {
+                override_config.timeout
+            },
+            max_tokens: if override_config.max_tokens == 0 {
+                base.max_tokens
+            } else {
+                override_config.max_tokens
+            },
+            temperature: if override_config.temperature == 0.0 {
+                base.temperature
+            } else {
+                override_config.temperature
+            },
         }
     }
 
-    fn merge_vector_store_config(&self, base: VectorStoreConfig, override_config: VectorStoreConfig) -> VectorStoreConfig {
+    fn merge_vector_store_config(
+        &self,
+        base: VectorStoreConfig,
+        override_config: VectorStoreConfig,
+    ) -> VectorStoreConfig {
         VectorStoreConfig {
-            provider: if override_config.provider.is_empty() { base.provider } else { override_config.provider },
+            provider: if override_config.provider.is_empty() {
+                base.provider
+            } else {
+                override_config.provider
+            },
             url: override_config.url.or(base.url),
             api_key: override_config.api_key.or(base.api_key),
-            collection_name: if override_config.collection_name.is_empty() { base.collection_name } else { override_config.collection_name },
-            dimension: if override_config.dimension == 0 { base.dimension } else { override_config.dimension },
+            collection_name: if override_config.collection_name.is_empty() {
+                base.collection_name
+            } else {
+                override_config.collection_name
+            },
+            dimension: if override_config.dimension == 0 {
+                base.dimension
+            } else {
+                override_config.dimension
+            },
             metric: override_config.metric.or(base.metric),
         }
     }
 
-    fn merge_embedder_config(&self, base: EmbedderConfig, override_config: EmbedderConfig) -> EmbedderConfig {
+    fn merge_embedder_config(
+        &self,
+        base: EmbedderConfig,
+        override_config: EmbedderConfig,
+    ) -> EmbedderConfig {
         EmbedderConfig {
-            provider: if override_config.provider.is_empty() { base.provider } else { override_config.provider },
-            model: if override_config.model.is_empty() { base.model } else { override_config.model },
+            provider: if override_config.provider.is_empty() {
+                base.provider
+            } else {
+                override_config.provider
+            },
+            model: if override_config.model.is_empty() {
+                base.model
+            } else {
+                override_config.model
+            },
             api_key: override_config.api_key.or(base.api_key),
             base_url: override_config.base_url.or(base.base_url),
-            dimension: if override_config.dimension == 0 { base.dimension } else { override_config.dimension },
-            batch_size: if override_config.batch_size == 0 { base.batch_size } else { override_config.batch_size },
+            dimension: if override_config.dimension == 0 {
+                base.dimension
+            } else {
+                override_config.dimension
+            },
+            batch_size: if override_config.batch_size == 0 {
+                base.batch_size
+            } else {
+                override_config.batch_size
+            },
         }
     }
 
-    fn merge_intelligence_config(&self, base: IntelligenceConfig, override_config: IntelligenceConfig) -> IntelligenceConfig {
+    fn merge_intelligence_config(
+        &self,
+        base: IntelligenceConfig,
+        override_config: IntelligenceConfig,
+    ) -> IntelligenceConfig {
         IntelligenceConfig {
-            enable_fact_extraction: override_config.enable_fact_extraction || base.enable_fact_extraction,
-            enable_conflict_resolution: override_config.enable_conflict_resolution || base.enable_conflict_resolution,
-            enable_importance_evaluation: override_config.enable_importance_evaluation || base.enable_importance_evaluation,
-            confidence_threshold: if override_config.confidence_threshold == 0.0 { base.confidence_threshold } else { override_config.confidence_threshold },
+            enable_fact_extraction: override_config.enable_fact_extraction
+                || base.enable_fact_extraction,
+            enable_conflict_resolution: override_config.enable_conflict_resolution
+                || base.enable_conflict_resolution,
+            enable_importance_evaluation: override_config.enable_importance_evaluation
+                || base.enable_importance_evaluation,
+            confidence_threshold: if override_config.confidence_threshold == 0.0 {
+                base.confidence_threshold
+            } else {
+                override_config.confidence_threshold
+            },
         }
     }
 
-    fn merge_telemetry_config(&self, base: TelemetryConfig, override_config: TelemetryConfig) -> TelemetryConfig {
+    fn merge_telemetry_config(
+        &self,
+        base: TelemetryConfig,
+        override_config: TelemetryConfig,
+    ) -> TelemetryConfig {
         TelemetryConfig {
             enable_metrics: override_config.enable_metrics || base.enable_metrics,
             enable_tracing: override_config.enable_tracing || base.enable_tracing,
             enable_logging: override_config.enable_logging || base.enable_logging,
             metrics_endpoint: override_config.metrics_endpoint.or(base.metrics_endpoint),
             tracing_endpoint: override_config.tracing_endpoint.or(base.tracing_endpoint),
-            sample_rate: if override_config.sample_rate == 0.0 { base.sample_rate } else { override_config.sample_rate },
+            sample_rate: if override_config.sample_rate == 0.0 {
+                base.sample_rate
+            } else {
+                override_config.sample_rate
+            },
         }
     }
 
-    fn merge_performance_config(&self, base: PerformanceConfig, override_config: PerformanceConfig) -> PerformanceConfig {
+    fn merge_performance_config(
+        &self,
+        base: PerformanceConfig,
+        override_config: PerformanceConfig,
+    ) -> PerformanceConfig {
         PerformanceConfig {
-            batch_size: if override_config.batch_size == 0 { base.batch_size } else { override_config.batch_size },
-            cache_size: if override_config.cache_size == 0 { base.cache_size } else { override_config.cache_size },
-            max_concurrent_requests: if override_config.max_concurrent_requests == 0 { base.max_concurrent_requests } else { override_config.max_concurrent_requests },
-            request_timeout: if override_config.request_timeout == Duration::default() { base.request_timeout } else { override_config.request_timeout },
+            batch_size: if override_config.batch_size == 0 {
+                base.batch_size
+            } else {
+                override_config.batch_size
+            },
+            cache_size: if override_config.cache_size == 0 {
+                base.cache_size
+            } else {
+                override_config.cache_size
+            },
+            max_concurrent_requests: if override_config.max_concurrent_requests == 0 {
+                base.max_concurrent_requests
+            } else {
+                override_config.max_concurrent_requests
+            },
+            request_timeout: if override_config.request_timeout == Duration::default() {
+                base.request_timeout
+            } else {
+                override_config.request_timeout
+            },
         }
     }
 }
@@ -331,38 +446,48 @@ impl AgentMemConfig {
         let source = EnvConfigSource::new("AGENTMEM".to_string());
         source.load_config()
     }
-    
+
     /// 从配置文件加载
     pub fn from_file(path: &str) -> Result<Self> {
         let source = FileConfigSource::new(path.to_string());
         source.load_config()
     }
-    
+
     /// 配置验证
     pub fn validate(&self) -> Result<()> {
         // 验证 LLM 配置
         if self.llm.provider.is_empty() {
-            return Err(AgentMemError::config_error("LLM provider is required".to_string()));
+            return Err(AgentMemError::config_error(
+                "LLM provider is required".to_string(),
+            ));
         }
 
         // 验证向量存储配置
         if self.vector_store.provider.is_empty() {
-            return Err(AgentMemError::config_error("Vector store provider is required".to_string()));
+            return Err(AgentMemError::config_error(
+                "Vector store provider is required".to_string(),
+            ));
         }
 
         if self.vector_store.dimension == 0 {
-            return Err(AgentMemError::config_error("Vector dimension must be greater than 0".to_string()));
+            return Err(AgentMemError::config_error(
+                "Vector dimension must be greater than 0".to_string(),
+            ));
         }
 
         // 验证性能配置
         if self.performance.batch_size == 0 {
-            return Err(AgentMemError::config_error("Batch size must be greater than 0".to_string()));
+            return Err(AgentMemError::config_error(
+                "Batch size must be greater than 0".to_string(),
+            ));
         }
 
         if self.performance.max_concurrent_requests == 0 {
-            return Err(AgentMemError::config_error("Max concurrent requests must be greater than 0".to_string()));
+            return Err(AgentMemError::config_error(
+                "Max concurrent requests must be greater than 0".to_string(),
+            ));
         }
-        
+
         info!("Configuration validation passed");
         Ok(())
     }

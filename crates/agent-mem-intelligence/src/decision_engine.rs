@@ -8,14 +8,14 @@
 //! - 自适应决策策略
 //! - 决策置信度评估
 
+use crate::fact_extraction::{ExtractedFact, StructuredFact};
+use crate::importance_evaluator::ImportanceEvaluation;
+use agent_mem_core::Memory;
+use agent_mem_llm::LLMProvider;
+use agent_mem_traits::{Message, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use agent_mem_traits::{Result, Message};
-use agent_mem_llm::LLMProvider;
-use agent_mem_core::Memory;
-use crate::fact_extraction::{ExtractedFact, StructuredFact};
-use crate::importance_evaluator::ImportanceEvaluation;
 use tracing::{debug, info, warn};
 
 /// 记忆操作决策
@@ -59,10 +59,10 @@ pub enum MemoryAction {
 /// 合并策略
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MergeStrategy {
-    Replace,     // 完全替换
-    Append,      // 追加信息
-    Merge,       // 智能合并
-    Prioritize,  // 优先保留重要信息
+    Replace,    // 完全替换
+    Append,     // 追加信息
+    Merge,      // 智能合并
+    Prioritize, // 优先保留重要信息
 }
 
 /// 删除原因
@@ -107,22 +107,22 @@ pub struct ConflictDetection {
 /// 冲突类型
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ConflictType {
-    DirectContradiction,  // 直接矛盾
+    DirectContradiction,   // 直接矛盾
     TemporalInconsistency, // 时间不一致
-    ValueConflict,        // 数值冲突
-    CategoryMismatch,     // 类别不匹配
-    ContextualConflict,   // 上下文冲突
+    ValueConflict,         // 数值冲突
+    CategoryMismatch,      // 类别不匹配
+    ContextualConflict,    // 上下文冲突
 }
 
 /// 冲突解决策略
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ConflictResolutionStrategy {
-    KeepLatest,           // 保留最新信息
-    KeepMostImportant,    // 保留最重要信息
+    KeepLatest,            // 保留最新信息
+    KeepMostImportant,     // 保留最重要信息
     KeepHighestConfidence, // 保留置信度最高信息
-    MergeInformation,     // 合并信息
-    RequestUserInput,     // 请求用户输入
-    MarkAsUncertain,      // 标记为不确定
+    MergeInformation,      // 合并信息
+    RequestUserInput,      // 请求用户输入
+    MarkAsUncertain,       // 标记为不确定
 }
 
 /// 记忆决策引擎（增强版本）
@@ -265,7 +265,8 @@ impl MemoryDecisionEngine {
             // 查找相似记忆
             for (j, other_memory) in memories.iter().enumerate() {
                 if i != j && !processed_ids.contains(&other_memory.id) {
-                    let similarity = self.calculate_content_similarity(&memory.content, &other_memory.content);
+                    let similarity =
+                        self.calculate_content_similarity(&memory.content, &other_memory.content);
                     if similarity >= threshold {
                         similar_memories.push(other_memory.clone());
                         processed_ids.insert(other_memory.id.clone());
@@ -277,7 +278,8 @@ impl MemoryDecisionEngine {
             if similar_memories.len() > 1 {
                 let merged_content = self.generate_merged_content(&similar_memories).await?;
                 let primary_memory = &similar_memories[0];
-                let secondary_ids: Vec<String> = similar_memories[1..].iter().map(|m| m.id.clone()).collect();
+                let secondary_ids: Vec<String> =
+                    similar_memories[1..].iter().map(|m| m.id.clone()).collect();
 
                 decisions.push(MemoryDecision {
                     action: MemoryAction::Merge {
@@ -286,7 +288,10 @@ impl MemoryDecisionEngine {
                         merged_content,
                     },
                     confidence: 0.8,
-                    reasoning: format!("Found {} similar memories that can be merged", similar_memories.len()),
+                    reasoning: format!(
+                        "Found {} similar memories that can be merged",
+                        similar_memories.len()
+                    ),
                     affected_memories: similar_memories.iter().map(|m| m.id.clone()).collect(),
                     estimated_impact: 0.7,
                 });
@@ -299,7 +304,11 @@ impl MemoryDecisionEngine {
     }
 
     /// 评估记忆重要性（增强版本）
-    pub fn evaluate_importance_enhanced(&self, fact: &ExtractedFact, context: &[ExistingMemory]) -> f32 {
+    pub fn evaluate_importance_enhanced(
+        &self,
+        fact: &ExtractedFact,
+        context: &[ExistingMemory],
+    ) -> f32 {
         let mut importance = self.evaluate_importance(fact);
 
         // 基于上下文调整重要性
@@ -334,7 +343,7 @@ impl MemoryDecisionEngine {
 
         // 如果找不到 JSON，返回错误
         Err(agent_mem_traits::AgentMemError::internal_error(
-            "No valid JSON found in response".to_string()
+            "No valid JSON found in response".to_string(),
         ))
     }
 
@@ -345,11 +354,13 @@ impl MemoryDecisionEngine {
         existing_memories: &[ExistingMemory],
     ) -> String {
         // 简化输入数据以减少token使用
-        let facts_summary: Vec<String> = new_facts.iter()
+        let facts_summary: Vec<String> = new_facts
+            .iter()
             .map(|f| format!("{} (conf: {:.1})", f.content, f.confidence))
             .collect();
 
-        let memories_summary: Vec<String> = existing_memories.iter()
+        let memories_summary: Vec<String> = existing_memories
+            .iter()
             .map(|m| format!("{}: {} (imp: {:.1})", m.id, m.content, m.importance))
             .collect();
 
@@ -404,7 +415,8 @@ Keep reasoning brief. Max 3 decisions."#,
         fact: &ExtractedFact,
         existing_memories: &[ExistingMemory],
     ) -> String {
-        let memories_summary: Vec<String> = existing_memories.iter()
+        let memories_summary: Vec<String> = existing_memories
+            .iter()
             .map(|m| format!("{}: {}", m.id, m.content))
             .collect();
 
@@ -471,7 +483,11 @@ Requirements:
     }
 
     /// 计算上下文重要性
-    fn calculate_context_importance(&self, fact: &ExtractedFact, context: &[ExistingMemory]) -> f32 {
+    fn calculate_context_importance(
+        &self,
+        fact: &ExtractedFact,
+        context: &[ExistingMemory],
+    ) -> f32 {
         let mut context_boost = 0.0;
 
         // 检查是否与现有记忆相关
@@ -487,7 +503,10 @@ Requirements:
     }
 
     /// 计算时间重要性
-    fn calculate_temporal_importance(&self, temporal_info: &crate::fact_extraction::TemporalInfo) -> f32 {
+    fn calculate_temporal_importance(
+        &self,
+        temporal_info: &crate::fact_extraction::TemporalInfo,
+    ) -> f32 {
         let mut temporal_boost: f32 = 0.0;
 
         // 相对时间的重要性
@@ -529,7 +548,11 @@ Requirements:
 
         for content in contents {
             // 按句号分割内容
-            let sentences: Vec<&str> = content.split('.').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
+            let sentences: Vec<&str> = content
+                .split('.')
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .collect();
             for sentence in sentences {
                 if unique_sentences.insert(sentence.to_lowercase()) {
                     merged_parts.push(sentence.to_string());
@@ -560,12 +583,8 @@ Requirements:
         let content1_lower = content1.to_lowercase();
         let content2_lower = content2.to_lowercase();
 
-        let words1: std::collections::HashSet<&str> = content1_lower
-            .split_whitespace()
-            .collect();
-        let words2: std::collections::HashSet<&str> = content2_lower
-            .split_whitespace()
-            .collect();
+        let words1: std::collections::HashSet<&str> = content1_lower.split_whitespace().collect();
+        let words2: std::collections::HashSet<&str> = content2_lower.split_whitespace().collect();
 
         let intersection = words1.intersection(&words2).count();
         let union = words1.union(&words2).count();
@@ -784,20 +803,17 @@ pub struct DecisionImpact {
 
 impl EnhancedDecisionEngine {
     /// 创建新的增强决策引擎
-    pub fn new(
-        llm: Arc<dyn LLMProvider + Send + Sync>,
-        config: DecisionEngineConfig,
-    ) -> Self {
+    pub fn new(llm: Arc<dyn LLMProvider + Send + Sync>, config: DecisionEngineConfig) -> Self {
         Self { llm, config }
     }
 
     /// 制定智能决策
-    pub async fn make_decisions(
-        &self,
-        context: &DecisionContext,
-    ) -> Result<DecisionResult> {
-        info!("开始制定智能决策，事实数量: {}, 记忆数量: {}",
-              context.new_facts.len(), context.existing_memories.len());
+    pub async fn make_decisions(&self, context: &DecisionContext) -> Result<DecisionResult> {
+        info!(
+            "开始制定智能决策，事实数量: {}, 记忆数量: {}",
+            context.new_facts.len(),
+            context.existing_memories.len()
+        );
 
         // 1. 分析决策上下文
         let analysis = self.analyze_decision_context(context).await?;
@@ -806,7 +822,9 @@ impl EnhancedDecisionEngine {
         let candidate_actions = self.generate_candidate_actions(context, &analysis).await?;
 
         // 3. 评估候选操作
-        let evaluated_actions = self.evaluate_candidate_actions(&candidate_actions, context).await?;
+        let evaluated_actions = self
+            .evaluate_candidate_actions(&candidate_actions, context)
+            .await?;
 
         // 4. 选择最佳操作
         let selected_actions = self.select_best_actions(&evaluated_actions);
@@ -815,7 +833,9 @@ impl EnhancedDecisionEngine {
         let confidence = self.calculate_decision_confidence(&selected_actions, &analysis);
 
         // 6. 生成决策原因
-        let reasoning = self.generate_decision_reasoning(&selected_actions, &analysis).await?;
+        let reasoning = self
+            .generate_decision_reasoning(&selected_actions, &analysis)
+            .await?;
 
         // 7. 评估决策影响
         let impact = self.assess_decision_impact(&selected_actions, context);
@@ -830,8 +850,11 @@ impl EnhancedDecisionEngine {
             requires_confirmation: confidence < self.config.auto_execution_threshold,
         };
 
-        info!("决策制定完成，置信度: {:.2}, 操作数量: {}",
-              decision_result.confidence, decision_result.recommended_actions.len());
+        info!(
+            "决策制定完成，置信度: {:.2}, 操作数量: {}",
+            decision_result.confidence,
+            decision_result.recommended_actions.len()
+        );
 
         Ok(decision_result)
     }
@@ -850,7 +873,8 @@ impl EnhancedDecisionEngine {
         analysis.conflict_severity = self.analyze_conflict_severity(&context.conflict_detections);
 
         // 分析重要性分布
-        analysis.importance_distribution = self.analyze_importance_distribution(&context.importance_evaluations);
+        analysis.importance_distribution =
+            self.analyze_importance_distribution(&context.importance_evaluations);
 
         Ok(analysis)
     }
@@ -1016,36 +1040,65 @@ impl EnhancedDecisionEngine {
 
     // 辅助方法实现...
     fn analyze_fact_quality(&self, facts: &[StructuredFact]) -> f32 {
-        if facts.is_empty() { return 0.0; }
+        if facts.is_empty() {
+            return 0.0;
+        }
         facts.iter().map(|f| f.confidence).sum::<f32>() / facts.len() as f32
     }
 
     fn analyze_memory_state(&self, memories: &[Memory]) -> f32 {
         // 简化的记忆状态分析
-        if memories.len() < 100 { 0.9 } else { 0.7 }
+        if memories.len() < 100 {
+            0.9
+        } else {
+            0.7
+        }
     }
 
-    fn analyze_conflict_severity(&self, conflicts: &[crate::conflict_resolution::ConflictDetection]) -> f32 {
-        if conflicts.is_empty() { return 0.0; }
+    fn analyze_conflict_severity(
+        &self,
+        conflicts: &[crate::conflict_resolution::ConflictDetection],
+    ) -> f32 {
+        if conflicts.is_empty() {
+            return 0.0;
+        }
         conflicts.iter().map(|c| c.severity).sum::<f32>() / conflicts.len() as f32
     }
 
     fn analyze_importance_distribution(&self, evaluations: &[ImportanceEvaluation]) -> f32 {
-        if evaluations.is_empty() { return 0.5; }
+        if evaluations.is_empty() {
+            return 0.5;
+        }
         evaluations.iter().map(|e| e.importance_score).sum::<f32>() / evaluations.len() as f32
     }
 
     fn calculate_action_priority(&self, fact_type: &str, importance: f32) -> f32 {
-        importance * if fact_type.contains("Person") { 1.2 } else { 1.0 }
+        importance
+            * if fact_type.contains("Person") {
+                1.2
+            } else {
+                1.0
+            }
     }
 
-    fn assess_action_feasibility(&self, _action: &MemoryAction, _context: &DecisionContext) -> f32 { 0.8 }
-    fn assess_action_risk(&self, _action: &MemoryAction, _context: &DecisionContext) -> f32 { 0.2 }
-    fn assess_action_benefit(&self, _action: &MemoryAction, _context: &DecisionContext) -> f32 { 0.7 }
-    fn assess_action_cost(&self, _action: &MemoryAction, _context: &DecisionContext) -> f32 { 0.3 }
+    fn assess_action_feasibility(&self, _action: &MemoryAction, _context: &DecisionContext) -> f32 {
+        0.8
+    }
+    fn assess_action_risk(&self, _action: &MemoryAction, _context: &DecisionContext) -> f32 {
+        0.2
+    }
+    fn assess_action_benefit(&self, _action: &MemoryAction, _context: &DecisionContext) -> f32 {
+        0.7
+    }
+    fn assess_action_cost(&self, _action: &MemoryAction, _context: &DecisionContext) -> f32 {
+        0.3
+    }
 
     fn calculate_overall_score(&self, evaluation: &ActionEvaluation, confidence: f32) -> f32 {
-        (evaluation.feasibility * 0.3 + evaluation.benefit * 0.4 - evaluation.risk * 0.2 - evaluation.cost * 0.1) * confidence
+        (evaluation.feasibility * 0.3 + evaluation.benefit * 0.4
+            - evaluation.risk * 0.2
+            - evaluation.cost * 0.1)
+            * confidence
     }
 }
 

@@ -3,7 +3,9 @@
 //! This integration test validates the complete client-server communication
 //! by testing the client SDK functionality against a mock server.
 
-use agent_mem_client::{AsyncAgentMemClient, ClientConfig, AddMemoryRequest, SearchMemoriesRequest};
+use agent_mem_client::{
+    AddMemoryRequest, AsyncAgentMemClient, ClientConfig, SearchMemoriesRequest,
+};
 use agent_mem_traits::MemoryType;
 use anyhow::Result;
 use std::collections::HashMap;
@@ -92,10 +94,16 @@ async fn run_client_sdk_tests() -> Result<()> {
 
     // Test serialization
     let add_json = serde_json::to_string(&add_request)?;
-    println!("      ✅ AddMemoryRequest serializes to JSON: {} chars", add_json.len());
+    println!(
+        "      ✅ AddMemoryRequest serializes to JSON: {} chars",
+        add_json.len()
+    );
 
     let search_json = serde_json::to_string(&search_request)?;
-    println!("      ✅ SearchMemoriesRequest serializes to JSON: {} chars", search_json.len());
+    println!(
+        "      ✅ SearchMemoriesRequest serializes to JSON: {} chars",
+        search_json.len()
+    );
 
     // Test deserialization
     let _add_back: AddMemoryRequest = serde_json::from_str(&add_json)?;

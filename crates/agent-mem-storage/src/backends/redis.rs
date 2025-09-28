@@ -1,19 +1,19 @@
 //! Redis 缓存存储后端实现
-//! 
+//!
 //! Redis 是一个高性能的内存数据结构存储，支持多种数据类型，
 //! 非常适合用作缓存层、会话存储和实时数据处理。
 
-use agent_mem_traits::{Result, VectorData, VectorStore, VectorSearchResult, AgentMemError};
+use agent_mem_traits::{Result, VectorData, VectorSearchResult, VectorStore};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
-use tracing::{info, debug, warn};
+use tracing::warn;
 
 #[cfg(feature = "redis")]
-use redis::{Client, AsyncCommands, RedisResult};
-#[cfg(feature = "redis")]
 use redis::aio::ConnectionManager;
+#[cfg(feature = "redis")]
+use redis::{AsyncCommands, Client, RedisResult};
 
 /// Redis 存储配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -91,7 +91,7 @@ pub struct RedisVectorRecord {
 impl From<VectorData> for RedisVectorRecord {
     fn from(data: VectorData) -> Self {
         let now = chrono::Utc::now().timestamp();
-        
+
         Self {
             id: data.id,
             vector: data.vector,
@@ -110,8 +110,11 @@ impl From<RedisVectorRecord> for VectorData {
         metadata.insert("created_at".to_string(), record.created_at.to_string());
         metadata.insert("updated_at".to_string(), record.updated_at.to_string());
         metadata.insert("access_count".to_string(), record.access_count.to_string());
-        metadata.insert("last_accessed".to_string(), record.last_accessed.to_string());
-        
+        metadata.insert(
+            "last_accessed".to_string(),
+            record.last_accessed.to_string(),
+        );
+
         Self {
             id: record.id,
             vector: record.vector,
@@ -164,11 +167,16 @@ impl RedisStore {
         #[cfg(feature = "redis")]
         {
             // 真实的 Redis 连接实现
-            let client = Client::open(config.connection_url.as_str())
-                .map_err(|e| AgentMemError::storage_error(format!("Failed to create Redis client: {}", e)))?;
+            let client = Client::open(config.connection_url.as_str()).map_err(|e| {
+                AgentMemError::storage_error(format!("Failed to create Redis client: {}", e))
+            })?;
 
-            let connection_manager = ConnectionManager::new(client).await
-                .map_err(|e| AgentMemError::storage_error(format!("Failed to create Redis connection manager: {}", e)))?;
+            let connection_manager = ConnectionManager::new(client).await.map_err(|e| {
+                AgentMemError::storage_error(format!(
+                    "Failed to create Redis connection manager: {}",
+                    e
+                ))
+            })?;
 
             let store = Self {
                 config,
@@ -218,7 +226,9 @@ impl RedisStore {
         {
             // 真实的 Redis 连接验证
             let mut conn = self.connection_manager.clone();
-            let _: String = redis::cmd("PING").query_async(&mut conn).await
+            let _: String = redis::cmd("PING")
+                .query_async(&mut conn)
+                .await
                 .map_err(|e| AgentMemError::storage_error(format!("Redis ping failed: {}", e)))?;
             info!("Redis connection verified successfully");
             Ok(())
@@ -241,14 +251,24 @@ impl RedisStore {
 
             // 选择数据库
             if self.config.database != 0 {
-                let _: () = redis::cmd("SELECT").arg(self.config.database).query_async(&mut conn).await
-                    .map_err(|e| AgentMemError::storage_error(format!("Failed to select database: {}", e)))?;
+                let _: () = redis::cmd("SELECT")
+                    .arg(self.config.database)
+                    .query_async(&mut conn)
+                    .await
+                    .map_err(|e| {
+                        AgentMemError::storage_error(format!("Failed to select database: {}", e))
+                    })?;
             }
 
             // 设置密码（如果需要）
             if let Some(password) = &self.config.password {
-                let _: () = redis::cmd("AUTH").arg(password).query_async(&mut conn).await
-                    .map_err(|e| AgentMemError::storage_error(format!("Authentication failed: {}", e)))?;
+                let _: () = redis::cmd("AUTH")
+                    .arg(password)
+                    .query_async(&mut conn)
+                    .await
+                    .map_err(|e| {
+                        AgentMemError::storage_error(format!("Authentication failed: {}", e))
+                    })?;
             }
 
             info!("Redis cache initialized successfully");
@@ -265,12 +285,18 @@ impl RedisStore {
 
     /// 构建向量键名
     fn build_vector_key(&self, id: &str) -> String {
-        format!("{}:{}:{}", self.config.key_prefix, self.config.vector_prefix, id)
+        format!(
+            "{}:{}:{}",
+            self.config.key_prefix, self.config.vector_prefix, id
+        )
     }
 
     /// 构建元数据键名
     fn build_metadata_key(&self, id: &str) -> String {
-        format!("{}:{}:{}", self.config.key_prefix, self.config.metadata_prefix, id)
+        format!(
+            "{}:{}:{}",
+            self.config.key_prefix, self.config.metadata_prefix, id
+        )
     }
 
     /// 构建索引键名
@@ -316,7 +342,7 @@ impl RedisStore {
         } else {
             stats.cache_misses += 1;
         }
-        
+
         let total_requests = stats.cache_hits + stats.cache_misses;
         if total_requests > 0 {
             stats.hit_rate = stats.cache_hits as f64 / total_requests as f64;
@@ -327,7 +353,7 @@ impl RedisStore {
     pub fn get_cache_stats(&self) -> RedisCacheStats {
         let stats = self.cache_stats.lock().unwrap();
         let vectors = self.vectors.lock().unwrap();
-        
+
         RedisCacheStats {
             total_vectors: vectors.len(),
             cache_hits: stats.cache_hits,
@@ -339,7 +365,11 @@ impl RedisStore {
     }
 
     /// 获取分布式锁
-    pub async fn acquire_lock(&self, key: &str, timeout: u64) -> Result<Option<RedisDistributedLock>> {
+    pub async fn acquire_lock(
+        &self,
+        key: &str,
+        timeout: u64,
+    ) -> Result<Option<RedisDistributedLock>> {
         if !self.config.enable_distributed_lock {
             return Ok(None);
         }
@@ -448,16 +478,16 @@ impl RedisStore {
     pub async fn warm_cache(&self, vector_ids: Vec<String>) -> Result<usize> {
         // 在实际实现中，这里应该预加载指定的向量到缓存中
         // 提高后续访问的性能
-        
+
         let mut warmed_count = 0;
         let vectors = self.vectors.lock().unwrap();
-        
+
         for id in vector_ids {
             if vectors.contains_key(&id) {
                 warmed_count += 1;
             }
         }
-        
+
         Ok(warmed_count)
     }
 
@@ -470,15 +500,18 @@ impl RedisStore {
 
             // 获取所有匹配的键
             let pattern = format!("{}:*", self.config.key_prefix);
-            let keys: Vec<String> = conn.keys(&pattern).await
+            let keys: Vec<String> = conn
+                .keys(&pattern)
+                .await
                 .map_err(|e| AgentMemError::StorageError(format!("Failed to get keys: {}", e)))?;
 
             let mut cleaned_count = 0;
 
             // 检查每个键的 TTL，删除过期的键
             for key in keys {
-                let ttl: i64 = conn.ttl(&key).await
-                    .map_err(|e| AgentMemError::StorageError(format!("Failed to get TTL: {}", e)))?;
+                let ttl: i64 = conn.ttl(&key).await.map_err(|e| {
+                    AgentMemError::StorageError(format!("Failed to get TTL: {}", e))
+                })?;
 
                 // TTL = -1 表示没有过期时间，TTL = -2 表示键不存在
                 if ttl == -2 {
@@ -508,8 +541,17 @@ impl RedisStore {
 
             for id in &ids {
                 let vector_key = self.build_vector_key(id);
-                let _: () = redis::cmd("EXPIRE").arg(&vector_key).arg(ttl as i64).query_async(&mut conn).await
-                    .map_err(|e| AgentMemError::storage_error(format!("Failed to set TTL for {}: {}", vector_key, e)))?;
+                let _: () = redis::cmd("EXPIRE")
+                    .arg(&vector_key)
+                    .arg(ttl as i64)
+                    .query_async(&mut conn)
+                    .await
+                    .map_err(|e| {
+                        AgentMemError::storage_error(format!(
+                            "Failed to set TTL for {}: {}",
+                            vector_key, e
+                        ))
+                    })?;
             }
 
             debug!("Set TTL for {} keys", ids_len);
@@ -559,7 +601,7 @@ impl VectorStore for RedisStore {
             //     redis::cmd("SET").arg(&vector_key).arg(&serialized).query_async(&mut con).await?;
             // }
             // redis::cmd("SADD").arg(self.build_index_key()).arg(&id).query_async(&mut con).await?;
-            
+
             store.insert(id.clone(), record);
             ids.push(id);
         }
@@ -619,7 +661,11 @@ impl VectorStore for RedisStore {
         }
 
         // 按相似度排序并限制结果数量
-        results.sort_by(|a, b| b.similarity.partial_cmp(&a.similarity).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.similarity
+                .partial_cmp(&a.similarity)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         results.truncate(limit);
 
         // 更新缓存统计
@@ -636,7 +682,7 @@ impl VectorStore for RedisStore {
             // let vector_key = self.build_vector_key(&id);
             // redis::cmd("DEL").arg(&vector_key).query_async(&mut con).await?;
             // redis::cmd("SREM").arg(self.build_index_key()).arg(&id).query_async(&mut con).await?;
-            
+
             store.remove(&id);
         }
 
@@ -654,7 +700,7 @@ impl VectorStore for RedisStore {
 
         for vector_data in vectors {
             let id = vector_data.id.clone();
-            
+
             // 验证向量维度
             if vector_data.vector.len() != self.config.vector_dimension {
                 return Err(agent_mem_traits::AgentMemError::validation_error(&format!(
@@ -679,7 +725,7 @@ impl VectorStore for RedisStore {
                 // } else {
                 //     redis::cmd("SET").arg(&vector_key).arg(&serialized).query_async(&mut con).await?;
                 // }
-                
+
                 store.insert(id, updated_record);
             }
         }
@@ -689,16 +735,16 @@ impl VectorStore for RedisStore {
 
     async fn get_vector(&self, id: &str) -> Result<Option<VectorData>> {
         let mut store = self.vectors.lock().unwrap();
-        
+
         // 在实际实现中，这里应该使用 Redis 命令获取向量
         // let vector_key = self.build_vector_key(id);
         // let result: Option<String> = redis::cmd("GET").arg(&vector_key).query_async(&mut con).await?;
-        
+
         if let Some(record) = store.get_mut(id) {
             // 更新访问统计
             record.access_count += 1;
             record.last_accessed = chrono::Utc::now().timestamp();
-            
+
             self.update_cache_stats(true);
             Ok(Some(VectorData::from(record.clone())))
         } else {
@@ -709,23 +755,23 @@ impl VectorStore for RedisStore {
 
     async fn count_vectors(&self) -> Result<usize> {
         let store = self.vectors.lock().unwrap();
-        
+
         // 在实际实现中，这里应该使用 Redis 命令获取集合大小
         // let count: usize = redis::cmd("SCARD").arg(self.build_index_key()).query_async(&mut con).await?;
-        
+
         Ok(store.len())
     }
 
     async fn clear(&self) -> Result<()> {
         let mut store = self.vectors.lock().unwrap();
-        
+
         // 在实际实现中，这里应该删除所有相关的 Redis 键
         // let pattern = format!("{}:*", self.config.key_prefix);
         // let keys: Vec<String> = redis::cmd("KEYS").arg(&pattern).query_async(&mut con).await?;
         // if !keys.is_empty() {
         //     redis::cmd("DEL").arg(&keys).query_async(&mut con).await?;
         // }
-        
+
         store.clear();
 
         // 重置统计
@@ -750,7 +796,8 @@ impl VectorStore for RedisStore {
         threshold: Option<f32>,
     ) -> Result<Vec<VectorSearchResult>> {
         use crate::utils::VectorStoreDefaults;
-        self.default_search_with_filters(query_vector, limit, filters, threshold).await
+        self.default_search_with_filters(query_vector, limit, filters, threshold)
+            .await
     }
 
     async fn health_check(&self) -> Result<agent_mem_traits::HealthStatus> {

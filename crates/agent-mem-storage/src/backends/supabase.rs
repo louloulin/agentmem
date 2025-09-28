@@ -1,14 +1,14 @@
 //! Supabase 存储后端实现
-//! 
+//!
 //! Supabase 是一个开源的 Firebase 替代方案，基于 PostgreSQL，
 //! 提供实时数据库、向量搜索扩展和边缘计算能力。
 
-use agent_mem_traits::{Result, VectorData, VectorStore, VectorSearchResult, AgentMemError};
+use agent_mem_traits::{AgentMemError, Result, VectorData, VectorSearchResult, VectorStore};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use tracing::info;
 use std::time::Duration;
+use tracing::info;
 
 /// Supabase 存储配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -104,8 +104,9 @@ pub struct SupabaseVectorRecord {
 impl From<VectorData> for SupabaseVectorRecord {
     fn from(data: VectorData) -> Self {
         let now = chrono::Utc::now().to_rfc3339();
-        let metadata_json = serde_json::to_value(&data.metadata).unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
-        
+        let metadata_json = serde_json::to_value(&data.metadata)
+            .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
+
         Self {
             id: data.id,
             embedding: data.vector,
@@ -120,7 +121,7 @@ impl From<VectorData> for SupabaseVectorRecord {
 impl From<SupabaseVectorRecord> for VectorData {
     fn from(record: SupabaseVectorRecord) -> Self {
         let mut metadata = HashMap::new();
-        
+
         // 从 JSONB 转换回 HashMap<String, String>
         if let serde_json::Value::Object(map) = record.metadata {
             for (key, value) in map {
@@ -131,11 +132,11 @@ impl From<SupabaseVectorRecord> for VectorData {
                 }
             }
         }
-        
+
         metadata.insert("content".to_string(), record.content);
         metadata.insert("created_at".to_string(), record.created_at);
         metadata.insert("updated_at".to_string(), record.updated_at);
-        
+
         Self {
             id: record.id,
             vector: record.embedding,
@@ -183,7 +184,12 @@ impl SupabaseStore {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(config.request_timeout))
             .build()
-            .map_err(|e| agent_mem_traits::AgentMemError::storage_error(&format!("Failed to create HTTP client: {}", e)))?;
+            .map_err(|e| {
+                agent_mem_traits::AgentMemError::storage_error(&format!(
+                    "Failed to create HTTP client: {}",
+                    e
+                ))
+            })?;
 
         let store = Self {
             config,
@@ -207,26 +213,33 @@ impl SupabaseStore {
         //     .header("Authorization", format!("Bearer {}", self.config.api_key))
         //     .send()
         //     .await?;
-        
+
         // 真实的连接验证
         let url = format!("{}/rest/v1/", self.config.project_url);
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
             .header("apikey", &self.config.api_key)
             .header("Authorization", format!("Bearer {}", self.config.api_key))
             .timeout(Duration::from_secs(10))
             .send()
             .await
-            .map_err(|e| AgentMemError::network_error(&format!("Failed to connect to Supabase: {}", e)))?;
+            .map_err(|e| {
+                AgentMemError::network_error(&format!("Failed to connect to Supabase: {}", e))
+            })?;
 
         if response.status().is_success() {
-            info!("Successfully connected to Supabase at {}", self.config.project_url);
+            info!(
+                "Successfully connected to Supabase at {}",
+                self.config.project_url
+            );
             Ok(())
         } else {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_default();
             Err(AgentMemError::storage_error(&format!(
-                "Supabase connection failed: {} - {}", status, error_text
+                "Supabase connection failed: {} - {}",
+                status, error_text
             )))
         }
     }
@@ -235,8 +248,10 @@ impl SupabaseStore {
     async fn ensure_table_exists(&self) -> Result<()> {
         // 真实的表创建和检查
         // 首先检查表是否存在
-        let check_table_url = self.build_rest_url(&format!("{}?select=id&limit=1", self.config.table_name));
-        let check_response = self.client
+        let check_table_url =
+            self.build_rest_url(&format!("{}?select=id&limit=1", self.config.table_name));
+        let check_response = self
+            .client
             .get(&check_table_url)
             .header("apikey", &self.config.api_key)
             .header("Authorization", format!("Bearer {}", self.config.api_key))
@@ -247,21 +262,29 @@ impl SupabaseStore {
             Ok(response) if response.status().is_success() => {
                 info!("Table {} already exists", self.config.table_name);
                 Ok(())
-            },
+            }
             _ => {
                 // 表不存在，尝试创建（需要数据库管理员权限）
-                info!("Table {} does not exist. Please create it manually with the following SQL:", self.config.table_name);
+                info!(
+                    "Table {} does not exist. Please create it manually with the following SQL:",
+                    self.config.table_name
+                );
                 info!("CREATE EXTENSION IF NOT EXISTS vector;");
                 info!("CREATE TABLE IF NOT EXISTS {} (", self.config.table_name);
                 info!("    id TEXT PRIMARY KEY,");
-                info!("    {} vector({}),", self.config.vector_column, self.config.vector_dimension);
+                info!(
+                    "    {} vector({}),",
+                    self.config.vector_column, self.config.vector_dimension
+                );
                 info!("    {} TEXT,", self.config.content_column);
                 info!("    {} JSONB,", self.config.metadata_column);
                 info!("    created_at TIMESTAMPTZ DEFAULT NOW(),");
                 info!("    updated_at TIMESTAMPTZ DEFAULT NOW()");
                 info!(");");
-                info!("CREATE INDEX ON {} USING ivfflat ({} vector_cosine_ops);",
-                      self.config.table_name, self.config.vector_column);
+                info!(
+                    "CREATE INDEX ON {} USING ivfflat ({} vector_cosine_ops);",
+                    self.config.table_name, self.config.vector_column
+                );
 
                 // 返回成功，假设表已经手动创建
                 Ok(())
@@ -317,7 +340,11 @@ impl SupabaseStore {
     }
 
     /// 执行 RPC 函数调用（在实际实现中）
-    async fn _call_rpc_function(&self, _function_name: &str, _params: serde_json::Value) -> Result<serde_json::Value> {
+    async fn _call_rpc_function(
+        &self,
+        _function_name: &str,
+        _params: serde_json::Value,
+    ) -> Result<serde_json::Value> {
         // 在实际实现中，这里应该调用 Supabase 的 RPC 函数
         // 用于复杂的向量搜索和数据处理
         Ok(serde_json::Value::Null)
@@ -358,7 +385,7 @@ impl VectorStore for SupabaseStore {
             //     .json(&record)
             //     .send()
             //     .await?;
-            
+
             store.insert(id.clone(), record);
             ids.push(id);
         }
@@ -424,7 +451,11 @@ impl VectorStore for SupabaseStore {
         }
 
         // 按相似度排序并限制结果数量
-        results.sort_by(|a, b| b.similarity.partial_cmp(&a.similarity).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.similarity
+                .partial_cmp(&a.similarity)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         results.truncate(limit);
 
         Ok(results)
@@ -441,7 +472,7 @@ impl VectorStore for SupabaseStore {
             //     .header("Authorization", format!("Bearer {}", self.config.api_key))
             //     .send()
             //     .await?;
-            
+
             store.remove(&id);
         }
 
@@ -453,7 +484,7 @@ impl VectorStore for SupabaseStore {
 
         for vector_data in vectors {
             let id = vector_data.id.clone();
-            
+
             // 验证向量维度
             if vector_data.vector.len() != self.config.vector_dimension {
                 return Err(agent_mem_traits::AgentMemError::validation_error(&format!(
@@ -478,7 +509,7 @@ impl VectorStore for SupabaseStore {
                 //     .json(&updated_record)
                 //     .send()
                 //     .await?;
-                
+
                 store.insert(id, updated_record);
             }
         }
@@ -488,7 +519,7 @@ impl VectorStore for SupabaseStore {
 
     async fn get_vector(&self, id: &str) -> Result<Option<VectorData>> {
         let store = self.vectors.lock().unwrap();
-        
+
         // 在实际实现中，这里应该调用 Supabase REST API 获取记录
         // let url = format!("{}?id=eq.{}", self.build_rest_url(&self.config.table_name), id);
         // let response = self.client.get(&url)
@@ -496,13 +527,13 @@ impl VectorStore for SupabaseStore {
         //     .header("Authorization", format!("Bearer {}", self.config.api_key))
         //     .send()
         //     .await?;
-        
+
         Ok(store.get(id).map(|record| VectorData::from(record.clone())))
     }
 
     async fn count_vectors(&self) -> Result<usize> {
         let store = self.vectors.lock().unwrap();
-        
+
         // 在实际实现中，这里应该调用 Supabase REST API 获取计数
         // let url = format!("{}?select=count", self.build_rest_url(&self.config.table_name));
         // let response = self.client.get(&url)
@@ -511,13 +542,13 @@ impl VectorStore for SupabaseStore {
         //     .header("Prefer", "count=exact")
         //     .send()
         //     .await?;
-        
+
         Ok(store.len())
     }
 
     async fn clear(&self) -> Result<()> {
         let mut store = self.vectors.lock().unwrap();
-        
+
         // 在实际实现中，这里应该删除表中的所有记录
         // let url = self.build_rest_url(&self.config.table_name);
         // let response = self.client.delete(&url)
@@ -525,7 +556,7 @@ impl VectorStore for SupabaseStore {
         //     .header("Authorization", format!("Bearer {}", self.config.api_key))
         //     .send()
         //     .await?;
-        
+
         store.clear();
         Ok(())
     }
@@ -538,7 +569,8 @@ impl VectorStore for SupabaseStore {
         threshold: Option<f32>,
     ) -> Result<Vec<VectorSearchResult>> {
         use crate::utils::VectorStoreDefaults;
-        self.default_search_with_filters(query_vector, limit, filters, threshold).await
+        self.default_search_with_filters(query_vector, limit, filters, threshold)
+            .await
     }
 
     async fn health_check(&self) -> Result<agent_mem_traits::HealthStatus> {

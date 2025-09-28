@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 /// 性能指标
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -90,20 +90,23 @@ impl PerformanceMonitor {
     /// 记录性能指标
     pub async fn record_metric(&self, metric: PerformanceMetrics) {
         let mut history = self.metrics_history.write().await;
-        
+
         // 添加新指标
         history.push(metric);
-        
+
         // 限制历史记录大小
         if history.len() > self.max_history_size {
             history.remove(0);
         }
-        
+
         // 清除统计缓存以强制重新计算
         let mut cache = self.stats_cache.write().await;
         cache.clear();
-        
-        debug!("Recorded performance metric, history size: {}", history.len());
+
+        debug!(
+            "Recorded performance metric, history size: {}",
+            history.len()
+        );
     }
 
     /// 开始计时
@@ -130,32 +133,32 @@ impl PerformanceMonitor {
     pub async fn get_all_stats(&self) -> HashMap<String, PerformanceStats> {
         let history = self.metrics_history.read().await;
         let mut operations = std::collections::HashSet::new();
-        
+
         // 收集所有操作类型
         for metric in history.iter() {
             operations.insert(metric.operation.clone());
         }
-        
+
         let mut all_stats = HashMap::new();
         for operation in operations {
             if let Some(stats) = self.calculate_stats(&operation).await {
                 all_stats.insert(operation, stats);
             }
         }
-        
+
         all_stats
     }
 
     /// 计算指定操作的统计信息
     async fn calculate_stats(&self, operation: &str) -> Option<PerformanceStats> {
         let history = self.metrics_history.read().await;
-        
+
         // 过滤指定操作的指标
         let operation_metrics: Vec<_> = history
             .iter()
             .filter(|m| m.operation == operation)
             .collect();
-            
+
         if operation_metrics.is_empty() {
             return None;
         }
@@ -166,10 +169,7 @@ impl PerformanceMonitor {
         let success_rate = successful_requests as f64 / total_requests as f64;
 
         // 计算响应时间统计
-        let mut durations: Vec<f64> = operation_metrics
-            .iter()
-            .map(|m| m.duration_ms)
-            .collect();
+        let mut durations: Vec<f64> = operation_metrics.iter().map(|m| m.duration_ms).collect();
         durations.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
         let avg_duration_ms = durations.iter().sum::<f64>() / durations.len() as f64;
@@ -200,13 +200,13 @@ impl PerformanceMonitor {
             .iter()
             .filter_map(|m| m.data_size_bytes)
             .collect();
-        
+
         let avg_data_size_bytes = if !data_sizes.is_empty() {
             data_sizes.iter().sum::<usize>() as f64 / data_sizes.len() as f64
         } else {
             0.0
         };
-        
+
         let total_data_bytes = data_sizes.iter().sum::<usize>() as u64;
 
         let stats = PerformanceStats {
@@ -238,10 +238,10 @@ impl PerformanceMonitor {
     pub async fn clear_history(&self) {
         let mut history = self.metrics_history.write().await;
         history.clear();
-        
+
         let mut cache = self.stats_cache.write().await;
         cache.clear();
-        
+
         info!("Performance history cleared");
     }
 
@@ -255,7 +255,7 @@ impl PerformanceMonitor {
     pub async fn generate_report(&self) -> PerformanceReport {
         let all_stats = self.get_all_stats().await;
         let history_size = self.history_size().await;
-        
+
         PerformanceReport {
             timestamp: chrono::Utc::now(),
             total_metrics: history_size,
@@ -286,7 +286,7 @@ impl PerformanceTimer {
         metadata: HashMap<String, String>,
     ) -> PerformanceMetrics {
         let duration = self.start_time.elapsed();
-        
+
         PerformanceMetrics {
             operation,
             duration_ms: duration.as_secs_f64() * 1000.0,
@@ -315,7 +315,7 @@ fn percentile(sorted_values: &[f64], p: f64) -> f64 {
     if sorted_values.is_empty() {
         return 0.0;
     }
-    
+
     let index = (p * (sorted_values.len() - 1) as f64).round() as usize;
     sorted_values.get(index).copied().unwrap_or(0.0)
 }
@@ -328,7 +328,7 @@ mod tests {
     #[tokio::test]
     async fn test_performance_monitor() {
         let monitor = PerformanceMonitor::new(1000, Duration::from_secs(60));
-        
+
         // 记录一些测试指标
         let metric1 = PerformanceMetrics {
             operation: "search".to_string(),
@@ -339,9 +339,9 @@ mod tests {
             timestamp: chrono::Utc::now(),
             metadata: HashMap::new(),
         };
-        
+
         monitor.record_metric(metric1).await;
-        
+
         let metric2 = PerformanceMetrics {
             operation: "search".to_string(),
             duration_ms: 150.0,
@@ -351,9 +351,9 @@ mod tests {
             timestamp: chrono::Utc::now(),
             metadata: HashMap::new(),
         };
-        
+
         monitor.record_metric(metric2).await;
-        
+
         // 获取统计信息
         let stats = monitor.get_stats("search").await.unwrap();
         assert_eq!(stats.total_requests, 2);
@@ -366,15 +366,9 @@ mod tests {
     async fn test_performance_timer() {
         let timer = PerformanceTimer::new();
         sleep(Duration::from_millis(10)).await;
-        
-        let metric = timer.finish(
-            "test".to_string(),
-            true,
-            Some(100),
-            Some(1),
-            HashMap::new(),
-        );
-        
+
+        let metric = timer.finish("test".to_string(), true, Some(100), Some(1), HashMap::new());
+
         assert!(metric.duration_ms >= 10.0);
         assert_eq!(metric.operation, "test");
         assert!(metric.success);
@@ -406,7 +400,10 @@ impl MonitoredVectorStore {
 
 #[async_trait::async_trait]
 impl agent_mem_traits::VectorStore for MonitoredVectorStore {
-    async fn add_vectors(&self, vectors: Vec<agent_mem_traits::VectorData>) -> agent_mem_traits::Result<Vec<String>> {
+    async fn add_vectors(
+        &self,
+        vectors: Vec<agent_mem_traits::VectorData>,
+    ) -> agent_mem_traits::Result<Vec<String>> {
         let timer = self.monitor.start_timer();
         let data_size = vectors.iter().map(|v| v.vector.len() * 4).sum(); // 假设f32
         let record_count = vectors.len();
@@ -434,7 +431,10 @@ impl agent_mem_traits::VectorStore for MonitoredVectorStore {
         let timer = self.monitor.start_timer();
         let data_size = query_vector.len() * 4; // f32 size
 
-        let result = self.inner.search_vectors(query_vector, limit, threshold).await;
+        let result = self
+            .inner
+            .search_vectors(query_vector, limit, threshold)
+            .await;
 
         let record_count = result.as_ref().map(|r| r.len()).unwrap_or(0);
         let metric = timer.finish(
@@ -467,7 +467,10 @@ impl agent_mem_traits::VectorStore for MonitoredVectorStore {
         result
     }
 
-    async fn update_vectors(&self, vectors: Vec<agent_mem_traits::VectorData>) -> agent_mem_traits::Result<()> {
+    async fn update_vectors(
+        &self,
+        vectors: Vec<agent_mem_traits::VectorData>,
+    ) -> agent_mem_traits::Result<()> {
         let timer = self.monitor.start_timer();
         let data_size = vectors.iter().map(|v| v.vector.len() * 4).sum();
         let record_count = vectors.len();
@@ -486,12 +489,18 @@ impl agent_mem_traits::VectorStore for MonitoredVectorStore {
         result
     }
 
-    async fn get_vector(&self, id: &str) -> agent_mem_traits::Result<Option<agent_mem_traits::VectorData>> {
+    async fn get_vector(
+        &self,
+        id: &str,
+    ) -> agent_mem_traits::Result<Option<agent_mem_traits::VectorData>> {
         let timer = self.monitor.start_timer();
 
         let result = self.inner.get_vector(id).await;
 
-        let data_size = result.as_ref().ok().and_then(|opt| opt.as_ref().map(|v| v.vector.len() * 4));
+        let data_size = result
+            .as_ref()
+            .ok()
+            .and_then(|opt| opt.as_ref().map(|v| v.vector.len() * 4));
         let metric = timer.finish(
             "get_vector".to_string(),
             result.is_ok(),
@@ -548,7 +557,10 @@ impl agent_mem_traits::VectorStore for MonitoredVectorStore {
         let timer = self.monitor.start_timer();
         let data_size = query_vector.len() * 4;
 
-        let result = self.inner.search_with_filters(query_vector, limit, filters, threshold).await;
+        let result = self
+            .inner
+            .search_with_filters(query_vector, limit, filters, threshold)
+            .await;
 
         let record_count = result.as_ref().map(|r| r.len()).unwrap_or(0);
         let metric = timer.finish(
@@ -597,7 +609,10 @@ impl agent_mem_traits::VectorStore for MonitoredVectorStore {
         result
     }
 
-    async fn add_vectors_batch(&self, batches: Vec<Vec<agent_mem_traits::VectorData>>) -> agent_mem_traits::Result<Vec<Vec<String>>> {
+    async fn add_vectors_batch(
+        &self,
+        batches: Vec<Vec<agent_mem_traits::VectorData>>,
+    ) -> agent_mem_traits::Result<Vec<Vec<String>>> {
         let timer = self.monitor.start_timer();
         let data_size: usize = batches.iter().flatten().map(|v| v.vector.len() * 4).sum();
         let record_count: usize = batches.iter().map(|b| b.len()).sum();
@@ -616,7 +631,10 @@ impl agent_mem_traits::VectorStore for MonitoredVectorStore {
         result
     }
 
-    async fn delete_vectors_batch(&self, id_batches: Vec<Vec<String>>) -> agent_mem_traits::Result<Vec<bool>> {
+    async fn delete_vectors_batch(
+        &self,
+        id_batches: Vec<Vec<String>>,
+    ) -> agent_mem_traits::Result<Vec<bool>> {
         let timer = self.monitor.start_timer();
         let record_count: usize = id_batches.iter().map(|b| b.len()).sum();
 

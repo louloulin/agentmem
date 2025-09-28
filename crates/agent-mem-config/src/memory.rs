@@ -28,8 +28,6 @@ pub struct MemoryConfig {
     pub performance: PerformanceConfig,
 }
 
-
-
 /// Graph store configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GraphStoreConfig {

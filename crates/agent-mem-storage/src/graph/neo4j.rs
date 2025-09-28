@@ -335,10 +335,7 @@ impl GraphStore for Neo4jStore {
             for data_row in result.data {
                 if data_row.row.len() >= 4 {
                     // 解析实体数据
-                    let entity_id = data_row.row[0]
-                        .as_str()
-                        .unwrap_or("unknown_id")
-                        .to_string();
+                    let entity_id = data_row.row[0].as_str().unwrap_or("unknown_id").to_string();
                     let entity_type = data_row.row[1]
                         .as_str()
                         .unwrap_or("unknown_type")
@@ -360,7 +357,12 @@ impl GraphStore for Neo4jStore {
                     if let Some(relations_array) = data_row.row[3].as_array() {
                         for relation_obj in relations_array {
                             if let Some(rel_map) = relation_obj.as_object() {
-                                if let (Some(source), Some(target), Some(rel_type), Some(confidence)) = (
+                                if let (
+                                    Some(source),
+                                    Some(target),
+                                    Some(rel_type),
+                                    Some(confidence),
+                                ) = (
                                     rel_map.get("source").and_then(|v| v.as_str()),
                                     rel_map.get("target").and_then(|v| v.as_str()),
                                     rel_map.get("type").and_then(|v| v.as_str()),
@@ -417,10 +419,7 @@ impl GraphStore for Neo4jStore {
             for data_row in result.data {
                 if data_row.row.len() >= 3 {
                     // 解析实体数据
-                    let id = data_row.row[0]
-                        .as_str()
-                        .unwrap_or("unknown_id")
-                        .to_string();
+                    let id = data_row.row[0].as_str().unwrap_or("unknown_id").to_string();
                     let entity_type = data_row.row[1]
                         .as_str()
                         .unwrap_or("unknown_type")
@@ -455,7 +454,6 @@ impl GraphStore for Neo4jStore {
 // 添加base64编码功能的简单实现
 mod base64 {
     pub fn encode(input: &str) -> String {
-
         const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
         let mut result = String::new();
         let bytes = input.as_bytes();

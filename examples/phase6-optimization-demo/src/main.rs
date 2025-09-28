@@ -1,10 +1,10 @@
 //! Phase 6 优化和基准测试演示
-//! 
+//!
 //! 展示最终的性能优化和基准测试功能
 
 use agent_mem_performance::{
-    PerformanceManager, PerformanceConfig, BenchmarkSuite, OptimizationEngine,
-    CacheConfig, QueryOptimizer, BatchConfig, ConcurrencyConfig, PoolConfig, TelemetryConfig
+    BatchConfig, BenchmarkSuite, CacheConfig, ConcurrencyConfig, OptimizationEngine,
+    PerformanceConfig, PerformanceManager, PoolConfig, QueryOptimizer, TelemetryConfig,
 };
 use anyhow::Context;
 use std::time::{Duration, Instant};
@@ -88,24 +88,48 @@ async fn run_performance_benchmarks() -> anyhow::Result<()> {
 
     // 创建基准测试套件
     let benchmark_suite = BenchmarkSuite::new();
-    
+
     // 运行内存操作基准测试
     info!("🔬 Running memory operation benchmarks");
     let memory_benchmark_results = benchmark_suite.run_memory_benchmarks().await?;
     info!("✅ Memory benchmarks completed:");
-    info!("  Add operations: {} ops/sec", memory_benchmark_results.add_ops_per_second);
-    info!("  Search operations: {} ops/sec", memory_benchmark_results.search_ops_per_second);
-    info!("  Update operations: {} ops/sec", memory_benchmark_results.update_ops_per_second);
-    info!("  Delete operations: {} ops/sec", memory_benchmark_results.delete_ops_per_second);
+    info!(
+        "  Add operations: {} ops/sec",
+        memory_benchmark_results.add_ops_per_second
+    );
+    info!(
+        "  Search operations: {} ops/sec",
+        memory_benchmark_results.search_ops_per_second
+    );
+    info!(
+        "  Update operations: {} ops/sec",
+        memory_benchmark_results.update_ops_per_second
+    );
+    info!(
+        "  Delete operations: {} ops/sec",
+        memory_benchmark_results.delete_ops_per_second
+    );
 
     // 运行向量搜索基准测试
     info!("🔍 Running vector search benchmarks");
     let vector_benchmark_results = benchmark_suite.run_vector_benchmarks().await?;
     info!("✅ Vector search benchmarks completed:");
-    info!("  Similarity search: {} ops/sec", vector_benchmark_results.similarity_search_ops_per_second);
-    info!("  Batch search: {} ops/sec", vector_benchmark_results.batch_search_ops_per_second);
-    info!("  Average latency: {}ms", vector_benchmark_results.average_latency_ms);
-    info!("  P95 latency: {}ms", vector_benchmark_results.p95_latency_ms);
+    info!(
+        "  Similarity search: {} ops/sec",
+        vector_benchmark_results.similarity_search_ops_per_second
+    );
+    info!(
+        "  Batch search: {} ops/sec",
+        vector_benchmark_results.batch_search_ops_per_second
+    );
+    info!(
+        "  Average latency: {}ms",
+        vector_benchmark_results.average_latency_ms
+    );
+    info!(
+        "  P95 latency: {}ms",
+        vector_benchmark_results.p95_latency_ms
+    );
 
     Ok(())
 }
@@ -114,17 +138,22 @@ async fn run_cache_optimization_demo() -> anyhow::Result<()> {
     info!("🗄️ Running cache optimization demo");
 
     let optimization_engine = OptimizationEngine::new();
-    
+
     // 模拟缓存性能测试
     let cache_stats = optimization_engine.analyze_cache_performance().await?;
     info!("✅ Cache performance analysis:");
     info!("  Hit rate: {:.2}%", cache_stats.hit_rate * 100.0);
     info!("  Miss rate: {:.2}%", cache_stats.miss_rate * 100.0);
-    info!("  Average access time: {}ms", cache_stats.average_access_time_ms);
+    info!(
+        "  Average access time: {}ms",
+        cache_stats.average_access_time_ms
+    );
     info!("  Memory usage: {}MB", cache_stats.memory_usage_mb);
 
     // 应用缓存优化
-    let optimization_recommendations = optimization_engine.generate_cache_optimizations(&cache_stats).await?;
+    let optimization_recommendations = optimization_engine
+        .generate_cache_optimizations(&cache_stats)
+        .await?;
     info!("🔧 Cache optimization recommendations:");
     for recommendation in &optimization_recommendations {
         info!("  - {}", recommendation);
@@ -142,13 +171,24 @@ async fn run_query_optimization_demo() -> anyhow::Result<()> {
     let optimization_engine = OptimizationEngine::new();
     let query_stats = optimization_engine.analyze_query_performance().await?;
     info!("✅ Query performance analysis:");
-    info!("  Average query time: {}ms", query_stats.average_query_time_ms);
+    info!(
+        "  Average query time: {}ms",
+        query_stats.average_query_time_ms
+    );
     info!("  Slow queries (>100ms): {}", query_stats.slow_query_count);
-    info!("  Cache hit rate: {:.2}%", query_stats.cache_hit_rate * 100.0);
-    info!("  Index usage rate: {:.2}%", query_stats.index_usage_rate * 100.0);
+    info!(
+        "  Cache hit rate: {:.2}%",
+        query_stats.cache_hit_rate * 100.0
+    );
+    info!(
+        "  Index usage rate: {:.2}%",
+        query_stats.index_usage_rate * 100.0
+    );
 
     // 生成查询优化建议
-    let query_optimizations = optimization_engine.generate_query_optimizations(&query_stats).await?;
+    let query_optimizations = optimization_engine
+        .generate_query_optimizations(&query_stats)
+        .await?;
     info!("🔧 Query optimization recommendations:");
     for optimization in &query_optimizations {
         info!("  - {}", optimization);
@@ -167,10 +207,10 @@ async fn run_concurrency_performance_test() -> anyhow::Result<()> {
     for i in 0..50 {
         let handle = tokio::spawn(async move {
             let task_start = Instant::now();
-            
+
             // 模拟内存操作
             tokio::time::sleep(Duration::from_millis(10)).await;
-            
+
             let duration = task_start.elapsed();
             (i, duration)
         });
@@ -198,7 +238,10 @@ async fn run_concurrency_performance_test() -> anyhow::Result<()> {
     info!("  Total tasks: {}", completed_tasks);
     info!("  Total time: {:?}", total_elapsed);
     info!("  Average task duration: {:?}", average_task_duration);
-    info!("  Throughput: {:.2} tasks/sec", completed_tasks as f64 / total_elapsed.as_secs_f64());
+    info!(
+        "  Throughput: {:.2} tasks/sec",
+        completed_tasks as f64 / total_elapsed.as_secs_f64()
+    );
 
     Ok(())
 }
@@ -256,23 +299,23 @@ async fn generate_comprehensive_performance_report() -> anyhow::Result<()> {
     info!("  - Search: 25,000 ops/sec");
     info!("  - Update: 12,000 ops/sec");
     info!("  - Delete: 18,000 ops/sec");
-    
+
     info!("🔍 Vector Search Performance:");
     info!("  - Similarity Search: 8,000 ops/sec");
     info!("  - Batch Search: 12,000 ops/sec");
     info!("  - Average Latency: 15.5ms");
     info!("  - P95 Latency: 45.2ms");
-    
+
     info!("🗄️ Cache Performance:");
     info!("  - Hit Rate: 85%");
     info!("  - Average Access Time: 2.3ms");
     info!("  - Memory Usage: 256MB");
-    
+
     info!("⚡ Concurrency Performance:");
     info!("  - Max Concurrent Ops: 100");
     info!("  - Throughput: 5,000 ops/sec");
     info!("  - Resource Utilization: 75%");
-    
+
     info!("🎯 Key Achievements:");
     info!("  - 2.8x performance improvement over baseline");
     info!("  - 40% reduction in memory usage");

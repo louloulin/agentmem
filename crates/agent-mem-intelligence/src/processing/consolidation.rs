@@ -74,7 +74,8 @@ impl MemoryConsolidator {
 
     /// Get access count from memory metadata
     fn get_access_count(&self, memory: &Memory) -> u32 {
-        memory.metadata
+        memory
+            .metadata
             .get("access_count")
             .and_then(|v| v.as_u64())
             .unwrap_or(0) as u32
@@ -185,7 +186,9 @@ impl MemoryConsolidator {
         };
 
         // Consider temporal proximity (memories created close in time are more likely to be related)
-        let time_diff = (memory1.created_at - memory2.created_at).num_seconds().abs() as f32;
+        let time_diff = (memory1.created_at - memory2.created_at)
+            .num_seconds()
+            .abs() as f32;
         let max_time_diff = 24.0 * 60.0 * 60.0; // 24 hours in seconds
         let temporal_similarity = (max_time_diff - time_diff.min(max_time_diff)) / max_time_diff;
 
@@ -211,7 +214,8 @@ impl MemoryConsolidator {
             .iter()
             .max_by(|&&a, &&b| {
                 memories[a]
-                    .score.unwrap_or(0.5)
+                    .score
+                    .unwrap_or(0.5)
                     .partial_cmp(&memories[b].score.unwrap_or(0.5))
                     .unwrap()
             })
@@ -248,7 +252,7 @@ impl MemoryConsolidator {
         memories[base_idx].score = Some(merged_importance);
         memories[base_idx].metadata.insert(
             "access_count".to_string(),
-            serde_json::Value::Number(serde_json::Number::from(merged_access_count))
+            serde_json::Value::Number(serde_json::Number::from(merged_access_count)),
         );
         memories[base_idx].updated_at = Some(chrono::Utc::now());
 
@@ -282,7 +286,8 @@ impl MemoryConsolidator {
             .iter()
             .max_by(|&&a, &&b| {
                 memories[a]
-                    .score.unwrap_or(0.5)
+                    .score
+                    .unwrap_or(0.5)
                     .partial_cmp(&memories[b].score.unwrap_or(0.5))
                     .unwrap()
             })
@@ -297,12 +302,14 @@ impl MemoryConsolidator {
                 continue;
             }
 
-            memories[idx]
-                .metadata
-                .insert("consolidated_with".to_string(), serde_json::Value::String(primary_id.clone()));
-            memories[idx]
-                .metadata
-                .insert("consolidation_type".to_string(), serde_json::Value::String("reference".to_string()));
+            memories[idx].metadata.insert(
+                "consolidated_with".to_string(),
+                serde_json::Value::String(primary_id.clone()),
+            );
+            memories[idx].metadata.insert(
+                "consolidation_type".to_string(),
+                serde_json::Value::String("reference".to_string()),
+            );
         }
 
         // Add reference list to primary memory
@@ -312,9 +319,10 @@ impl MemoryConsolidator {
             .map(|&idx| memories[idx].id.clone())
             .collect();
 
-        memories[primary_idx]
-            .metadata
-            .insert("references".to_string(), serde_json::Value::String(reference_ids.join(",")));
+        memories[primary_idx].metadata.insert(
+            "references".to_string(),
+            serde_json::Value::String(reference_ids.join(",")),
+        );
 
         debug!("Created references for {} memories", group.len());
         Ok(true)
@@ -330,12 +338,14 @@ impl MemoryConsolidator {
 
         // Add group metadata to all memories in the group
         for &idx in group {
-            memories[idx]
-                .metadata
-                .insert("memory_group".to_string(), serde_json::Value::String(group_id.clone()));
-            memories[idx]
-                .metadata
-                .insert("group_size".to_string(), serde_json::Value::Number(serde_json::Number::from(group.len())));
+            memories[idx].metadata.insert(
+                "memory_group".to_string(),
+                serde_json::Value::String(group_id.clone()),
+            );
+            memories[idx].metadata.insert(
+                "group_size".to_string(),
+                serde_json::Value::Number(serde_json::Number::from(group.len())),
+            );
         }
 
         debug!(
@@ -356,7 +366,6 @@ impl MemoryConsolidator {
 mod tests {
     use super::*;
     use agent_mem_core::MemoryType;
-
 
     fn create_test_memory(id: &str, content: &str, importance: f32) -> Memory {
         use agent_mem_traits::Session;

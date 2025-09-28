@@ -1,15 +1,15 @@
 //! 多智能体协作记忆系统演示
-//! 
+//!
 //! 展示智能体间的记忆共享、协作学习和知识传播功能
 
-use std::collections::HashMap;
 use agent_mem_core::collaboration::{
-    CollaborativeMemorySystem, CollaborationConfig, CollaborationOperation,
-    AgentPermissionLevel, AccessType, KnowledgeItem, KnowledgeType,
-    ConflictResolutionStrategy, ConflictingVersion, ConflictResolution, ResolutionType,
+    AccessType, AgentPermissionLevel, CollaborationConfig, CollaborationOperation,
+    CollaborativeMemorySystem, ConflictResolution, ConflictResolutionStrategy, ConflictingVersion,
+    KnowledgeItem, KnowledgeType, ResolutionType,
 };
 use agent_mem_traits::{MemoryItem, MemoryType, Session};
 use chrono::Utc;
+use std::collections::HashMap;
 use tracing::info;
 
 #[tokio::main]
@@ -66,11 +66,10 @@ async fn demo_memory_sharing() -> Result<(), Box<dyn std::error::Error>> {
         ("agent_c".to_string(), AgentPermissionLevel::ReadWrite),
     ]);
 
-    system.shared_memory_pool().add_shared_memory(
-        memory.clone(),
-        "agent_a".to_string(),
-        initial_permissions,
-    ).await?;
+    system
+        .shared_memory_pool()
+        .add_shared_memory(memory.clone(), "agent_a".to_string(), initial_permissions)
+        .await?;
 
     // 执行共享操作
     let share_operation = CollaborationOperation::ShareMemory {
@@ -105,15 +104,15 @@ async fn demo_permission_management() -> Result<(), Box<dyn std::error::Error>> 
     let system = CollaborativeMemorySystem::new(config);
 
     // 设置不同智能体的权限级别
-    system.permission_manager().set_agent_permission(
-        "admin_agent".to_string(),
-        AgentPermissionLevel::SuperAdmin,
-    ).await?;
+    system
+        .permission_manager()
+        .set_agent_permission("admin_agent".to_string(), AgentPermissionLevel::SuperAdmin)
+        .await?;
 
-    system.permission_manager().set_agent_permission(
-        "regular_agent".to_string(),
-        AgentPermissionLevel::ReadOnly,
-    ).await?;
+    system
+        .permission_manager()
+        .set_agent_permission("regular_agent".to_string(), AgentPermissionLevel::ReadOnly)
+        .await?;
 
     // 测试不同权限级别的访问
     let test_cases = vec![
@@ -165,10 +164,10 @@ async fn demo_knowledge_propagation() -> Result<(), Box<dyn std::error::Error>> 
     ];
 
     for agent in &target_agents {
-        system.knowledge_propagator().subscribe(
-            agent.clone(),
-            KnowledgeType::Procedural,
-        ).await?;
+        system
+            .knowledge_propagator()
+            .subscribe(agent.clone(), KnowledgeType::Procedural)
+            .await?;
     }
 
     // 执行知识传播
@@ -181,7 +180,10 @@ async fn demo_knowledge_propagation() -> Result<(), Box<dyn std::error::Error>> 
     println!("  🌐 知识传播结果: {:?}", result);
 
     // 获取传播统计
-    let stats = system.knowledge_propagator().get_propagation_statistics().await?;
+    let stats = system
+        .knowledge_propagator()
+        .get_propagation_statistics()
+        .await?;
     println!("  📊 传播统计:");
     println!("    - 总传播次数: {}", stats.total_propagations);
     println!("    - 成功率: {:.2}%", stats.success_rate * 100.0);
@@ -223,10 +225,10 @@ async fn demo_conflict_resolution() -> Result<(), Box<dyn std::error::Error>> {
     ];
 
     // 检测冲突
-    let conflict_id = system.conflict_resolver().detect_conflict(
-        "project_deadline".to_string(),
-        conflicting_versions,
-    ).await?;
+    let conflict_id = system
+        .conflict_resolver()
+        .detect_conflict("project_deadline".to_string(), conflicting_versions)
+        .await?;
 
     println!("  ⚠️ 检测到冲突: {}", conflict_id);
 
@@ -270,32 +272,55 @@ async fn demo_system_statistics() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("  📊 协作系统统计信息:");
     println!("    🔍 访问统计:");
-    println!("      - 总访问次数: {}", stats.access_statistics.total_accesses);
-    println!("      - 成功访问: {}", stats.access_statistics.successful_accesses);
-    println!("      - 失败访问: {}", stats.access_statistics.failed_accesses);
-    println!("      - 活跃智能体: {}", stats.access_statistics.unique_agents);
+    println!(
+        "      - 总访问次数: {}",
+        stats.access_statistics.total_accesses
+    );
+    println!(
+        "      - 成功访问: {}",
+        stats.access_statistics.successful_accesses
+    );
+    println!(
+        "      - 失败访问: {}",
+        stats.access_statistics.failed_accesses
+    );
+    println!(
+        "      - 活跃智能体: {}",
+        stats.access_statistics.unique_agents
+    );
 
     println!("    ⚖️ 冲突统计:");
-    println!("      - 总冲突数: {}", stats.conflict_statistics.total_conflicts);
-    println!("      - 已解决: {}", stats.conflict_statistics.resolved_conflicts);
-    println!("      - 平均解决时间: {:.2}秒", stats.conflict_statistics.average_resolution_time_seconds);
+    println!(
+        "      - 总冲突数: {}",
+        stats.conflict_statistics.total_conflicts
+    );
+    println!(
+        "      - 已解决: {}",
+        stats.conflict_statistics.resolved_conflicts
+    );
+    println!(
+        "      - 平均解决时间: {:.2}秒",
+        stats.conflict_statistics.average_resolution_time_seconds
+    );
 
     println!("    🌐 传播统计:");
-    println!("      - 传播成功率: {:.2}%", stats.propagation_statistics.success_rate * 100.0);
-    println!("      - 知识库大小: {}", stats.propagation_statistics.total_knowledge_items);
+    println!(
+        "      - 传播成功率: {:.2}%",
+        stats.propagation_statistics.success_rate * 100.0
+    );
+    println!(
+        "      - 知识库大小: {}",
+        stats.propagation_statistics.total_knowledge_items
+    );
 
     println!("  ✅ 系统统计演示完成\n");
     Ok(())
 }
 
 // 辅助函数：创建测试记忆
-fn create_memory_item(
-    id: String,
-    content: String,
-    importance: f32,
-) -> MemoryItem {
+fn create_memory_item(id: String, content: String, importance: f32) -> MemoryItem {
     let now = Utc::now();
-    
+
     MemoryItem {
         id,
         content,

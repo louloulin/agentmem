@@ -9,7 +9,7 @@
 
 use crate::error::Result;
 use crate::types::Memory;
-use agent_mem_traits::{MemoryType, Entity, Relation, Session};
+use agent_mem_traits::{Entity, MemoryType, Relation, Session};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
@@ -174,7 +174,11 @@ impl ContextAwareManager {
     }
 
     /// Extract context information from memory content
-    pub async fn extract_context(&self, content: &str, session: &Session) -> Result<Vec<ContextInfo>> {
+    pub async fn extract_context(
+        &self,
+        content: &str,
+        session: &Session,
+    ) -> Result<Vec<ContextInfo>> {
         if !self.config.enable_context_extraction {
             return Ok(Vec::new());
         }
@@ -232,9 +236,13 @@ impl ContextAwareManager {
     }
 
     /// Perform context-aware search
-    pub async fn search_with_context(&self, request: ContextAwareSearchRequest) -> Result<Vec<ContextAwareSearchResult>> {
+    pub async fn search_with_context(
+        &self,
+        request: ContextAwareSearchRequest,
+    ) -> Result<Vec<ContextAwareSearchResult>> {
         // Store current context in history
-        self.update_context_history(&request.current_context).await?;
+        self.update_context_history(&request.current_context)
+            .await?;
 
         // Learn from current context
         if self.config.enable_adaptive_learning {
@@ -242,20 +250,31 @@ impl ContextAwareManager {
         }
 
         // Perform basic search (this would integrate with the main search system)
-        let basic_results = self.perform_basic_search(&request.query, &request.session).await?;
+        let basic_results = self
+            .perform_basic_search(&request.query, &request.session)
+            .await?;
 
         // Enhance results with context awareness
         let mut context_aware_results = Vec::new();
         for memory in basic_results {
-            let context_score = self.calculate_context_score(&memory, &request.current_context).await?;
-            let matching_contexts = self.find_matching_contexts(&memory, &request.current_context).await?;
-            let matching_patterns = self.find_matching_patterns(&request.current_context).await?;
-            
+            let context_score = self
+                .calculate_context_score(&memory, &request.current_context)
+                .await?;
+            let matching_contexts = self
+                .find_matching_contexts(&memory, &request.current_context)
+                .await?;
+            let matching_patterns = self
+                .find_matching_patterns(&request.current_context)
+                .await?;
+
             let relevance_score = memory.score.unwrap_or(0.5);
             let context_weight = request.context_weight.unwrap_or(0.3);
-            let combined_score = relevance_score * (1.0 - context_weight) + context_score * context_weight;
+            let combined_score =
+                relevance_score * (1.0 - context_weight) + context_score * context_weight;
 
-            let context_explanation = self.generate_context_explanation(&matching_contexts, &matching_patterns).await?;
+            let context_explanation = self
+                .generate_context_explanation(&matching_contexts, &matching_patterns)
+                .await?;
 
             context_aware_results.push(ContextAwareSearchResult {
                 memory,
@@ -269,7 +288,11 @@ impl ContextAwareManager {
         }
 
         // Sort by combined score
-        context_aware_results.sort_by(|a, b| b.combined_score.partial_cmp(&a.combined_score).unwrap_or(std::cmp::Ordering::Equal));
+        context_aware_results.sort_by(|a, b| {
+            b.combined_score
+                .partial_cmp(&a.combined_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         // Apply limit
         if let Some(limit) = request.limit {
@@ -280,7 +303,10 @@ impl ContextAwareManager {
     }
 
     /// Learn patterns from context
-    pub async fn learn_from_context(&self, contexts: &[ContextInfo]) -> Result<ContextLearningResult> {
+    pub async fn learn_from_context(
+        &self,
+        contexts: &[ContextInfo],
+    ) -> Result<ContextLearningResult> {
         let mut new_patterns = Vec::new();
         let mut updated_patterns = Vec::new();
         let mut insights = Vec::new();
@@ -295,14 +321,15 @@ impl ContextAwareManager {
 
         // Detect new patterns
         let detected_patterns = self.detect_context_patterns(contexts).await?;
-        
+
         for pattern in detected_patterns {
             let mut patterns = self.patterns.write().await;
             if let Some(existing_pattern) = patterns.get_mut(&pattern.id) {
                 // Update existing pattern
                 existing_pattern.frequency += 1;
                 existing_pattern.last_seen = chrono::Utc::now();
-                existing_pattern.confidence = (existing_pattern.confidence + pattern.confidence) / 2.0;
+                existing_pattern.confidence =
+                    (existing_pattern.confidence + pattern.confidence) / 2.0;
                 updated_patterns.push(existing_pattern.clone());
             } else {
                 // Add new pattern
@@ -313,10 +340,16 @@ impl ContextAwareManager {
 
         // Generate insights
         if !new_patterns.is_empty() {
-            insights.push(format!("Discovered {} new context patterns", new_patterns.len()));
+            insights.push(format!(
+                "Discovered {} new context patterns",
+                new_patterns.len()
+            ));
         }
         if !updated_patterns.is_empty() {
-            insights.push(format!("Updated {} existing patterns", updated_patterns.len()));
+            insights.push(format!(
+                "Updated {} existing patterns",
+                updated_patterns.len()
+            ));
         }
 
         let confidence = if new_patterns.is_empty() && updated_patterns.is_empty() {
@@ -343,7 +376,7 @@ impl ContextAwareManager {
     pub async fn get_context_history(&self, limit: Option<usize>) -> Result<Vec<ContextInfo>> {
         let history = self.context_history.read().await;
         let contexts: Vec<_> = history.iter().cloned().collect();
-        
+
         if let Some(limit) = limit {
             Ok(contexts.into_iter().rev().take(limit).collect())
         } else {
@@ -363,7 +396,15 @@ impl ContextAwareManager {
     /// Extract temporal context from content
     async fn extract_temporal_context(&self, content: &str) -> Result<Option<ContextInfo>> {
         // Simple temporal context extraction
-        let temporal_keywords = ["today", "yesterday", "tomorrow", "morning", "afternoon", "evening", "night"];
+        let temporal_keywords = [
+            "today",
+            "yesterday",
+            "tomorrow",
+            "morning",
+            "afternoon",
+            "evening",
+            "night",
+        ];
 
         for keyword in &temporal_keywords {
             if content.to_lowercase().contains(keyword) {
@@ -387,10 +428,29 @@ impl ContextAwareManager {
     async fn extract_topic_context(&self, content: &str) -> Result<Option<ContextInfo>> {
         // Simple topic extraction based on keywords
         let topics = [
-            ("programming", vec!["code", "programming", "software", "development", "bug", "feature"]),
-            ("work", vec!["meeting", "project", "deadline", "task", "work", "office"]),
-            ("personal", vec!["family", "friend", "hobby", "vacation", "personal", "home"]),
-            ("learning", vec!["study", "learn", "course", "book", "tutorial", "education"]),
+            (
+                "programming",
+                vec![
+                    "code",
+                    "programming",
+                    "software",
+                    "development",
+                    "bug",
+                    "feature",
+                ],
+            ),
+            (
+                "work",
+                vec!["meeting", "project", "deadline", "task", "work", "office"],
+            ),
+            (
+                "personal",
+                vec!["family", "friend", "hobby", "vacation", "personal", "home"],
+            ),
+            (
+                "learning",
+                vec!["study", "learn", "course", "book", "tutorial", "education"],
+            ),
         ];
 
         for (topic, keywords) in &topics {
@@ -420,9 +480,18 @@ impl ContextAwareManager {
     /// Extract emotional context from content
     async fn extract_emotional_context(&self, content: &str) -> Result<Option<ContextInfo>> {
         let emotions = [
-            ("positive", vec!["happy", "excited", "great", "awesome", "love", "enjoy"]),
-            ("negative", vec!["sad", "angry", "frustrated", "hate", "terrible", "awful"]),
-            ("neutral", vec!["okay", "fine", "normal", "regular", "standard"]),
+            (
+                "positive",
+                vec!["happy", "excited", "great", "awesome", "love", "enjoy"],
+            ),
+            (
+                "negative",
+                vec!["sad", "angry", "frustrated", "hate", "terrible", "awful"],
+            ),
+            (
+                "neutral",
+                vec!["okay", "fine", "normal", "regular", "standard"],
+            ),
         ];
 
         for (emotion, keywords) in &emotions {
@@ -451,7 +520,9 @@ impl ContextAwareManager {
 
     /// Extract task context from content
     async fn extract_task_context(&self, content: &str) -> Result<Option<ContextInfo>> {
-        let task_indicators = ["need to", "should", "must", "have to", "plan to", "going to"];
+        let task_indicators = [
+            "need to", "should", "must", "have to", "plan to", "going to",
+        ];
 
         for indicator in &task_indicators {
             if content.to_lowercase().contains(indicator) {
@@ -477,7 +548,15 @@ impl ContextAwareManager {
 
     /// Extract location context from content
     async fn extract_location_context(&self, content: &str) -> Result<Option<ContextInfo>> {
-        let locations = ["home", "office", "work", "school", "restaurant", "store", "park"];
+        let locations = [
+            "home",
+            "office",
+            "work",
+            "school",
+            "restaurant",
+            "store",
+            "park",
+        ];
 
         for location in &locations {
             if content.to_lowercase().contains(location) {
@@ -521,7 +600,11 @@ impl ContextAwareManager {
     }
 
     /// Calculate context score for a memory
-    async fn calculate_context_score(&self, memory: &Memory, current_contexts: &[ContextInfo]) -> Result<f32> {
+    async fn calculate_context_score(
+        &self,
+        memory: &Memory,
+        current_contexts: &[ContextInfo],
+    ) -> Result<f32> {
         let memory_contexts = {
             let contexts = self.memory_contexts.read().await;
             contexts.get(&memory.id).cloned().unwrap_or_default()
@@ -537,7 +620,9 @@ impl ContextAwareManager {
         for current_context in current_contexts {
             for memory_context in &memory_contexts {
                 if current_context.context_type == memory_context.context_type {
-                    let similarity = self.calculate_context_similarity(current_context, memory_context).await?;
+                    let similarity = self
+                        .calculate_context_similarity(current_context, memory_context)
+                        .await?;
                     total_score += similarity;
                     matches += 1;
                 }
@@ -552,7 +637,11 @@ impl ContextAwareManager {
     }
 
     /// Calculate similarity between two contexts
-    async fn calculate_context_similarity(&self, context1: &ContextInfo, context2: &ContextInfo) -> Result<f32> {
+    async fn calculate_context_similarity(
+        &self,
+        context1: &ContextInfo,
+        context2: &ContextInfo,
+    ) -> Result<f32> {
         if context1.context_type != context2.context_type {
             return Ok(0.0);
         }
@@ -560,8 +649,15 @@ impl ContextAwareManager {
         // Simple string similarity for now
         let similarity = if context1.value == context2.value {
             1.0
-        } else if context1.value.to_lowercase().contains(&context2.value.to_lowercase()) ||
-                  context2.value.to_lowercase().contains(&context1.value.to_lowercase()) {
+        } else if context1
+            .value
+            .to_lowercase()
+            .contains(&context2.value.to_lowercase())
+            || context2
+                .value
+                .to_lowercase()
+                .contains(&context1.value.to_lowercase())
+        {
             0.7
         } else {
             0.0
@@ -571,7 +667,11 @@ impl ContextAwareManager {
     }
 
     /// Find matching contexts for a memory
-    async fn find_matching_contexts(&self, memory: &Memory, current_contexts: &[ContextInfo]) -> Result<Vec<ContextInfo>> {
+    async fn find_matching_contexts(
+        &self,
+        memory: &Memory,
+        current_contexts: &[ContextInfo],
+    ) -> Result<Vec<ContextInfo>> {
         let memory_contexts = {
             let contexts = self.memory_contexts.read().await;
             contexts.get(&memory.id).cloned().unwrap_or_default()
@@ -581,7 +681,9 @@ impl ContextAwareManager {
 
         for current_context in current_contexts {
             for memory_context in &memory_contexts {
-                let similarity = self.calculate_context_similarity(current_context, memory_context).await?;
+                let similarity = self
+                    .calculate_context_similarity(current_context, memory_context)
+                    .await?;
                 if similarity >= self.config.context_similarity_threshold {
                     matching.push(current_context.clone());
                     break;
@@ -593,7 +695,10 @@ impl ContextAwareManager {
     }
 
     /// Find matching patterns for current contexts
-    async fn find_matching_patterns(&self, current_contexts: &[ContextInfo]) -> Result<Vec<ContextPattern>> {
+    async fn find_matching_patterns(
+        &self,
+        current_contexts: &[ContextInfo],
+    ) -> Result<Vec<ContextPattern>> {
         let patterns = self.patterns.read().await;
         let mut matching = Vec::new();
 
@@ -620,12 +725,16 @@ impl ContextAwareManager {
     }
 
     /// Detect context patterns from current contexts
-    async fn detect_context_patterns(&self, contexts: &[ContextInfo]) -> Result<Vec<ContextPattern>> {
+    async fn detect_context_patterns(
+        &self,
+        contexts: &[ContextInfo],
+    ) -> Result<Vec<ContextPattern>> {
         let mut patterns = Vec::new();
 
         // Simple pattern detection: group contexts by type combinations
         if contexts.len() >= 2 {
-            let context_types: Vec<String> = contexts.iter().map(|c| c.context_type.clone()).collect();
+            let context_types: Vec<String> =
+                contexts.iter().map(|c| c.context_type.clone()).collect();
             let pattern_id = format!("pattern_{}", Uuid::new_v4());
 
             let pattern = ContextPattern {
@@ -647,7 +756,11 @@ impl ContextAwareManager {
     }
 
     /// Generate context explanation
-    async fn generate_context_explanation(&self, matching_contexts: &[ContextInfo], matching_patterns: &[ContextPattern]) -> Result<String> {
+    async fn generate_context_explanation(
+        &self,
+        matching_contexts: &[ContextInfo],
+        matching_patterns: &[ContextPattern],
+    ) -> Result<String> {
         let mut explanation = String::new();
 
         if !matching_contexts.is_empty() {
@@ -664,10 +777,8 @@ impl ContextAwareManager {
                 explanation.push_str(". ");
             }
             explanation.push_str("Matching patterns: ");
-            let pattern_descriptions: Vec<String> = matching_patterns
-                .iter()
-                .map(|p| p.name.clone())
-                .collect();
+            let pattern_descriptions: Vec<String> =
+                matching_patterns.iter().map(|p| p.name.clone()).collect();
             explanation.push_str(&pattern_descriptions.join(", "));
         }
 
@@ -679,7 +790,11 @@ impl ContextAwareManager {
     }
 
     /// Associate contexts with a memory
-    pub async fn associate_contexts_with_memory(&self, memory_id: &str, contexts: Vec<ContextInfo>) -> Result<()> {
+    pub async fn associate_contexts_with_memory(
+        &self,
+        memory_id: &str,
+        contexts: Vec<ContextInfo>,
+    ) -> Result<()> {
         let mut memory_contexts = self.memory_contexts.write().await;
         memory_contexts.insert(memory_id.to_string(), contexts);
         Ok(())
@@ -747,7 +862,10 @@ mod tests {
             metadata: HashMap::new(),
         };
 
-        let contexts = manager.extract_context("I need to finish my programming project today", &session).await.unwrap();
+        let contexts = manager
+            .extract_context("I need to finish my programming project today", &session)
+            .await
+            .unwrap();
 
         // Should extract multiple contexts
         assert!(!contexts.is_empty());

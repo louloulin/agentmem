@@ -48,7 +48,14 @@ impl MemoryManager {
         });
 
         manager
-            .add_memory(agent_id, user_id, content, core_memory_type, importance, metadata)
+            .add_memory(
+                agent_id,
+                user_id,
+                content,
+                core_memory_type,
+                importance,
+                metadata,
+            )
             .await
             .map_err(|e| e.to_string())
     }
@@ -101,7 +108,10 @@ impl MemoryManager {
             .map(|_| ())
     }
 
-    pub async fn search_memories(&self, query: &MemoryQuery) -> Result<Vec<serde_json::Value>, String> {
+    pub async fn search_memories(
+        &self,
+        query: &MemoryQuery,
+    ) -> Result<Vec<serde_json::Value>, String> {
         let manager = self.core_manager.read().await;
         match manager.search_memories(query.clone()).await {
             Ok(results) => {
@@ -133,7 +143,10 @@ impl MemoryManager {
         }
     }
 
-    pub async fn batch_add_memories(&self, requests: Vec<crate::models::MemoryRequest>) -> Result<Vec<String>, String> {
+    pub async fn batch_add_memories(
+        &self,
+        requests: Vec<crate::models::MemoryRequest>,
+    ) -> Result<Vec<String>, String> {
         let mut memory_ids = Vec::new();
 
         for request in requests {
@@ -153,7 +166,10 @@ impl MemoryManager {
         Ok(memory_ids)
     }
 
-    pub async fn batch_get_memories(&self, ids: Vec<String>) -> Result<Vec<serde_json::Value>, String> {
+    pub async fn batch_get_memories(
+        &self,
+        ids: Vec<String>,
+    ) -> Result<Vec<serde_json::Value>, String> {
         let mut memories = Vec::new();
 
         for id in ids {
@@ -165,7 +181,10 @@ impl MemoryManager {
         Ok(memories)
     }
 
-    pub async fn get_memory_stats(&self, agent_id: Option<String>) -> Result<serde_json::Value, String> {
+    pub async fn get_memory_stats(
+        &self,
+        agent_id: Option<String>,
+    ) -> Result<serde_json::Value, String> {
         let manager = self.core_manager.read().await;
         match manager.get_memory_stats(agent_id.as_deref()).await {
             Ok(stats) => {
@@ -265,9 +284,7 @@ pub async fn get_memory(
     })?;
 
     match memory {
-        Some(mem) => {
-            Ok(Json(mem))
-        }
+        Some(mem) => Ok(Json(mem)),
         None => Err(ServerError::NotFound("Memory not found".to_string())),
     }
 }
@@ -387,10 +404,7 @@ pub async fn search_memories(
     })?;
 
     let total = results.len();
-    let response = SearchResponse {
-        results,
-        total,
-    };
+    let response = SearchResponse { results, total };
 
     Ok(Json(response))
 }

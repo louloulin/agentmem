@@ -1,6 +1,6 @@
 //! 视频内容处理模块
 
-use super::{MultimodalProcessor, MultimodalContent, ContentType};
+use super::{ContentType, MultimodalContent, MultimodalProcessor};
 use agent_mem_traits::{AgentMemError, Result};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -56,7 +56,8 @@ impl VideoProcessor {
         let metadata = &content.metadata;
 
         // 从元数据获取视频时长
-        let duration = metadata.get("duration")
+        let duration = metadata
+            .get("duration")
             .and_then(|v| v.as_f64())
             .unwrap_or_else(|| self.estimate_duration_from_filename(filename));
 
@@ -93,7 +94,11 @@ impl VideoProcessor {
 
         // 真实的音频提取和转录
         // 基于文件名和元数据进行智能文本提取
-        if content.mime_type.as_ref().map_or(false, |m| m.starts_with("video/")) {
+        if content
+            .mime_type
+            .as_ref()
+            .map_or(false, |m| m.starts_with("video/"))
+        {
             let filename = &content.id;
 
             // 从文件名提取可能的音频内容描述
@@ -119,7 +124,8 @@ impl VideoProcessor {
         let metadata = &content.metadata;
 
         // 从元数据获取视频时长
-        let duration = metadata.get("duration")
+        let duration = metadata
+            .get("duration")
             .and_then(|v| v.as_f64())
             .unwrap_or_else(|| self.estimate_duration_from_filename(filename));
 
@@ -134,7 +140,10 @@ impl VideoProcessor {
         for i in 0..scene_count {
             let start_time = i as f64 * scene_duration;
             let end_time = ((i + 1) as f64 * scene_duration).min(duration);
-            let scene_type = scene_types.get(i % scene_types.len()).unwrap_or(&"general".to_string()).clone();
+            let scene_type = scene_types
+                .get(i % scene_types.len())
+                .unwrap_or(&"general".to_string())
+                .clone();
             let description = self.generate_scene_description(&scene_type, start_time, end_time);
 
             scenes.push(Scene {
@@ -161,25 +170,30 @@ impl VideoProcessor {
         let codec = self.detect_video_codec(&format);
 
         // 从元数据获取技术参数
-        let duration = metadata.get("duration")
+        let duration = metadata
+            .get("duration")
             .and_then(|v| v.as_f64())
             .unwrap_or_else(|| self.estimate_duration_from_filename(filename));
 
-        let width = metadata.get("width")
+        let width = metadata
+            .get("width")
             .and_then(|v| v.as_u64())
-            .unwrap_or_else(|| self.estimate_resolution_from_filename(filename).0) as u32;
+            .unwrap_or_else(|| self.estimate_resolution_from_filename(filename).0)
+            as u32;
 
-        let height = metadata.get("height")
+        let height = metadata
+            .get("height")
             .and_then(|v| v.as_u64())
-            .unwrap_or_else(|| self.estimate_resolution_from_filename(filename).1) as u32;
+            .unwrap_or_else(|| self.estimate_resolution_from_filename(filename).1)
+            as u32;
 
-        let fps = metadata.get("fps")
-            .and_then(|v| v.as_f64())
-            .unwrap_or(30.0);
+        let fps = metadata.get("fps").and_then(|v| v.as_f64()).unwrap_or(30.0);
 
-        let bitrate = metadata.get("bitrate")
+        let bitrate = metadata
+            .get("bitrate")
             .and_then(|v| v.as_u64())
-            .unwrap_or_else(|| self.estimate_bitrate_from_resolution(width, height)) as u64;
+            .unwrap_or_else(|| self.estimate_bitrate_from_resolution(width, height))
+            as u64;
 
         let has_audio = self.detect_audio_from_filename(filename);
         let total_frames = (duration * fps) as u64;
@@ -269,10 +283,16 @@ impl VideoProcessor {
         let filename_lower = filename.to_lowercase();
         let mut scene_types = Vec::new();
 
-        if filename_lower.contains("indoor") || filename_lower.contains("office") || filename_lower.contains("room") {
+        if filename_lower.contains("indoor")
+            || filename_lower.contains("office")
+            || filename_lower.contains("room")
+        {
             scene_types.push("indoor".to_string());
         }
-        if filename_lower.contains("outdoor") || filename_lower.contains("street") || filename_lower.contains("park") {
+        if filename_lower.contains("outdoor")
+            || filename_lower.contains("street")
+            || filename_lower.contains("park")
+        {
             scene_types.push("outdoor".to_string());
         }
         if filename_lower.contains("meeting") || filename_lower.contains("conference") {
@@ -287,8 +307,16 @@ impl VideoProcessor {
     }
 
     /// 生成场景描述
-    fn generate_scene_description(&self, scene_type: &str, start_time: f64, end_time: f64) -> String {
-        format!("{} scene from {:.1}s to {:.1}s", scene_type, start_time, end_time)
+    fn generate_scene_description(
+        &self,
+        scene_type: &str,
+        start_time: f64,
+        end_time: f64,
+    ) -> String {
+        format!(
+            "{} scene from {:.1}s to {:.1}s",
+            scene_type, start_time, end_time
+        )
     }
 
     /// 检测视频格式
@@ -339,11 +367,11 @@ impl VideoProcessor {
         if pixels >= 3840 * 2160 {
             15_000_000 // 4K: 15Mbps
         } else if pixels >= 1920 * 1080 {
-            5_000_000  // 1080p: 5Mbps
+            5_000_000 // 1080p: 5Mbps
         } else if pixels >= 1280 * 720 {
-            2_500_000  // 720p: 2.5Mbps
+            2_500_000 // 720p: 2.5Mbps
         } else {
-            1_000_000  // 其他: 1Mbps
+            1_000_000 // 其他: 1Mbps
         }
     }
 
@@ -377,22 +405,25 @@ impl MultimodalProcessor for VideoProcessor {
 
         // 提取关键帧
         if let Ok(keyframes) = self.extract_keyframes(content).await {
-            let keyframes_json = serde_json::to_value(keyframes)
-                .map_err(|e| AgentMemError::ProcessingError(format!("Failed to serialize keyframes: {}", e)))?;
+            let keyframes_json = serde_json::to_value(keyframes).map_err(|e| {
+                AgentMemError::ProcessingError(format!("Failed to serialize keyframes: {}", e))
+            })?;
             content.set_metadata("keyframes".to_string(), keyframes_json);
         }
 
         // 检测场景
         if let Ok(scenes) = self.detect_scenes(content).await {
-            let scenes_json = serde_json::to_value(scenes)
-                .map_err(|e| AgentMemError::ProcessingError(format!("Failed to serialize scenes: {}", e)))?;
+            let scenes_json = serde_json::to_value(scenes).map_err(|e| {
+                AgentMemError::ProcessingError(format!("Failed to serialize scenes: {}", e))
+            })?;
             content.set_metadata("scenes".to_string(), scenes_json);
         }
 
         // 分析视频特征
         if let Ok(analysis) = self.analyze_video(content).await {
-            let analysis_json = serde_json::to_value(analysis)
-                .map_err(|e| AgentMemError::ProcessingError(format!("Failed to serialize video analysis: {}", e)))?;
+            let analysis_json = serde_json::to_value(analysis).map_err(|e| {
+                AgentMemError::ProcessingError(format!("Failed to serialize video analysis: {}", e))
+            })?;
             content.set_metadata("video_analysis".to_string(), analysis_json);
         }
 
@@ -427,7 +458,8 @@ impl MultimodalProcessor for VideoProcessor {
 
         if let Some(scenes_value) = content.get_metadata("scenes") {
             if let Ok(scenes) = serde_json::from_value::<Vec<Scene>>(scenes_value.clone()) {
-                let scene_types: Vec<String> = scenes.iter().map(|s| s.scene_type.clone()).collect();
+                let scene_types: Vec<String> =
+                    scenes.iter().map(|s| s.scene_type.clone()).collect();
                 summary_parts.push(format!("Scenes: {}", scene_types.join(", ")));
             }
         }

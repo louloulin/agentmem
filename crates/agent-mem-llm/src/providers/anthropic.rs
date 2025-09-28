@@ -1,6 +1,8 @@
 //! Anthropic Claude LLM提供商实现
 
-use agent_mem_traits::{AgentMemError, LLMConfig, LLMProvider, Message, MessageRole, ModelInfo, Result};
+use agent_mem_traits::{
+    AgentMemError, LLMConfig, LLMProvider, Message, MessageRole, ModelInfo, Result,
+};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -202,7 +204,7 @@ impl LLMProvider for AnthropicProvider {
         &self,
         messages: &[Message],
     ) -> Result<Box<dyn futures::Stream<Item = Result<String>> + Send + Unpin>> {
-        use futures::stream::{self, StreamExt};
+        use futures::stream::StreamExt;
 
         // 构建 Anthropic 消息格式
         let mut anthropic_messages = Vec::new();
@@ -228,7 +230,7 @@ impl LLMProvider for AnthropicProvider {
             }
         }
 
-        let mut request = AnthropicRequest {
+        let request = AnthropicRequest {
             model: self.config.model.clone(),
             max_tokens: self.config.max_tokens.unwrap_or(4096),
             messages: anthropic_messages,
@@ -248,7 +250,9 @@ impl LLMProvider for AnthropicProvider {
             .json(&request)
             .send()
             .await
-            .map_err(|e| AgentMemError::network_error(&format!("Anthropic API request failed: {}", e)))?;
+            .map_err(|e| {
+                AgentMemError::network_error(&format!("Anthropic API request failed: {}", e))
+            })?;
 
         if !response.status().is_success() {
             let error_text = response.text().await.unwrap_or_default();
@@ -292,7 +296,10 @@ impl LLMProvider for AnthropicProvider {
                         }
                         Ok("".to_string())
                     }
-                    Err(e) => Err(AgentMemError::network_error(&format!("Stream error: {}", e))),
+                    Err(e) => Err(AgentMemError::network_error(&format!(
+                        "Stream error: {}",
+                        e
+                    ))),
                 }
             })
             .filter(|result| {
@@ -311,7 +318,7 @@ impl LLMProvider for AnthropicProvider {
             provider: "anthropic".to_string(),
             model: self.config.model.clone(),
             max_tokens: self.config.max_tokens.unwrap_or(4096),
-            supports_streaming: true, // 现在支持流式处理
+            supports_streaming: true,  // 现在支持流式处理
             supports_functions: false, // Claude不支持函数调用
         }
     }

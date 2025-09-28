@@ -276,8 +276,11 @@ pub struct ProceduralMemoryManager {
 impl ProceduralMemoryManager {
     /// 创建新的程序性记忆管理器
     pub fn new(config: ProceduralMemoryConfig) -> Self {
-        info!("Initializing ProceduralMemoryManager with config: {:?}", config);
-        
+        info!(
+            "Initializing ProceduralMemoryManager with config: {:?}",
+            config
+        );
+
         Self {
             config,
             workflows: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
@@ -300,9 +303,11 @@ impl ProceduralMemoryManager {
 
         // 验证步骤数量
         if steps.len() > self.config.max_steps {
-            return Err(AgentMemError::ValidationError(
-                format!("Too many steps: {} > {}", steps.len(), self.config.max_steps)
-            ));
+            return Err(AgentMemError::ValidationError(format!(
+                "Too many steps: {} > {}",
+                steps.len(),
+                self.config.max_steps
+            )));
         }
 
         // 验证步骤依赖关系
@@ -336,18 +341,20 @@ impl ProceduralMemoryManager {
             // 检查前置条件是否存在
             for prereq in &step.prerequisites {
                 if !step_ids.contains(prereq) {
-                    return Err(AgentMemError::ValidationError(
-                        format!("Step {} has invalid prerequisite: {}", step.id, prereq)
-                    ));
+                    return Err(AgentMemError::ValidationError(format!(
+                        "Step {} has invalid prerequisite: {}",
+                        step.id, prereq
+                    )));
                 }
             }
 
             // 检查后续步骤是否存在
             for next_step in &step.next_steps {
                 if !step_ids.contains(next_step) {
-                    return Err(AgentMemError::ValidationError(
-                        format!("Step {} has invalid next step: {}", step.id, next_step)
-                    ));
+                    return Err(AgentMemError::ValidationError(format!(
+                        "Step {} has invalid next step: {}",
+                        step.id, next_step
+                    )));
                 }
             }
         }
@@ -368,9 +375,7 @@ impl ProceduralMemoryManager {
 
         // 按标签过滤
         if let Some(filter_tags) = tags {
-            result.retain(|w| {
-                filter_tags.iter().any(|tag| w.tags.contains(tag))
-            });
+            result.retain(|w| filter_tags.iter().any(|tag| w.tags.contains(tag)));
         }
 
         // 按创建时间排序
@@ -422,7 +427,10 @@ impl ProceduralMemoryManager {
     }
 
     /// 获取执行状态
-    pub async fn get_execution_status(&self, execution_id: &str) -> Result<Option<WorkflowExecution>> {
+    pub async fn get_execution_status(
+        &self,
+        execution_id: &str,
+    ) -> Result<Option<WorkflowExecution>> {
         let executions = self.executions.read().await;
         Ok(executions.get(execution_id).cloned())
     }
@@ -430,13 +438,17 @@ impl ProceduralMemoryManager {
     /// 执行下一步
     pub async fn execute_next_step(&self, execution_id: &str) -> Result<StepExecutionResult> {
         let mut executions = self.executions.write().await;
-        let execution = executions.get_mut(execution_id)
-            .ok_or_else(|| AgentMemError::NotFound(format!("Execution not found: {}", execution_id)))?;
+        let execution = executions.get_mut(execution_id).ok_or_else(|| {
+            AgentMemError::NotFound(format!("Execution not found: {}", execution_id))
+        })?;
 
-        if execution.status != ExecutionStatus::Running && execution.status != ExecutionStatus::Pending {
-            return Err(AgentMemError::ValidationError(
-                format!("Execution {} is not in a runnable state: {:?}", execution_id, execution.status)
-            ));
+        if execution.status != ExecutionStatus::Running
+            && execution.status != ExecutionStatus::Pending
+        {
+            return Err(AgentMemError::ValidationError(format!(
+                "Execution {} is not in a runnable state: {:?}",
+                execution_id, execution.status
+            )));
         }
 
         // 获取工作流定义
@@ -499,12 +511,16 @@ impl ProceduralMemoryManager {
     ) -> Result<Option<WorkflowStep>> {
         for step in &workflow.steps {
             // 跳过已完成或失败的步骤
-            if execution.completed_steps.contains(&step.id) || execution.failed_steps.contains(&step.id) {
+            if execution.completed_steps.contains(&step.id)
+                || execution.failed_steps.contains(&step.id)
+            {
                 continue;
             }
 
             // 检查前置条件是否满足
-            let prerequisites_met = step.prerequisites.iter()
+            let prerequisites_met = step
+                .prerequisites
+                .iter()
                 .all(|prereq| execution.completed_steps.contains(prereq));
 
             if prerequisites_met {
@@ -533,14 +549,19 @@ impl ProceduralMemoryManager {
             StepType::Loop => self.execute_loop_step(step, execution).await,
             StepType::Parallel => self.execute_parallel_step(step, execution).await,
             StepType::Wait => self.execute_wait_step(step, execution).await,
-            StepType::Custom(custom_type) => self.execute_custom_step(step, execution, custom_type).await,
+            StepType::Custom(custom_type) => {
+                self.execute_custom_step(step, execution, custom_type).await
+            }
         };
 
         let execution_time = start_time.elapsed().as_millis() as u64;
 
         match result {
             Ok(outputs) => {
-                info!("Step {} completed successfully in {}ms", step.id, execution_time);
+                info!(
+                    "Step {} completed successfully in {}ms",
+                    step.id, execution_time
+                );
                 Ok(StepExecutionResult {
                     step_id: step.id.clone(),
                     success: true,
@@ -589,12 +610,20 @@ impl ProceduralMemoryManager {
 
         // 模拟动作执行
         let mut outputs = HashMap::new();
-        outputs.insert("action_result".to_string(), serde_json::Value::String("completed".to_string()));
-        outputs.insert("timestamp".to_string(), serde_json::Value::String(Utc::now().to_rfc3339()));
+        outputs.insert(
+            "action_result".to_string(),
+            serde_json::Value::String("completed".to_string()),
+        );
+        outputs.insert(
+            "timestamp".to_string(),
+            serde_json::Value::String(Utc::now().to_rfc3339()),
+        );
 
         // 将输入参数复制到执行上下文
         for (key, value) in &step.inputs {
-            execution.context.insert(format!("step_{}_{}", step.id, key), value.clone());
+            execution
+                .context
+                .insert(format!("step_{}_{}", step.id, key), value.clone());
         }
 
         Ok(outputs)
@@ -609,7 +638,9 @@ impl ProceduralMemoryManager {
         debug!("Executing decision step: {}", step.name);
 
         // 获取决策条件
-        let condition = step.inputs.get("condition")
+        let condition = step
+            .inputs
+            .get("condition")
             .and_then(|v| v.as_str())
             .unwrap_or("true");
 
@@ -617,8 +648,14 @@ impl ProceduralMemoryManager {
         let decision_result = self.evaluate_condition(condition, &execution.context)?;
 
         let mut outputs = HashMap::new();
-        outputs.insert("decision".to_string(), serde_json::Value::Bool(decision_result));
-        outputs.insert("condition".to_string(), serde_json::Value::String(condition.to_string()));
+        outputs.insert(
+            "decision".to_string(),
+            serde_json::Value::Bool(decision_result),
+        );
+        outputs.insert(
+            "condition".to_string(),
+            serde_json::Value::String(condition.to_string()),
+        );
 
         Ok(outputs)
     }
@@ -631,14 +668,19 @@ impl ProceduralMemoryManager {
     ) -> Result<HashMap<String, serde_json::Value>> {
         debug!("Executing condition step: {}", step.name);
 
-        let condition = step.inputs.get("condition")
+        let condition = step
+            .inputs
+            .get("condition")
             .and_then(|v| v.as_str())
             .unwrap_or("true");
 
         let condition_met = self.evaluate_condition(condition, &execution.context)?;
 
         let mut outputs = HashMap::new();
-        outputs.insert("condition_met".to_string(), serde_json::Value::Bool(condition_met));
+        outputs.insert(
+            "condition_met".to_string(),
+            serde_json::Value::Bool(condition_met),
+        );
 
         if !condition_met {
             // 如果条件不满足，可能需要跳过后续步骤
@@ -656,11 +698,15 @@ impl ProceduralMemoryManager {
     ) -> Result<HashMap<String, serde_json::Value>> {
         debug!("Executing loop step: {}", step.name);
 
-        let max_iterations = step.inputs.get("max_iterations")
+        let max_iterations = step
+            .inputs
+            .get("max_iterations")
             .and_then(|v| v.as_u64())
             .unwrap_or(10) as usize;
 
-        let loop_condition = step.inputs.get("condition")
+        let loop_condition = step
+            .inputs
+            .get("condition")
             .and_then(|v| v.as_str())
             .unwrap_or("false");
 
@@ -683,13 +729,19 @@ impl ProceduralMemoryManager {
             // 更新循环计数器到上下文
             execution.context.insert(
                 format!("loop_{}_iteration", step.id),
-                serde_json::Value::Number(iteration_count.into())
+                serde_json::Value::Number(iteration_count.into()),
             );
         }
 
         let mut outputs = HashMap::new();
-        outputs.insert("iterations_completed".to_string(), serde_json::Value::Number(iteration_count.into()));
-        outputs.insert("loop_results".to_string(), serde_json::Value::Array(loop_results));
+        outputs.insert(
+            "iterations_completed".to_string(),
+            serde_json::Value::Number(iteration_count.into()),
+        );
+        outputs.insert(
+            "loop_results".to_string(),
+            serde_json::Value::Array(loop_results),
+        );
 
         Ok(outputs)
     }
@@ -707,7 +759,9 @@ impl ProceduralMemoryManager {
             return self.execute_action_step(step, execution).await;
         }
 
-        let parallel_tasks = step.inputs.get("tasks")
+        let parallel_tasks = step
+            .inputs
+            .get("tasks")
             .and_then(|v| v.as_array())
             .map(|arr| arr.len())
             .unwrap_or(1);
@@ -715,9 +769,18 @@ impl ProceduralMemoryManager {
         let max_parallelism = self.config.max_parallelism.min(parallel_tasks);
 
         let mut outputs = HashMap::new();
-        outputs.insert("parallel_tasks".to_string(), serde_json::Value::Number(parallel_tasks.into()));
-        outputs.insert("max_parallelism".to_string(), serde_json::Value::Number(max_parallelism.into()));
-        outputs.insert("execution_mode".to_string(), serde_json::Value::String("parallel".to_string()));
+        outputs.insert(
+            "parallel_tasks".to_string(),
+            serde_json::Value::Number(parallel_tasks.into()),
+        );
+        outputs.insert(
+            "max_parallelism".to_string(),
+            serde_json::Value::Number(max_parallelism.into()),
+        );
+        outputs.insert(
+            "execution_mode".to_string(),
+            serde_json::Value::String("parallel".to_string()),
+        );
 
         Ok(outputs)
     }
@@ -730,7 +793,9 @@ impl ProceduralMemoryManager {
     ) -> Result<HashMap<String, serde_json::Value>> {
         debug!("Executing wait step: {}", step.name);
 
-        let wait_seconds = step.inputs.get("wait_seconds")
+        let wait_seconds = step
+            .inputs
+            .get("wait_seconds")
             .and_then(|v| v.as_u64())
             .unwrap_or(1);
 
@@ -738,8 +803,14 @@ impl ProceduralMemoryManager {
         tokio::time::sleep(tokio::time::Duration::from_secs(wait_seconds)).await;
 
         let mut outputs = HashMap::new();
-        outputs.insert("waited_seconds".to_string(), serde_json::Value::Number(wait_seconds.into()));
-        outputs.insert("completed_at".to_string(), serde_json::Value::String(Utc::now().to_rfc3339()));
+        outputs.insert(
+            "waited_seconds".to_string(),
+            serde_json::Value::Number(wait_seconds.into()),
+        );
+        outputs.insert(
+            "completed_at".to_string(),
+            serde_json::Value::String(Utc::now().to_rfc3339()),
+        );
 
         Ok(outputs)
     }
@@ -751,7 +822,10 @@ impl ProceduralMemoryManager {
         execution: &mut WorkflowExecution,
         custom_type: &str,
     ) -> Result<HashMap<String, serde_json::Value>> {
-        debug!("Executing custom step: {} (type: {})", step.name, custom_type);
+        debug!(
+            "Executing custom step: {} (type: {})",
+            step.name, custom_type
+        );
 
         // 根据自定义类型执行不同逻辑
         match custom_type {
@@ -773,26 +847,46 @@ impl ProceduralMemoryManager {
     ) -> Result<HashMap<String, serde_json::Value>> {
         debug!("Executing memory operation step: {}", step.name);
 
-        let operation = step.inputs.get("operation")
+        let operation = step
+            .inputs
+            .get("operation")
             .and_then(|v| v.as_str())
             .unwrap_or("read");
 
         let mut outputs = HashMap::new();
-        outputs.insert("operation".to_string(), serde_json::Value::String(operation.to_string()));
-        outputs.insert("memory_context".to_string(), serde_json::Value::String(execution.session.id.clone()));
+        outputs.insert(
+            "operation".to_string(),
+            serde_json::Value::String(operation.to_string()),
+        );
+        outputs.insert(
+            "memory_context".to_string(),
+            serde_json::Value::String(execution.session.id.clone()),
+        );
 
         match operation {
             "read" => {
-                outputs.insert("result".to_string(), serde_json::Value::String("memory_read_completed".to_string()));
+                outputs.insert(
+                    "result".to_string(),
+                    serde_json::Value::String("memory_read_completed".to_string()),
+                );
             }
             "write" => {
-                outputs.insert("result".to_string(), serde_json::Value::String("memory_write_completed".to_string()));
+                outputs.insert(
+                    "result".to_string(),
+                    serde_json::Value::String("memory_write_completed".to_string()),
+                );
             }
             "update" => {
-                outputs.insert("result".to_string(), serde_json::Value::String("memory_update_completed".to_string()));
+                outputs.insert(
+                    "result".to_string(),
+                    serde_json::Value::String("memory_update_completed".to_string()),
+                );
             }
             _ => {
-                outputs.insert("result".to_string(), serde_json::Value::String("unknown_operation".to_string()));
+                outputs.insert(
+                    "result".to_string(),
+                    serde_json::Value::String("unknown_operation".to_string()),
+                );
             }
         }
 
@@ -807,14 +901,25 @@ impl ProceduralMemoryManager {
     ) -> Result<HashMap<String, serde_json::Value>> {
         debug!("Executing data processing step: {}", step.name);
 
-        let processing_type = step.inputs.get("processing_type")
+        let processing_type = step
+            .inputs
+            .get("processing_type")
             .and_then(|v| v.as_str())
             .unwrap_or("transform");
 
         let mut outputs = HashMap::new();
-        outputs.insert("processing_type".to_string(), serde_json::Value::String(processing_type.to_string()));
-        outputs.insert("processed_at".to_string(), serde_json::Value::String(Utc::now().to_rfc3339()));
-        outputs.insert("status".to_string(), serde_json::Value::String("completed".to_string()));
+        outputs.insert(
+            "processing_type".to_string(),
+            serde_json::Value::String(processing_type.to_string()),
+        );
+        outputs.insert(
+            "processed_at".to_string(),
+            serde_json::Value::String(Utc::now().to_rfc3339()),
+        );
+        outputs.insert(
+            "status".to_string(),
+            serde_json::Value::String("completed".to_string()),
+        );
 
         Ok(outputs)
     }
@@ -827,19 +932,35 @@ impl ProceduralMemoryManager {
     ) -> Result<HashMap<String, serde_json::Value>> {
         debug!("Executing notification step: {}", step.name);
 
-        let message = step.inputs.get("message")
+        let message = step
+            .inputs
+            .get("message")
             .and_then(|v| v.as_str())
             .unwrap_or("Notification");
 
-        let recipient = step.inputs.get("recipient")
+        let recipient = step
+            .inputs
+            .get("recipient")
             .and_then(|v| v.as_str())
             .unwrap_or(&execution.executor);
 
         let mut outputs = HashMap::new();
-        outputs.insert("message".to_string(), serde_json::Value::String(message.to_string()));
-        outputs.insert("recipient".to_string(), serde_json::Value::String(recipient.to_string()));
-        outputs.insert("sent_at".to_string(), serde_json::Value::String(Utc::now().to_rfc3339()));
-        outputs.insert("status".to_string(), serde_json::Value::String("sent".to_string()));
+        outputs.insert(
+            "message".to_string(),
+            serde_json::Value::String(message.to_string()),
+        );
+        outputs.insert(
+            "recipient".to_string(),
+            serde_json::Value::String(recipient.to_string()),
+        );
+        outputs.insert(
+            "sent_at".to_string(),
+            serde_json::Value::String(Utc::now().to_rfc3339()),
+        );
+        outputs.insert(
+            "status".to_string(),
+            serde_json::Value::String("sent".to_string()),
+        );
 
         info!("Notification sent to {}: {}", recipient, message);
 
@@ -870,11 +991,7 @@ impl ProceduralMemoryManager {
     }
 
     /// 创建任务链
-    pub async fn create_task_chain(
-        &self,
-        name: String,
-        tasks: Vec<Task>,
-    ) -> Result<String> {
+    pub async fn create_task_chain(&self, name: String, tasks: Vec<Task>) -> Result<String> {
         let chain_id = Uuid::new_v4().to_string();
         let now = Utc::now();
 
@@ -904,13 +1021,15 @@ impl ProceduralMemoryManager {
     /// 执行任务链中的下一个任务
     pub async fn execute_next_task(&self, chain_id: &str) -> Result<TaskExecutionResult> {
         let mut task_chains = self.task_chains.write().await;
-        let task_chain = task_chains.get_mut(chain_id)
-            .ok_or_else(|| AgentMemError::NotFound(format!("Task chain not found: {}", chain_id)))?;
+        let task_chain = task_chains.get_mut(chain_id).ok_or_else(|| {
+            AgentMemError::NotFound(format!("Task chain not found: {}", chain_id))
+        })?;
 
         if task_chain.status != ChainStatus::Running && task_chain.status != ChainStatus::Pending {
-            return Err(AgentMemError::ValidationError(
-                format!("Task chain {} is not in a runnable state: {:?}", chain_id, task_chain.status)
-            ));
+            return Err(AgentMemError::ValidationError(format!(
+                "Task chain {} is not in a runnable state: {:?}",
+                chain_id, task_chain.status
+            )));
         }
 
         if task_chain.current_task_index >= task_chain.tasks.len() {
@@ -939,7 +1058,10 @@ impl ProceduralMemoryManager {
                 task_chain.status = ChainStatus::Running;
                 task_chain.updated_at = Utc::now();
 
-                info!("Task {} completed in task chain {}", current_task.id, chain_id);
+                info!(
+                    "Task {} completed in task chain {}",
+                    current_task.id, chain_id
+                );
 
                 Ok(TaskExecutionResult {
                     task_id: current_task.id.clone(),
@@ -953,7 +1075,10 @@ impl ProceduralMemoryManager {
                 task_chain.status = ChainStatus::Failed;
                 task_chain.updated_at = Utc::now();
 
-                warn!("Task {} failed in task chain {}: {}", current_task.id, chain_id, e);
+                warn!(
+                    "Task {} failed in task chain {}: {}",
+                    current_task.id, chain_id, e
+                );
 
                 Ok(TaskExecutionResult {
                     task_id: current_task.id.clone(),
@@ -970,7 +1095,9 @@ impl ProceduralMemoryManager {
         debug!("Executing task: {} ({})", task.name, task.id);
 
         // 根据任务参数执行不同的逻辑
-        let task_type = task.parameters.get("type")
+        let task_type = task
+            .parameters
+            .get("type")
             .and_then(|v| v.as_str())
             .unwrap_or("default");
 
@@ -986,7 +1113,9 @@ impl ProceduralMemoryManager {
     async fn execute_memory_task(&self, task: &Task) -> Result<()> {
         debug!("Executing memory task: {}", task.name);
 
-        let operation = task.parameters.get("operation")
+        let operation = task
+            .parameters
+            .get("operation")
             .and_then(|v| v.as_str())
             .unwrap_or("read");
 
@@ -1016,11 +1145,16 @@ impl ProceduralMemoryManager {
     async fn execute_data_processing_task(&self, task: &Task) -> Result<()> {
         debug!("Executing data processing task: {}", task.name);
 
-        let processing_type = task.parameters.get("processing_type")
+        let processing_type = task
+            .parameters
+            .get("processing_type")
             .and_then(|v| v.as_str())
             .unwrap_or("transform");
 
-        info!("Processing data with type: {} for task: {}", processing_type, task.id);
+        info!(
+            "Processing data with type: {} for task: {}",
+            processing_type, task.id
+        );
 
         // 模拟数据处理时间
         if let Some(estimated_duration) = task.estimated_duration {
@@ -1035,9 +1169,13 @@ impl ProceduralMemoryManager {
     async fn execute_workflow_trigger_task(&self, task: &Task) -> Result<()> {
         debug!("Executing workflow trigger task: {}", task.name);
 
-        let workflow_id = task.parameters.get("workflow_id")
+        let workflow_id = task
+            .parameters
+            .get("workflow_id")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| AgentMemError::ValidationError("Missing workflow_id parameter".to_string()))?;
+            .ok_or_else(|| {
+                AgentMemError::ValidationError("Missing workflow_id parameter".to_string())
+            })?;
 
         info!("Triggering workflow: {} for task: {}", workflow_id, task.id);
 
@@ -1076,8 +1214,9 @@ impl ProceduralMemoryManager {
     /// 暂停任务链
     pub async fn pause_task_chain(&self, chain_id: &str) -> Result<()> {
         let mut task_chains = self.task_chains.write().await;
-        let task_chain = task_chains.get_mut(chain_id)
-            .ok_or_else(|| AgentMemError::NotFound(format!("Task chain not found: {}", chain_id)))?;
+        let task_chain = task_chains.get_mut(chain_id).ok_or_else(|| {
+            AgentMemError::NotFound(format!("Task chain not found: {}", chain_id))
+        })?;
 
         if task_chain.status == ChainStatus::Running {
             task_chain.status = ChainStatus::Paused;
@@ -1091,8 +1230,9 @@ impl ProceduralMemoryManager {
     /// 恢复任务链
     pub async fn resume_task_chain(&self, chain_id: &str) -> Result<()> {
         let mut task_chains = self.task_chains.write().await;
-        let task_chain = task_chains.get_mut(chain_id)
-            .ok_or_else(|| AgentMemError::NotFound(format!("Task chain not found: {}", chain_id)))?;
+        let task_chain = task_chains.get_mut(chain_id).ok_or_else(|| {
+            AgentMemError::NotFound(format!("Task chain not found: {}", chain_id))
+        })?;
 
         if task_chain.status == ChainStatus::Paused {
             task_chain.status = ChainStatus::Running;

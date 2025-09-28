@@ -1,12 +1,12 @@
 //! 真实音频处理模块
-//! 
+//!
 //! 使用真实的 ASR (自动语音识别) 服务进行音频处理
 
-use super::{MultimodalProcessor, MultimodalContent, ContentType, ProcessingStatus};
+use super::{ContentType, MultimodalContent, MultimodalProcessor, ProcessingStatus};
 use agent_mem_traits::{AgentMemError, Result};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use tracing::{debug, info, warn, error};
+use tracing::{debug, error, info, warn};
 
 /// 真实音频处理器配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -84,9 +84,7 @@ pub struct RealAudioProcessor {
 impl RealAudioProcessor {
     /// 创建新的真实音频处理器
     pub fn new(config: RealAudioProcessorConfig) -> Self {
-        Self {
-            config,
-        }
+        Self { config }
     }
 
     /// 使用真实 ASR 服务进行语音转文本（模拟实现）
@@ -105,19 +103,27 @@ impl RealAudioProcessor {
         }
 
         // 基于文件特征进行智能转录模拟
-        let filename = content.metadata.get("filename")
+        let filename = content
+            .metadata
+            .get("filename")
             .and_then(|v| v.as_str())
             .unwrap_or(&content.id);
 
         let file_size = content.size.unwrap_or(0);
 
-        let transcribed_text = if filename.to_lowercase().contains("speech") || filename.to_lowercase().contains("voice") {
+        let transcribed_text = if filename.to_lowercase().contains("speech")
+            || filename.to_lowercase().contains("voice")
+        {
             format!("Speech transcription: Detected human speech content with {} estimated words. Clear audio quality with natural language patterns.", file_size / 200)
-        } else if filename.to_lowercase().contains("meeting") || filename.to_lowercase().contains("conference") {
+        } else if filename.to_lowercase().contains("meeting")
+            || filename.to_lowercase().contains("conference")
+        {
             format!("Meeting transcription: Multi-speaker conversation detected with {} estimated dialogue segments. Professional discussion content.", file_size / 300)
         } else if filename.to_lowercase().contains("interview") {
             format!("Interview transcription: Question-answer format detected with {} estimated exchanges. Structured conversation content.", file_size / 250)
-        } else if filename.to_lowercase().contains("music") || filename.to_lowercase().contains("song") {
+        } else if filename.to_lowercase().contains("music")
+            || filename.to_lowercase().contains("song")
+        {
             format!("Music content: Audio contains musical elements with {} estimated lyrical content. May include vocals and instrumental sections.", file_size / 400)
         } else {
             format!("Audio transcription: General audio content processed with {} estimated speech segments. Mixed content requiring detailed analysis.", file_size / 300)
@@ -127,7 +133,10 @@ impl RealAudioProcessor {
     }
 
     /// 执行真实的语音转文本
-    async fn perform_real_speech_to_text(&self, content: &MultimodalContent) -> Result<Option<String>> {
+    async fn perform_real_speech_to_text(
+        &self,
+        content: &MultimodalContent,
+    ) -> Result<Option<String>> {
         if !self.config.enable_speech_to_text {
             return Ok(None);
         }
@@ -149,26 +158,37 @@ impl RealAudioProcessor {
 
     /// 分析音频文件特征
     #[cfg(feature = "audio-processing")]
-    async fn analyze_audio_features(&self, content: &MultimodalContent) -> Result<AudioAnalysisResult> {
+    async fn analyze_audio_features(
+        &self,
+        content: &MultimodalContent,
+    ) -> Result<AudioAnalysisResult> {
         use hound::WavReader;
         use std::io::Cursor;
 
         if let Some(data) = &content.data {
             // 解码音频数据
-            let audio_data = general_purpose::STANDARD.decode(data)
-                .map_err(|e| AgentMemError::parsing_error(&format!("Failed to decode base64 audio: {}", e)))?;
+            let audio_data = general_purpose::STANDARD.decode(data).map_err(|e| {
+                AgentMemError::parsing_error(&format!("Failed to decode base64 audio: {}", e))
+            })?;
 
             // 尝试读取 WAV 文件
             let cursor = Cursor::new(audio_data);
             match WavReader::new(cursor) {
                 Ok(reader) => {
                     let spec = reader.spec();
-                    let samples: Vec<i16> = reader.into_samples::<i16>()
+                    let samples: Vec<i16> = reader
+                        .into_samples::<i16>()
                         .collect::<Result<Vec<_>, _>>()
-                        .map_err(|e| AgentMemError::parsing_error(&format!("Failed to read audio samples: {}", e)))?;
+                        .map_err(|e| {
+                            AgentMemError::parsing_error(&format!(
+                                "Failed to read audio samples: {}",
+                                e
+                            ))
+                        })?;
 
-                    let duration_seconds = samples.len() as f64 / (spec.sample_rate as f64 * spec.channels as f64);
-                    
+                    let duration_seconds =
+                        samples.len() as f64 / (spec.sample_rate as f64 * spec.channels as f64);
+
                     // 分析音量
                     let max_amplitude = samples.iter().map(|&s| s.abs()).max().unwrap_or(0);
                     let volume_level = match max_amplitude {
@@ -212,9 +232,8 @@ impl RealAudioProcessor {
         let mut energy_windows = Vec::new();
 
         for chunk in samples.chunks(window_size) {
-            let energy: f64 = chunk.iter()
-                .map(|&s| (s as f64).powi(2))
-                .sum::<f64>() / chunk.len() as f64;
+            let energy: f64 =
+                chunk.iter().map(|&s| (s as f64).powi(2)).sum::<f64>() / chunk.len() as f64;
             energy_windows.push(energy);
         }
 
@@ -225,7 +244,8 @@ impl RealAudioProcessor {
 
         let mut changes = 0;
         for i in 1..energy_windows.len() {
-            let change_ratio = (energy_windows[i] - energy_windows[i-1]).abs() / energy_windows[i-1].max(1.0);
+            let change_ratio =
+                (energy_windows[i] - energy_windows[i - 1]).abs() / energy_windows[i - 1].max(1.0);
             if change_ratio > 0.3 {
                 changes += 1;
             }
@@ -239,24 +259,28 @@ impl RealAudioProcessor {
     #[cfg(feature = "audio-processing")]
     fn detect_music_in_samples(&self, samples: &[i16], _sample_rate: u32) -> bool {
         // 简化的音乐检测：检查音频的规律性
-        let avg_amplitude: f64 = samples.iter()
-            .map(|&s| s.abs() as f64)
-            .sum::<f64>() / samples.len() as f64;
+        let avg_amplitude: f64 =
+            samples.iter().map(|&s| s.abs() as f64).sum::<f64>() / samples.len() as f64;
 
         // 音乐通常有更稳定的平均振幅
         avg_amplitude > 1000.0 && avg_amplitude < 20000.0
     }
 
     /// 回退到基于元数据的音频分析
-    async fn fallback_audio_analysis(&self, content: &MultimodalContent) -> Result<AudioAnalysisResult> {
-        let filename = content.metadata.get("filename")
+    async fn fallback_audio_analysis(
+        &self,
+        content: &MultimodalContent,
+    ) -> Result<AudioAnalysisResult> {
+        let filename = content
+            .metadata
+            .get("filename")
             .and_then(|v| v.as_str())
             .unwrap_or(&content.id);
 
         let file_size = content.size.unwrap_or(0);
 
         // 基于文件名推断特征
-        let has_speech = filename.to_lowercase().contains("speech") 
+        let has_speech = filename.to_lowercase().contains("speech")
             || filename.to_lowercase().contains("voice")
             || filename.to_lowercase().contains("talk");
 
@@ -286,15 +310,13 @@ impl RealAudioProcessor {
             detected_language: None,
         })
     }
-
-
 }
 
 #[async_trait]
 impl MultimodalProcessor for RealAudioProcessor {
     async fn process(&self, content: &mut MultimodalContent) -> Result<()> {
         info!("开始真实音频处理: {}", content.id);
-        
+
         content.set_processing_status(ProcessingStatus::Processing);
 
         // 执行语音转文本
@@ -306,13 +328,16 @@ impl MultimodalProcessor for RealAudioProcessor {
         #[cfg(feature = "audio-processing")]
         if self.config.enable_audio_analysis {
             if let Ok(analysis) = self.analyze_audio_features(content).await {
-                content.set_metadata("audio_analysis".to_string(), serde_json::to_value(analysis).unwrap_or_default());
+                content.set_metadata(
+                    "audio_analysis".to_string(),
+                    serde_json::to_value(analysis).unwrap_or_default(),
+                );
             }
         }
 
         // 设置处理完成状态
         content.set_processing_status(ProcessingStatus::Completed);
-        
+
         info!("音频处理完成: {}", content.id);
         Ok(())
     }
@@ -341,14 +366,18 @@ impl MultimodalProcessor for RealAudioProcessor {
         }
 
         // 回退到基本摘要
-        let filename = content.metadata.get("filename")
+        let filename = content
+            .metadata
+            .get("filename")
             .and_then(|v| v.as_str())
             .unwrap_or(&content.id);
-        
-        let summary = format!("Audio file: {} ({})", 
-            filename, 
-            content.mime_type.as_deref().unwrap_or("unknown"));
-        
+
+        let summary = format!(
+            "Audio file: {} ({})",
+            filename,
+            content.mime_type.as_deref().unwrap_or("unknown")
+        );
+
         Ok(Some(summary))
     }
 }

@@ -1,9 +1,9 @@
 //! Azure AI Search 存储后端实现
-//! 
+//!
 //! Azure AI Search (原 Azure Cognitive Search) 是微软的企业级搜索服务，
 //! 提供强大的全文搜索、向量搜索和混合搜索能力。
 
-use agent_mem_traits::{Result, VectorData, VectorStore, VectorSearchResult, AgentMemError};
+use agent_mem_traits::{AgentMemError, Result, VectorData, VectorSearchResult, VectorStore};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -111,7 +111,7 @@ impl From<AzureSearchDocument> for VectorData {
         metadata.insert("content".to_string(), doc.content);
         metadata.insert("created_at".to_string(), doc.created_at);
         metadata.insert("updated_at".to_string(), doc.updated_at);
-        
+
         Self {
             id: doc.id,
             vector: doc.vector,
@@ -167,7 +167,12 @@ impl AzureAISearchStore {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(config.request_timeout))
             .build()
-            .map_err(|e| agent_mem_traits::AgentMemError::storage_error(&format!("Failed to create HTTP client: {}", e)))?;
+            .map_err(|e| {
+                agent_mem_traits::AgentMemError::storage_error(&format!(
+                    "Failed to create HTTP client: {}",
+                    e
+                ))
+            })?;
 
         let base_url = format!("https://{}.search.windows.net", config.service_name);
 
@@ -193,25 +198,38 @@ impl AzureAISearchStore {
         //     .header("api-key", &self.config.api_key)
         //     .send()
         //     .await?;
-        
+
         // 真实的连接验证
-        let url = format!("{}/indexes?api-version={}", self.base_url, self.config.api_version);
-        let response = self.client
+        let url = format!(
+            "{}/indexes?api-version={}",
+            self.base_url, self.config.api_version
+        );
+        let response = self
+            .client
             .get(&url)
             .header("api-key", &self.config.api_key)
             .timeout(Duration::from_secs(10))
             .send()
             .await
-            .map_err(|e| AgentMemError::network_error(&format!("Failed to connect to Azure AI Search: {}", e)))?;
+            .map_err(|e| {
+                AgentMemError::network_error(&format!(
+                    "Failed to connect to Azure AI Search: {}",
+                    e
+                ))
+            })?;
 
         if response.status().is_success() {
-            info!("Successfully connected to Azure AI Search at {}", self.base_url);
+            info!(
+                "Successfully connected to Azure AI Search at {}",
+                self.base_url
+            );
             Ok(())
         } else {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_default();
             Err(AgentMemError::storage_error(&format!(
-                "Azure AI Search connection failed: {} - {}", status, error_text
+                "Azure AI Search connection failed: {} - {}",
+                status, error_text
             )))
         }
     }
@@ -219,15 +237,18 @@ impl AzureAISearchStore {
     /// 确保索引存在，如果不存在则创建
     async fn ensure_index_exists(&self) -> Result<()> {
         // 在实际实现中，这里应该检查索引是否存在，如果不存在则创建
-        // let index_url = format!("{}/indexes/{}?api-version={}", 
+        // let index_url = format!("{}/indexes/{}?api-version={}",
         //     self.base_url, self.config.index_name, self.config.api_version);
-        
+
         // 真实的索引创建和检查
-        let index_url = format!("{}/indexes/{}?api-version={}",
-            self.base_url, self.config.index_name, self.config.api_version);
+        let index_url = format!(
+            "{}/indexes/{}?api-version={}",
+            self.base_url, self.config.index_name, self.config.api_version
+        );
 
         // 首先检查索引是否存在
-        let check_response = self.client
+        let check_response = self
+            .client
             .get(&index_url)
             .header("api-key", &self.config.api_key)
             .send()
@@ -237,13 +258,19 @@ impl AzureAISearchStore {
             Ok(response) if response.status().is_success() => {
                 info!("Index {} already exists", self.config.index_name);
                 Ok(())
-            },
+            }
             _ => {
                 // 索引不存在，尝试创建（需要管理员权限）
-                info!("Index {} does not exist. Please create it manually with the following schema:", self.config.index_name);
+                info!(
+                    "Index {} does not exist. Please create it manually with the following schema:",
+                    self.config.index_name
+                );
                 info!("Index name: {}", self.config.index_name);
                 info!("Required fields: id (Edm.String), content (Edm.String), vector (Collection(Edm.Single)), metadata (Edm.String)");
-                info!("Vector configuration: dimensions={}, algorithm=hnsw", self.config.vector_dimension);
+                info!(
+                    "Vector configuration: dimensions={}, algorithm=hnsw",
+                    self.config.vector_dimension
+                );
 
                 // 返回成功，假设索引已经手动创建
                 Ok(())
@@ -253,14 +280,18 @@ impl AzureAISearchStore {
 
     /// 构建搜索 URL
     fn build_search_url(&self) -> String {
-        format!("{}/indexes/{}/docs/search?api-version={}", 
-            self.base_url, self.config.index_name, self.config.api_version)
+        format!(
+            "{}/indexes/{}/docs/search?api-version={}",
+            self.base_url, self.config.index_name, self.config.api_version
+        )
     }
 
     /// 构建文档操作 URL
     fn build_docs_url(&self) -> String {
-        format!("{}/indexes/{}/docs/index?api-version={}", 
-            self.base_url, self.config.index_name, self.config.api_version)
+        format!(
+            "{}/indexes/{}/docs/index?api-version={}",
+            self.base_url, self.config.index_name, self.config.api_version
+        )
     }
 
     /// 计算向量相似度 (余弦相似度)
@@ -294,14 +325,23 @@ impl AzureAISearchStore {
     }
 
     /// 执行混合搜索（在实际实现中）
-    async fn _hybrid_search(&self, _query_text: &str, _query_vector: &[f32], _limit: usize) -> Result<Vec<VectorSearchResult>> {
+    async fn _hybrid_search(
+        &self,
+        _query_text: &str,
+        _query_vector: &[f32],
+        _limit: usize,
+    ) -> Result<Vec<VectorSearchResult>> {
         // 在实际实现中，这里应该执行 Azure AI Search 的混合搜索
         // 结合文本搜索和向量搜索的结果
         Ok(vec![])
     }
 
     /// 执行语义搜索（在实际实现中）
-    async fn _semantic_search(&self, _query: &str, _limit: usize) -> Result<Vec<VectorSearchResult>> {
+    async fn _semantic_search(
+        &self,
+        _query: &str,
+        _limit: usize,
+    ) -> Result<Vec<VectorSearchResult>> {
         // 在实际实现中，这里应该执行 Azure AI Search 的语义搜索
         // 利用微软的语义理解能力
         Ok(vec![])
@@ -344,7 +384,7 @@ impl VectorStore for AzureAISearchStore {
             //     .json(&payload)
             //     .send()
             //     .await?;
-            
+
             store.insert(id.clone(), doc);
             ids.push(id);
         }
@@ -402,7 +442,11 @@ impl VectorStore for AzureAISearchStore {
         }
 
         // 按相似度排序并限制结果数量
-        results.sort_by(|a, b| b.similarity.partial_cmp(&a.similarity).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.similarity
+                .partial_cmp(&a.similarity)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         results.truncate(limit);
 
         Ok(results)
@@ -420,7 +464,7 @@ impl VectorStore for AzureAISearchStore {
             //         "@search.id": id
             //     }]
             // });
-            
+
             store.remove(&id);
         }
 
@@ -432,7 +476,7 @@ impl VectorStore for AzureAISearchStore {
 
         for vector_data in vectors {
             let id = vector_data.id.clone();
-            
+
             // 验证向量维度
             if vector_data.vector.len() != self.config.vector_dimension {
                 return Err(agent_mem_traits::AgentMemError::validation_error(&format!(
@@ -453,7 +497,7 @@ impl VectorStore for AzureAISearchStore {
                 // let payload = json!({
                 //     "value": [updated_doc]
                 // });
-                
+
                 store.insert(id, updated_doc);
             }
         }
@@ -463,17 +507,17 @@ impl VectorStore for AzureAISearchStore {
 
     async fn get_vector(&self, id: &str) -> Result<Option<VectorData>> {
         let store = self.vectors.lock().unwrap();
-        
+
         // 在实际实现中，这里应该调用 Azure AI Search API 获取文档
-        // let doc_url = format!("{}/indexes/{}/docs('{}')/?api-version={}", 
+        // let doc_url = format!("{}/indexes/{}/docs('{}')/?api-version={}",
         //     self.base_url, self.config.index_name, id, self.config.api_version);
-        
+
         Ok(store.get(id).map(|doc| VectorData::from(doc.clone())))
     }
 
     async fn count_vectors(&self) -> Result<usize> {
         let store = self.vectors.lock().unwrap();
-        
+
         // 在实际实现中，这里应该调用 Azure AI Search API 获取文档数量
         // let search_url = self.build_search_url();
         // let payload = json!({
@@ -481,16 +525,16 @@ impl VectorStore for AzureAISearchStore {
         //     "count": true,
         //     "top": 0
         // });
-        
+
         Ok(store.len())
     }
 
     async fn clear(&self) -> Result<()> {
         let mut store = self.vectors.lock().unwrap();
-        
+
         // 在实际实现中，这里应该删除索引中的所有文档
         // 可以通过重新创建索引或批量删除所有文档来实现
-        
+
         store.clear();
         Ok(())
     }
@@ -503,7 +547,8 @@ impl VectorStore for AzureAISearchStore {
         threshold: Option<f32>,
     ) -> Result<Vec<VectorSearchResult>> {
         use crate::utils::VectorStoreDefaults;
-        self.default_search_with_filters(query_vector, limit, filters, threshold).await
+        self.default_search_with_filters(query_vector, limit, filters, threshold)
+            .await
     }
 
     async fn health_check(&self) -> Result<agent_mem_traits::HealthStatus> {

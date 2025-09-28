@@ -1,14 +1,12 @@
 //! 智能记忆处理演示
-//! 
+//!
 //! 演示修复后的智能记忆处理功能，包括：
 //! - 多模态内容处理
 //! - 事实提取
 //! - 决策引擎
 //! - 智能处理器
 
-use agent_mem_intelligence::{
-    multimodal::{MultimodalProcessor, MultimodalContent, ContentType},
-};
+use agent_mem_intelligence::multimodal::{ContentType, MultimodalContent, MultimodalProcessor};
 use agent_mem_traits::Result;
 use std::collections::HashMap;
 use tokio;
@@ -20,13 +18,13 @@ async fn main() -> Result<()> {
 
     // 演示1：多模态文本处理
     demo_multimodal_text_processing().await?;
-    
+
     // 演示2：事实提取
     demo_fact_extraction().await?;
-    
+
     // 演示3：决策引擎
     demo_decision_engine().await?;
-    
+
     // 演示4：智能处理器
     demo_intelligent_processor().await?;
 
@@ -40,7 +38,7 @@ async fn demo_multimodal_text_processing() -> Result<()> {
 
     // 创建文本处理器
     let processor = agent_mem_intelligence::multimodal::text::TextProcessor::new();
-    
+
     // 创建测试内容
     let mut content = MultimodalContent {
         id: "demo-text-1".to_string(),
@@ -57,7 +55,7 @@ async fn demo_multimodal_text_processing() -> Result<()> {
 
     // 处理内容
     processor.process(&mut content).await?;
-    
+
     println!("✅ 文本处理完成");
     println!("   - 内容类型: {:?}", content.content_type);
     println!("   - 处理状态: {:?}", content.processing_status);
@@ -105,12 +103,12 @@ async fn demo_fact_extraction() -> Result<()> {
             metadata: std::collections::HashMap::new(),
         },
     ];
-    
+
     // 在演示模式下，我们直接使用模拟的事实，不需要调用API
-    
+
     println!("✅ 事实提取完成");
     println!("   - 提取的事实数量: {}", facts.len());
-    
+
     for (i, fact) in facts.iter().enumerate() {
         println!("   - 事实 {}: {}", i + 1, fact.content);
         println!("     类别: {:?}", fact.category);
@@ -150,7 +148,7 @@ async fn demo_decision_engine() -> Result<()> {
             estimated_impact: 0.2,
         },
     ];
-    
+
     println!("✅ 决策制定完成");
     println!("   - 决策数量: {}", decisions.len());
     for (i, decision) in decisions.iter().enumerate() {
@@ -168,33 +166,29 @@ async fn demo_intelligent_processor() -> Result<()> {
 
     println!("   ⚠️  演示模式：跳过需要真实API密钥的智能处理器");
     println!("   📝 模拟处理结果：");
-    
+
     // 模拟智能处理结果
     let result = agent_mem_intelligence::intelligent_processor::IntelligentProcessingResult {
-        extracted_facts: vec![
-            agent_mem_intelligence::fact_extraction::ExtractedFact {
-                content: "量子计算利用量子力学现象进行计算".to_string(),
-                category: agent_mem_intelligence::fact_extraction::FactCategory::Knowledge,
-                confidence: 0.92,
-                entities: vec![],
-                temporal_info: None,
-                source_message_id: Some("msg-4".to_string()),
-                metadata: std::collections::HashMap::new(),
+        extracted_facts: vec![agent_mem_intelligence::fact_extraction::ExtractedFact {
+            content: "量子计算利用量子力学现象进行计算".to_string(),
+            category: agent_mem_intelligence::fact_extraction::FactCategory::Knowledge,
+            confidence: 0.92,
+            entities: vec![],
+            temporal_info: None,
+            source_message_id: Some("msg-4".to_string()),
+            metadata: std::collections::HashMap::new(),
+        }],
+        memory_decisions: vec![agent_mem_intelligence::decision_engine::MemoryDecision {
+            action: agent_mem_intelligence::decision_engine::MemoryAction::Add {
+                content: "量子计算是一种利用量子力学现象进行计算的技术".to_string(),
+                importance: 0.85,
+                metadata: HashMap::new(),
             },
-        ],
-        memory_decisions: vec![
-            agent_mem_intelligence::decision_engine::MemoryDecision {
-                action: agent_mem_intelligence::decision_engine::MemoryAction::Add {
-                    content: "量子计算是一种利用量子力学现象进行计算的技术".to_string(),
-                    importance: 0.85,
-                    metadata: HashMap::new(),
-                },
-                confidence: 0.92,
-                reasoning: "这是关于量子计算的重要技术概念".to_string(),
-                affected_memories: vec![],
-                estimated_impact: 0.7,
-            },
-        ],
+            confidence: 0.92,
+            reasoning: "这是关于量子计算的重要技术概念".to_string(),
+            affected_memories: vec![],
+            estimated_impact: 0.7,
+        }],
         conflict_detections: vec![],
         quality_metrics: agent_mem_intelligence::intelligent_processor::QualityMetrics {
             average_fact_confidence: 0.92,
@@ -221,11 +215,14 @@ async fn demo_intelligent_processor() -> Result<()> {
             "可以关注量子计算在实际应用中的发展".to_string(),
         ],
     };
-    
+
     println!("✅ 智能处理完成");
     println!("   - 提取的事实数量: {}", result.extracted_facts.len());
     println!("   - 记忆决策数量: {}", result.memory_decisions.len());
-    println!("   - 处理时间: {}ms", result.processing_stats.processing_time_ms);
+    println!(
+        "   - 处理时间: {}ms",
+        result.processing_stats.processing_time_ms
+    );
 
     // 显示提取的事实
     for (i, fact) in result.extracted_facts.iter().enumerate() {

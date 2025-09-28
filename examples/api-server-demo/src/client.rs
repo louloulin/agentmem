@@ -1,5 +1,5 @@
 //! AgentMem API Client Demo
-//! 
+//!
 //! This demo shows how to interact with the AgentMem REST API.
 
 use agent_mem_traits::MemoryType;
@@ -7,7 +7,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
-use tracing::{info, error};
+use tracing::{error, info};
 
 #[derive(Debug, Serialize)]
 struct MemoryRequest {
@@ -65,7 +65,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Test adding memories
     info!("💾 Testing memory creation...");
-    
+
     let memory1 = MemoryRequest {
         agent_id: "demo-agent".to_string(),
         user_id: Some("user123".to_string()),
@@ -89,17 +89,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if response.status().is_success() {
         let memory_response: MemoryResponse = response.json().await?;
         info!("✅ Memory created: {}", memory_response.id);
-        
+
         // Test getting the memory
         info!("🔍 Testing memory retrieval...");
         let get_response = client
-            .get(&format!("{}/api/v1/memories/{}", base_url, memory_response.id))
+            .get(&format!(
+                "{}/api/v1/memories/{}",
+                base_url, memory_response.id
+            ))
             .send()
             .await?;
-            
+
         if get_response.status().is_success() {
             let memory_data: serde_json::Value = get_response.json().await?;
-            info!("✅ Memory retrieved: {}", serde_json::to_string_pretty(&memory_data)?);
+            info!(
+                "✅ Memory retrieved: {}",
+                serde_json::to_string_pretty(&memory_data)?
+            );
         } else {
             error!("❌ Failed to retrieve memory: {}", get_response.status());
         }
@@ -111,7 +117,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Add more memories for search testing
     info!("📚 Adding more memories for search testing...");
-    
+
     let memories = vec![
         MemoryRequest {
             agent_id: "demo-agent".to_string(),
@@ -137,7 +143,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .json(&memory)
             .send()
             .await?;
-            
+
         if response.status().is_success() {
             let memory_response: MemoryResponse = response.json().await?;
             info!("✅ Additional memory created: {}", memory_response.id);
@@ -146,7 +152,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Test search
     info!("🔍 Testing memory search...");
-    
+
     let search_request = SearchRequest {
         agent_id: Some("demo-agent".to_string()),
         user_id: Some("user123".to_string()),
@@ -163,21 +169,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if search_response.status().is_success() {
         let search_results: serde_json::Value = search_response.json().await?;
-        info!("✅ Search completed: {}", serde_json::to_string_pretty(&search_results)?);
+        info!(
+            "✅ Search completed: {}",
+            serde_json::to_string_pretty(&search_results)?
+        );
     } else {
         error!("❌ Search failed: {}", search_response.status());
     }
 
     // Test metrics
     info!("📊 Testing metrics endpoint...");
-    let metrics_response = client
-        .get(&format!("{}/metrics", base_url))
-        .send()
-        .await?;
+    let metrics_response = client.get(&format!("{}/metrics", base_url)).send().await?;
 
     if metrics_response.status().is_success() {
         let metrics: serde_json::Value = metrics_response.json().await?;
-        info!("✅ Metrics retrieved: {}", serde_json::to_string_pretty(&metrics)?);
+        info!(
+            "✅ Metrics retrieved: {}",
+            serde_json::to_string_pretty(&metrics)?
+        );
     } else {
         error!("❌ Failed to get metrics: {}", metrics_response.status());
     }

@@ -1,6 +1,5 @@
 //! Conflict detection and resolution
 
-
 use serde::{Deserialize, Serialize};
 
 /// Conflict detector
@@ -26,13 +25,13 @@ impl Default for ConflictDetector {
 pub enum ConflictResolution {
     /// Keep the first memory
     KeepFirst,
-    
+
     /// Keep the last memory
     KeepLast,
-    
+
     /// Merge memories
     Merge,
-    
+
     /// Manual resolution required
     Manual,
 }

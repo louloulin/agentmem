@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
-use tracing::{debug, info, warn, error};
+use tracing::{debug, error, info, warn};
 
 /// HuggingFace API 请求结构
 #[derive(Debug, Serialize)]
@@ -56,9 +56,14 @@ impl HuggingFaceEmbedder {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
             .build()
-            .map_err(|e| AgentMemError::network_error(&format!("Failed to create HTTP client: {}", e)))?;
+            .map_err(|e| {
+                AgentMemError::network_error(&format!("Failed to create HTTP client: {}", e))
+            })?;
 
-        info!("Initialized HuggingFace embedder with model: {}", config.model);
+        info!(
+            "Initialized HuggingFace embedder with model: {}",
+            config.model
+        );
 
         Ok(Self {
             config,
@@ -77,45 +82,58 @@ impl HuggingFaceEmbedder {
             },
         };
 
-        debug!("Sending embedding request to HuggingFace API for text length: {}", text.len());
+        debug!(
+            "Sending embedding request to HuggingFace API for text length: {}",
+            text.len()
+        );
 
-        let mut request_builder = self.client
+        let mut request_builder = self
+            .client
             .post(&self.api_url)
             .header("Content-Type", "application/json")
             .json(&request);
 
         // 如果有 API key，添加认证头
         if let Some(api_key) = &self.config.api_key {
-            request_builder = request_builder.header("Authorization", format!("Bearer {}", api_key));
+            request_builder =
+                request_builder.header("Authorization", format!("Bearer {}", api_key));
         }
 
-        let response = request_builder
-            .send()
-            .await
-            .map_err(|e| AgentMemError::network_error(&format!("HuggingFace API request failed: {}", e)))?;
+        let response = request_builder.send().await.map_err(|e| {
+            AgentMemError::network_error(&format!("HuggingFace API request failed: {}", e))
+        })?;
 
         if !response.status().is_success() {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_default();
             error!("HuggingFace API error {}: {}", status, error_text);
-            return Err(AgentMemError::network_error(&format!("HuggingFace API error {}: {}", status, error_text)));
+            return Err(AgentMemError::network_error(&format!(
+                "HuggingFace API error {}: {}",
+                status, error_text
+            )));
         }
 
-        let hf_response: HuggingFaceResponse = response
-            .json()
-            .await
-            .map_err(|e| AgentMemError::parsing_error(&format!("Failed to parse HuggingFace response: {}", e)))?;
+        let hf_response: HuggingFaceResponse = response.json().await.map_err(|e| {
+            AgentMemError::parsing_error(&format!("Failed to parse HuggingFace response: {}", e))
+        })?;
 
         if hf_response.0.is_empty() {
-            return Err(AgentMemError::embedding_error("Empty response from HuggingFace API"));
+            return Err(AgentMemError::embedding_error(
+                "Empty response from HuggingFace API",
+            ));
         }
 
-        let embedding = hf_response.0.into_iter().next()
-            .ok_or_else(|| AgentMemError::embedding_error("No embedding in HuggingFace response"))?;
+        let embedding = hf_response.0.into_iter().next().ok_or_else(|| {
+            AgentMemError::embedding_error("No embedding in HuggingFace response")
+        })?;
 
         // 验证嵌入维度
         if embedding.len() != self.config.dimension {
-            warn!("Expected dimension {}, got {}. Adjusting...", self.config.dimension, embedding.len());
+            warn!(
+                "Expected dimension {}, got {}. Adjusting...",
+                self.config.dimension,
+                embedding.len()
+            );
 
             // 如果维度不匹配，进行调整
             let mut adjusted_embedding = embedding;

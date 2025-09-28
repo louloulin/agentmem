@@ -1,5 +1,5 @@
 //! AgentMem 6.0 性能基准测试
-//! 
+//!
 //! 验证 AgentMem 6.0 的性能指标是否达到设计目标：
 //! - 响应时间 < 30ms (P95)
 //! - 吞吐量 > 10K req/s
@@ -7,13 +7,13 @@
 //! - 支持 10,000+ 并发用户
 
 use agent_mem_core::{
+    compression::{CompressionConfig, IntelligentCompressionEngine},
     engine::{MemoryEngine, MemoryEngineConfig},
+    graph_memory::GraphMemoryEngine,
     manager::MemoryManager,
     types::{Memory, MemoryType},
-    graph_memory::GraphMemoryEngine,
-    compression::{IntelligentCompressionEngine, CompressionConfig},
 };
-use agent_mem_traits::{Vector, Result};
+use agent_mem_traits::{Result, Vector};
 use chrono::Utc;
 use clap::{Parser, Subcommand};
 use console::{style, Emoji};
@@ -96,49 +96,81 @@ struct BenchmarkResult {
 
 impl BenchmarkResult {
     fn print_summary(&self) {
-        println!("\n{} {} 测试结果", CHART, style(&self.test_name).bold().cyan());
+        println!(
+            "\n{} {} 测试结果",
+            CHART,
+            style(&self.test_name).bold().cyan()
+        );
         println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         println!("📈 总请求数: {}", style(self.total_requests).bold().green());
-        println!("✅ 成功请求: {}", style(self.successful_requests).bold().green());
+        println!(
+            "✅ 成功请求: {}",
+            style(self.successful_requests).bold().green()
+        );
         println!("❌ 失败请求: {}", style(self.failed_requests).bold().red());
-        println!("⏱️  测试时长: {}ms", style(self.duration_ms).bold().yellow());
-        println!("📊 平均延迟: {:.2}ms", style(self.avg_latency_ms).bold().blue());
-        println!("📊 P95 延迟: {:.2}ms", style(self.p95_latency_ms).bold().blue());
-        println!("📊 P99 延迟: {:.2}ms", style(self.p99_latency_ms).bold().blue());
-        println!("🚀 吞吐量: {:.2} req/s", style(self.throughput_rps).bold().magenta());
-        println!("💾 内存使用: {:.2}MB", style(self.memory_usage_mb).bold().cyan());
-        println!("🔥 CPU 使用: {:.2}%", style(self.cpu_usage_percent).bold().yellow());
-        
+        println!(
+            "⏱️  测试时长: {}ms",
+            style(self.duration_ms).bold().yellow()
+        );
+        println!(
+            "📊 平均延迟: {:.2}ms",
+            style(self.avg_latency_ms).bold().blue()
+        );
+        println!(
+            "📊 P95 延迟: {:.2}ms",
+            style(self.p95_latency_ms).bold().blue()
+        );
+        println!(
+            "📊 P99 延迟: {:.2}ms",
+            style(self.p99_latency_ms).bold().blue()
+        );
+        println!(
+            "🚀 吞吐量: {:.2} req/s",
+            style(self.throughput_rps).bold().magenta()
+        );
+        println!(
+            "💾 内存使用: {:.2}MB",
+            style(self.memory_usage_mb).bold().cyan()
+        );
+        println!(
+            "🔥 CPU 使用: {:.2}%",
+            style(self.cpu_usage_percent).bold().yellow()
+        );
+
         // 检查是否达到性能目标
         self.check_performance_targets();
     }
-    
+
     fn check_performance_targets(&self) {
         println!("\n{} 性能目标检查", SPARKLE);
         println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        
+
         // P95 延迟 < 30ms
         if self.p95_latency_ms < 30.0 {
-            println!("✅ P95 延迟: {:.2}ms < 30ms {}", 
-                style(self.p95_latency_ms).bold().green(), 
+            println!(
+                "✅ P95 延迟: {:.2}ms < 30ms {}",
+                style(self.p95_latency_ms).bold().green(),
                 style("(达标)").bold().green()
             );
         } else {
-            println!("❌ P95 延迟: {:.2}ms >= 30ms {}", 
-                style(self.p95_latency_ms).bold().red(), 
+            println!(
+                "❌ P95 延迟: {:.2}ms >= 30ms {}",
+                style(self.p95_latency_ms).bold().red(),
                 style("(未达标)").bold().red()
             );
         }
-        
+
         // 吞吐量 > 10K req/s
         if self.throughput_rps > 10000.0 {
-            println!("✅ 吞吐量: {:.2} req/s > 10K req/s {}", 
-                style(self.throughput_rps).bold().green(), 
+            println!(
+                "✅ 吞吐量: {:.2} req/s > 10K req/s {}",
+                style(self.throughput_rps).bold().green(),
                 style("(达标)").bold().green()
             );
         } else {
-            println!("❌ 吞吐量: {:.2} req/s <= 10K req/s {}", 
-                style(self.throughput_rps).bold().red(), 
+            println!(
+                "❌ 吞吐量: {:.2} req/s <= 10K req/s {}",
+                style(self.throughput_rps).bold().red(),
                 style("(未达标)").bold().red()
             );
         }
@@ -159,20 +191,24 @@ impl PerformanceBenchmark {
         let graph_engine = Arc::new(GraphMemoryEngine::new());
         let compression_config = CompressionConfig::default();
         let compression_engine = Arc::new(IntelligentCompressionEngine::new(compression_config));
-        
+
         Ok(Self {
             engine,
             graph_engine,
             compression_engine,
         })
     }
-    
+
     /// 生成测试记忆
     fn generate_test_memory(&self, id: usize) -> Memory {
         let mut rng = thread_rng();
-        let content = format!("Test memory content {} with random data: {}", id, rng.gen::<u64>());
+        let content = format!(
+            "Test memory content {} with random data: {}",
+            id,
+            rng.gen::<u64>()
+        );
         let embedding = Vector::new((0..1536).map(|_| rng.gen::<f32>()).collect());
-        
+
         Memory {
             id: format!("test_memory_{}", id),
             agent_id: format!("agent_{}", rng.gen_range(1..=100)),
@@ -193,36 +229,40 @@ impl PerformanceBenchmark {
             version: 1,
         }
     }
-    
+
     /// 响应时间基准测试
     async fn benchmark_latency(&self, requests: usize) -> Result<BenchmarkResult> {
         println!("\n{} 开始响应时间基准测试", CLOCK);
         println!("测试参数: {} 个请求", requests);
-        
+
         let pb = ProgressBar::new(requests as u64);
-        pb.set_style(ProgressStyle::default_bar()
-            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})")
-            .unwrap()
-            .progress_chars("#>-"));
-        
+        pb.set_style(
+            ProgressStyle::default_bar()
+                .template(
+                    "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})",
+                )
+                .unwrap()
+                .progress_chars("#>-"),
+        );
+
         let mut latencies = Vec::with_capacity(requests);
         let start_time = Instant::now();
-        
+
         for i in 0..requests {
             let memory = self.generate_test_memory(i);
             let request_start = Instant::now();
-            
+
             // 模拟记忆操作
             let _result = self.simulate_memory_operation(&memory).await;
-            
+
             let latency = request_start.elapsed().as_millis() as f64;
             latencies.push(latency);
             pb.inc(1);
         }
-        
+
         pb.finish_with_message("响应时间测试完成");
         let total_duration = start_time.elapsed();
-        
+
         // 计算统计数据
         latencies.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let avg_latency = latencies.iter().sum::<f64>() / latencies.len() as f64;
@@ -230,7 +270,7 @@ impl PerformanceBenchmark {
         let p99_index = (latencies.len() as f64 * 0.99) as usize;
         let p95_latency = latencies[p95_index.min(latencies.len() - 1)];
         let p99_latency = latencies[p99_index.min(latencies.len() - 1)];
-        
+
         Ok(BenchmarkResult {
             test_name: "响应时间测试".to_string(),
             total_requests: requests as u64,
@@ -245,7 +285,7 @@ impl PerformanceBenchmark {
             cpu_usage_percent: 0.0, // 简化实现
         })
     }
-    
+
     /// 模拟记忆操作
     async fn simulate_memory_operation(&self, _memory: &Memory) -> Result<()> {
         // 模拟不同类型的操作
@@ -254,23 +294,23 @@ impl PerformanceBenchmark {
             0 => {
                 // 添加记忆
                 sleep(Duration::from_micros(rng.gen_range(100..500))).await;
-            },
+            }
             1 => {
                 // 搜索记忆
                 sleep(Duration::from_micros(rng.gen_range(200..800))).await;
-            },
+            }
             2 => {
                 // 更新记忆
                 sleep(Duration::from_micros(rng.gen_range(150..600))).await;
-            },
+            }
             _ => {
                 // 图推理
                 sleep(Duration::from_micros(rng.gen_range(300..1000))).await;
-            },
+            }
         }
         Ok(())
     }
-    
+
     /// 获取内存使用量（简化实现）
     fn get_memory_usage(&self) -> f64 {
         // 在实际实现中，这里应该获取真实的内存使用量
@@ -282,45 +322,51 @@ impl PerformanceBenchmark {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-    
+
     println!("{} AgentMem 6.0 性能基准测试", ROCKET);
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    
+
     let benchmark = PerformanceBenchmark::new().await?;
-    
+
     match cli.command {
-        Commands::Full { concurrent_users, duration } => {
+        Commands::Full {
+            concurrent_users,
+            duration,
+        } => {
             println!("🎯 运行完整性能测试");
             println!("   并发用户: {}", concurrent_users);
             println!("   测试时长: {}秒", duration);
-            
+
             // 运行所有测试
             let latency_result = benchmark.benchmark_latency(10000).await?;
             latency_result.print_summary();
-            
+
             println!("\n{} 完整性能测试完成！", SPARKLE);
-        },
+        }
         Commands::Latency { requests } => {
             let result = benchmark.benchmark_latency(requests).await?;
             result.print_summary();
-        },
-        Commands::Throughput { concurrency: _, duration: _ } => {
+        }
+        Commands::Throughput {
+            concurrency: _,
+            duration: _,
+        } => {
             println!("🚀 吞吐量测试 (简化实现)");
             // 简化实现，实际应该测试并发吞吐量
             let result = benchmark.benchmark_latency(10000).await?;
             result.print_summary();
-        },
+        }
         Commands::Memory { memory_count: _ } => {
             println!("💾 内存效率测试 (简化实现)");
             let result = benchmark.benchmark_latency(1000).await?;
             result.print_summary();
-        },
+        }
         Commands::Concurrency { max_users: _ } => {
             println!("👥 并发用户测试 (简化实现)");
             let result = benchmark.benchmark_latency(5000).await?;
             result.print_summary();
-        },
+        }
     }
-    
+
     Ok(())
 }

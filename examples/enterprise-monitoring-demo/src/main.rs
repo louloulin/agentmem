@@ -8,15 +8,14 @@
 //! - 容量规划和预测系统
 
 use agent_mem_compat::enterprise_monitoring::{
-    EnterpriseMonitoringManager, EnterpriseMonitoringConfig,
-    BackupConfig, ClusterConfig, FailoverConfig, 
-    PerformanceTuningConfig, CapacityPlanningConfig,
-    ClusterNode, NodeStatus, LoadBalancingStrategy,
+    BackupConfig, CapacityPlanningConfig, ClusterConfig, ClusterNode, EnterpriseMonitoringConfig,
+    EnterpriseMonitoringManager, FailoverConfig, LoadBalancingStrategy, NodeStatus,
+    PerformanceTuningConfig,
 };
 use anyhow::Result;
 use chrono::Utc;
 use std::time::Duration;
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -29,10 +28,10 @@ async fn main() -> Result<()> {
 
     // 创建企业监控配置
     let config = create_monitoring_config();
-    
+
     // 创建企业监控管理器
     let monitoring_manager = EnterpriseMonitoringManager::new(config).await?;
-    
+
     info!("✅ 企业监控管理器创建成功");
 
     // 演示各个功能模块
@@ -131,7 +130,9 @@ async fn demo_backup_management(manager: &EnterpriseMonitoringManager) -> Result
 
     // 创建手动备份
     info!("创建手动备份...");
-    let backup_result = manager.create_manual_backup(Some("demo_backup".to_string())).await?;
+    let backup_result = manager
+        .create_manual_backup(Some("demo_backup".to_string()))
+        .await?;
     info!("✅ 备份创建成功: {:?}", backup_result);
 
     // 列出所有备份
@@ -139,7 +140,10 @@ async fn demo_backup_management(manager: &EnterpriseMonitoringManager) -> Result
     let backups = manager.list_backups().await?;
     info!("📋 当前备份列表 ({} 个):", backups.len());
     for backup in &backups {
-        info!("  - {}: {} ({})", backup.backup_id, backup.backup_name, backup.size_bytes);
+        info!(
+            "  - {}: {} ({})",
+            backup.backup_id, backup.backup_name, backup.size_bytes
+        );
     }
 
     // 如果有备份，演示恢复功能
@@ -160,7 +164,10 @@ async fn demo_cluster_management(manager: &EnterpriseMonitoringManager) -> Resul
     info!("获取集群状态...");
     let cluster_status = manager.get_cluster_status().await?;
     info!("📊 集群状态: {:?}", cluster_status.status);
-    info!("🖥️  活跃节点: {}/{}", cluster_status.active_nodes, cluster_status.total_nodes);
+    info!(
+        "🖥️  活跃节点: {}/{}",
+        cluster_status.active_nodes, cluster_status.total_nodes
+    );
 
     // 添加新节点
     info!("添加新集群节点...");
@@ -177,7 +184,10 @@ async fn demo_cluster_management(manager: &EnterpriseMonitoringManager) -> Resul
 
     // 再次获取集群状态
     let updated_status = manager.get_cluster_status().await?;
-    info!("📊 更新后集群状态: 活跃节点 {}/{}", updated_status.active_nodes, updated_status.total_nodes);
+    info!(
+        "📊 更新后集群状态: 活跃节点 {}/{}",
+        updated_status.active_nodes, updated_status.total_nodes
+    );
 
     Ok(())
 }
@@ -192,14 +202,20 @@ async fn demo_performance_tuning(manager: &EnterpriseMonitoringManager) -> Resul
     info!("💡 性能建议 ({} 个):", recommendations.len());
     for rec in &recommendations {
         info!("  - {}: {} (优先级: {:?})", rec.id, rec.title, rec.priority);
-        info!("    预期性能提升: {:.1}%", rec.expected_impact.performance_improvement_percent);
+        info!(
+            "    预期性能提升: {:.1}%",
+            rec.expected_impact.performance_improvement_percent
+        );
     }
 
     // 应用第一个优化建议
     if let Some(rec) = recommendations.first() {
         info!("应用优化建议: {}", rec.id);
         let result = manager.apply_performance_optimization(&rec.id).await?;
-        info!("✅ 优化应用成功: 实际性能提升 {:.1}%", result.actual_impact.performance_improvement_percent);
+        info!(
+            "✅ 优化应用成功: 实际性能提升 {:.1}%",
+            result.actual_impact.performance_improvement_percent
+        );
     }
 
     Ok(())
@@ -212,13 +228,18 @@ async fn demo_capacity_planning(manager: &EnterpriseMonitoringManager) -> Result
     // 获取容量预测
     info!("获取 30 天容量预测...");
     let forecast = manager.get_capacity_forecast(30).await?;
-    info!("🔮 容量预测 (准确度: {:.1}%):", forecast.forecast_accuracy * 100.0);
-    info!("  - CPU: {:.1}% -> {:.1}% ({:?})", 
+    info!(
+        "🔮 容量预测 (准确度: {:.1}%):",
+        forecast.forecast_accuracy * 100.0
+    );
+    info!(
+        "  - CPU: {:.1}% -> {:.1}% ({:?})",
         forecast.cpu_forecast.current_usage_percent,
         forecast.cpu_forecast.predicted_usage_percent,
         forecast.cpu_forecast.trend
     );
-    info!("  - 内存: {:.1}% -> {:.1}% ({:?})", 
+    info!(
+        "  - 内存: {:.1}% -> {:.1}% ({:?})",
         forecast.memory_forecast.current_usage_percent,
         forecast.memory_forecast.predicted_usage_percent,
         forecast.memory_forecast.trend
@@ -229,9 +250,14 @@ async fn demo_capacity_planning(manager: &EnterpriseMonitoringManager) -> Result
     let scaling_recommendations = manager.get_scaling_recommendations().await?;
     info!("📊 扩容建议 ({} 个):", scaling_recommendations.len());
     for rec in &scaling_recommendations {
-        info!("  - {:?} {:?}: 扩容 {:.1}x (紧急程度: {:?})", 
-            rec.scaling_type, rec.resource_type, rec.recommended_scaling_amount, rec.urgency);
-        info!("    月度成本增加: ${:.2}", rec.cost_estimate.monthly_cost_increase);
+        info!(
+            "  - {:?} {:?}: 扩容 {:.1}x (紧急程度: {:?})",
+            rec.scaling_type, rec.resource_type, rec.recommended_scaling_amount, rec.urgency
+        );
+        info!(
+            "    月度成本增加: ${:.2}",
+            rec.cost_estimate.monthly_cost_increase
+        );
     }
 
     Ok(())
@@ -249,11 +275,26 @@ async fn demo_system_health_monitoring(manager: &EnterpriseMonitoringManager) ->
 
     // 显示各组件健康状态
     info!("📋 组件健康状态:");
-    info!("  - 备份管理: {:?} - {}", health_report.backup_health.status, health_report.backup_health.message);
-    info!("  - 集群管理: {:?} - {}", health_report.cluster_health.status, health_report.cluster_health.message);
-    info!("  - 故障转移: {:?} - {}", health_report.failover_health.status, health_report.failover_health.message);
-    info!("  - 性能调优: {:?} - {}", health_report.performance_health.status, health_report.performance_health.message);
-    info!("  - 容量规划: {:?} - {}", health_report.capacity_health.status, health_report.capacity_health.message);
+    info!(
+        "  - 备份管理: {:?} - {}",
+        health_report.backup_health.status, health_report.backup_health.message
+    );
+    info!(
+        "  - 集群管理: {:?} - {}",
+        health_report.cluster_health.status, health_report.cluster_health.message
+    );
+    info!(
+        "  - 故障转移: {:?} - {}",
+        health_report.failover_health.status, health_report.failover_health.message
+    );
+    info!(
+        "  - 性能调优: {:?} - {}",
+        health_report.performance_health.status, health_report.performance_health.message
+    );
+    info!(
+        "  - 容量规划: {:?} - {}",
+        health_report.capacity_health.status, health_report.capacity_health.message
+    );
 
     // 显示性能指标
     info!("📊 当前性能指标:");
@@ -268,7 +309,10 @@ async fn demo_system_health_monitoring(manager: &EnterpriseMonitoringManager) ->
     if !health_report.active_alerts.is_empty() {
         warn!("⚠️  活跃告警 ({} 个):", health_report.active_alerts.len());
         for alert in &health_report.active_alerts {
-            warn!("  - {:?}: {} (级别: {:?})", alert.alert_type, alert.message, alert.level);
+            warn!(
+                "  - {:?}: {} (级别: {:?})",
+                alert.alert_type, alert.message, alert.level
+            );
         }
     } else {
         info!("✅ 无活跃告警");

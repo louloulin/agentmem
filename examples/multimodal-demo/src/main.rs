@@ -2,7 +2,7 @@
 //!
 //! 展示 AgentMem 的多模态内容处理能力和 LiteLLM 集成
 
-use agent_mem_llm::providers::litellm::{LiteLLMProvider, LiteLLMMessage};
+use agent_mem_llm::providers::litellm::{LiteLLMMessage, LiteLLMProvider};
 use agent_mem_llm::LLMFactory;
 use agent_mem_traits::LLMConfig;
 use std::env;
@@ -44,7 +44,7 @@ async fn demo_litellm_multimodal() -> anyhow::Result<()> {
 
     // 创建支持视觉的模型
     let provider = LiteLLMProvider::with_model("gpt-4-vision-preview")?;
-    
+
     println!("   ✅ 提供商创建成功");
     println!("   📊 模型信息:");
     println!("      - 模型: {}", provider.get_model());
@@ -66,9 +66,9 @@ async fn demo_litellm_multimodal() -> anyhow::Result<()> {
     // 检查是否有 API 密钥
     if let Ok(api_key) = env::var("OPENAI_API_KEY") {
         println!("   🔑 检测到 OpenAI API 密钥，尝试多模态调用...");
-        
+
         let provider_with_key = provider.with_api_key(api_key);
-        
+
         match provider_with_key.generate_response(&messages).await {
             Ok(response) => {
                 println!("   ✅ 多模态 LLM 响应成功:");
@@ -105,7 +105,10 @@ fn demo_content_type_detection() {
 
     for (filename, expected_mime) in test_cases {
         let detected_type = detect_content_type_from_filename(filename);
-        println!("      📄 {} -> {} (预期: {})", filename, detected_type, expected_mime);
+        println!(
+            "      📄 {} -> {} (预期: {})",
+            filename, detected_type, expected_mime
+        );
     }
 
     println!("   ✅ 内容类型识别完成");
@@ -150,7 +153,7 @@ async fn demo_litellm_multimodal_integration() -> anyhow::Result<()> {
     match LLMFactory::create_provider(&config) {
         Ok(provider) => {
             println!("   ✅ 集成提供商创建成功");
-            
+
             let model_info = provider.get_model_info();
             println!("   📊 集成模型信息:");
             println!("      - 提供商: {}", model_info.provider);
@@ -166,14 +169,15 @@ async fn demo_litellm_multimodal_integration() -> anyhow::Result<()> {
                 },
                 agent_mem_traits::Message {
                     role: agent_mem_traits::MessageRole::User,
-                    content: "请分析以下多模态内容的处理策略：图像识别、文本提取、音频转录。".to_string(),
+                    content: "请分析以下多模态内容的处理策略：图像识别、文本提取、音频转录。"
+                        .to_string(),
                     timestamp: None,
                 },
             ];
 
             if config.api_key.is_some() {
                 println!("   🔑 尝试集成多模态分析...");
-                
+
                 match provider.generate(&messages).await {
                     Ok(response) => {
                         println!("   ✅ 集成分析成功:");

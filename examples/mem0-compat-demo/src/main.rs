@@ -76,14 +76,20 @@ async fn main() -> Result<()> {
 
     // Search for food-related memories
     let food_memories = client.search("food pizza", user_id, None).await?;
-    println!("   🍕 Food search results: {} memories", food_memories.total);
+    println!(
+        "   🍕 Food search results: {} memories",
+        food_memories.total
+    );
     for memory in &food_memories.memories {
         println!("      - {}: {}", memory.id, memory.memory);
     }
 
     // Search for programming-related memories
     let prog_memories = client.search("programming language", user_id, None).await?;
-    println!("   💻 Programming search results: {} memories", prog_memories.total);
+    println!(
+        "   💻 Programming search results: {} memories",
+        prog_memories.total
+    );
     for memory in &prog_memories.memories {
         println!("      - {}: {}", memory.id, memory.memory);
     }
@@ -100,7 +106,10 @@ async fn main() -> Result<()> {
             limit: Some(10),
         })
         .await?;
-    println!("   🎯 Filtered search results: {} memories", filtered_memories.total);
+    println!(
+        "   🎯 Filtered search results: {} memories",
+        filtered_memories.total
+    );
     for memory in &filtered_memories.memories {
         println!("      - {}: {}", memory.id, memory.memory);
     }
@@ -123,7 +132,10 @@ async fn main() -> Result<()> {
             println!("         Importance: {:.2}", score);
         }
         if !memory.metadata.is_empty() {
-            println!("         Metadata: {}", serde_json::to_string_pretty(&memory.metadata)?);
+            println!(
+                "         Metadata: {}",
+                serde_json::to_string_pretty(&memory.metadata)?
+            );
         }
     }
 
@@ -134,7 +146,9 @@ async fn main() -> Result<()> {
             &memory2_id,
             user_id,
             agent_mem_compat::types::UpdateMemoryRequest {
-                memory: Some("My favorite programming language is Rust - it's fast and safe!".to_string()),
+                memory: Some(
+                    "My favorite programming language is Rust - it's fast and safe!".to_string(),
+                ),
                 metadata: Some(HashMap::from([
                     ("category".to_string(), json!("preference")),
                     ("importance".to_string(), json!(0.9)),
@@ -151,30 +165,42 @@ async fn main() -> Result<()> {
     if delete_result.success {
         println!("   ✅ Deleted memory successfully");
     } else {
-        warn!("   ⚠️  Failed to delete memory: {:?}", delete_result.message);
+        warn!(
+            "   ⚠️  Failed to delete memory: {:?}",
+            delete_result.message
+        );
     }
 
     println!("\n🔄 Testing configuration options...");
 
     // Test different configurations
     let openai_config = Mem0Config::openai();
-    println!("   🤖 OpenAI config: provider={}, model={}", 
-             openai_config.llm.provider, openai_config.llm.model);
+    println!(
+        "   🤖 OpenAI config: provider={}, model={}",
+        openai_config.llm.provider, openai_config.llm.model
+    );
 
     let anthropic_config = Mem0Config::anthropic();
-    println!("   🧠 Anthropic config: provider={}, model={}", 
-             anthropic_config.llm.provider, anthropic_config.llm.model);
+    println!(
+        "   🧠 Anthropic config: provider={}, model={}",
+        anthropic_config.llm.provider, anthropic_config.llm.model
+    );
 
     let local_config = Mem0Config::local();
-    println!("   🏠 Local config: provider={}, model={}", 
-             local_config.llm.provider, local_config.llm.model);
+    println!(
+        "   🏠 Local config: provider={}, model={}",
+        local_config.llm.provider, local_config.llm.model
+    );
 
     println!("\n🧹 Cleaning up...");
 
     // Delete all memories for the user
     let cleanup_result = client.delete_all(user_id).await?;
     if cleanup_result.success {
-        println!("   ✅ Cleaned up all memories: {}", cleanup_result.message.unwrap_or_default());
+        println!(
+            "   ✅ Cleaned up all memories: {}",
+            cleanup_result.message.unwrap_or_default()
+        );
     }
 
     println!("\n🎉 Demo completed successfully!");

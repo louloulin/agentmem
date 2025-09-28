@@ -1,7 +1,9 @@
 //! OpenAI LLM提供商实现
 
-use agent_mem_traits::{AgentMemError, LLMConfig, LLMProvider, Message, MessageRole, ModelInfo, Result};
-use agent_mem_traits::llm::{FunctionCallResponse, FunctionDefinition, FunctionCall};
+use agent_mem_traits::llm::{FunctionCall, FunctionCallResponse, FunctionDefinition};
+use agent_mem_traits::{
+    AgentMemError, LLMConfig, LLMProvider, Message, MessageRole, ModelInfo, Result,
+};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -224,7 +226,7 @@ impl LLMProvider for OpenAIProvider {
         &self,
         messages: &[Message],
     ) -> Result<Box<dyn futures::Stream<Item = Result<String>> + Send + Unpin>> {
-        use futures::stream::{self, StreamExt};
+        use futures::stream::StreamExt;
 
         // 创建流式请求
         let openai_messages: Vec<OpenAIMessage> = messages
@@ -259,12 +261,17 @@ impl LLMProvider for OpenAIProvider {
         let response = self
             .client
             .post(&format!("{}/chat/completions", self.base_url))
-            .header("Authorization", format!("Bearer {}", self.config.api_key.as_ref().unwrap()))
+            .header(
+                "Authorization",
+                format!("Bearer {}", self.config.api_key.as_ref().unwrap()),
+            )
             .header("Content-Type", "application/json")
             .json(&request)
             .send()
             .await
-            .map_err(|e| AgentMemError::network_error(&format!("OpenAI API request failed: {}", e)))?;
+            .map_err(|e| {
+                AgentMemError::network_error(&format!("OpenAI API request failed: {}", e))
+            })?;
 
         if !response.status().is_success() {
             let error_text = response.text().await.unwrap_or_default();
@@ -308,7 +315,10 @@ impl LLMProvider for OpenAIProvider {
                         }
                         Ok("".to_string())
                     }
-                    Err(e) => Err(AgentMemError::network_error(&format!("Stream error: {}", e))),
+                    Err(e) => Err(AgentMemError::network_error(&format!(
+                        "Stream error: {}",
+                        e
+                    ))),
                 }
             })
             .filter(|result| {
@@ -383,12 +393,17 @@ impl LLMProvider for OpenAIProvider {
         let response = self
             .client
             .post(&format!("{}/chat/completions", self.base_url))
-            .header("Authorization", format!("Bearer {}", self.config.api_key.as_ref().unwrap()))
+            .header(
+                "Authorization",
+                format!("Bearer {}", self.config.api_key.as_ref().unwrap()),
+            )
             .header("Content-Type", "application/json")
             .json(&request)
             .send()
             .await
-            .map_err(|e| AgentMemError::network_error(&format!("OpenAI API request failed: {}", e)))?;
+            .map_err(|e| {
+                AgentMemError::network_error(&format!("OpenAI API request failed: {}", e))
+            })?;
 
         if !response.status().is_success() {
             let error_text = response.text().await.unwrap_or_default();
@@ -398,10 +413,9 @@ impl LLMProvider for OpenAIProvider {
             )));
         }
 
-        let openai_response: OpenAIResponse = response
-            .json()
-            .await
-            .map_err(|e| AgentMemError::parsing_error(&format!("Failed to parse OpenAI response: {}", e)))?;
+        let openai_response: OpenAIResponse = response.json().await.map_err(|e| {
+            AgentMemError::parsing_error(&format!("Failed to parse OpenAI response: {}", e))
+        })?;
 
         if openai_response.choices.is_empty() {
             return Err(AgentMemError::llm_error("No choices in response"));

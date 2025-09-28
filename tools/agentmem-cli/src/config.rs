@@ -4,8 +4,8 @@ Configuration management for AgentMem CLI
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
 use std::fs;
+use std::path::PathBuf;
 
 use crate::Cli;
 
@@ -14,13 +14,13 @@ use crate::Cli;
 pub struct CliConfig {
     /// API configuration
     pub api: ApiConfig,
-    
+
     /// Output configuration
     pub output: OutputConfig,
-    
+
     /// Project configuration
     pub project: Option<ProjectConfig>,
-    
+
     /// Deployment configuration
     pub deploy: Option<DeployConfig>,
 }
@@ -30,16 +30,16 @@ pub struct CliConfig {
 pub struct ApiConfig {
     /// API key for authentication
     pub api_key: Option<String>,
-    
+
     /// Base URL for AgentMem API
     pub base_url: String,
-    
+
     /// API version
     pub api_version: String,
-    
+
     /// Request timeout in seconds
     pub timeout: u64,
-    
+
     /// Maximum retry attempts
     pub max_retries: u32,
 }
@@ -49,13 +49,13 @@ pub struct ApiConfig {
 pub struct OutputConfig {
     /// Output format (json, yaml, table)
     pub format: String,
-    
+
     /// Enable verbose output
     pub verbose: bool,
-    
+
     /// Enable colored output
     pub color: bool,
-    
+
     /// Page size for paginated results
     pub page_size: usize,
 }
@@ -65,13 +65,13 @@ pub struct OutputConfig {
 pub struct ProjectConfig {
     /// Project name
     pub name: String,
-    
+
     /// Project description
     pub description: Option<String>,
-    
+
     /// Default agent ID
     pub default_agent_id: Option<String>,
-    
+
     /// Project templates directory
     pub templates_dir: Option<PathBuf>,
 }
@@ -81,13 +81,13 @@ pub struct ProjectConfig {
 pub struct DeployConfig {
     /// Target platform (docker, kubernetes, aws, gcp, azure)
     pub platform: String,
-    
+
     /// Environment (dev, staging, prod)
     pub environment: String,
-    
+
     /// Resource configuration
     pub resources: ResourceConfig,
-    
+
     /// Environment variables
     pub env_vars: std::collections::HashMap<String, String>,
 }
@@ -97,13 +97,13 @@ pub struct DeployConfig {
 pub struct ResourceConfig {
     /// CPU limit
     pub cpu_limit: String,
-    
+
     /// Memory limit
     pub memory_limit: String,
-    
+
     /// Storage size
     pub storage_size: String,
-    
+
     /// Number of replicas
     pub replicas: u32,
 }
@@ -139,17 +139,17 @@ impl CliConfig {
         };
 
         if config_file.exists() {
-            let content = fs::read_to_string(&config_file)
-                .with_context(|| format!("Failed to read config file: {}", config_file.display()))?;
-            
-            let config: CliConfig = if config_file.extension().and_then(|s| s.to_str()) == Some("yaml") {
-                serde_yaml::from_str(&content)
-                    .with_context(|| "Failed to parse YAML config")?
-            } else {
-                toml::from_str(&content)
-                    .with_context(|| "Failed to parse TOML config")?
-            };
-            
+            let content = fs::read_to_string(&config_file).with_context(|| {
+                format!("Failed to read config file: {}", config_file.display())
+            })?;
+
+            let config: CliConfig =
+                if config_file.extension().and_then(|s| s.to_str()) == Some("yaml") {
+                    serde_yaml::from_str(&content).with_context(|| "Failed to parse YAML config")?
+                } else {
+                    toml::from_str(&content).with_context(|| "Failed to parse TOML config")?
+                };
+
             Ok(config)
         } else {
             Ok(Self::default())
@@ -165,16 +165,15 @@ impl CliConfig {
 
         // Create parent directory if it doesn't exist
         if let Some(parent) = config_file.parent() {
-            fs::create_dir_all(parent)
-                .with_context(|| format!("Failed to create config directory: {}", parent.display()))?;
+            fs::create_dir_all(parent).with_context(|| {
+                format!("Failed to create config directory: {}", parent.display())
+            })?;
         }
 
         let content = if config_file.extension().and_then(|s| s.to_str()) == Some("yaml") {
-            serde_yaml::to_string(self)
-                .with_context(|| "Failed to serialize config to YAML")?
+            serde_yaml::to_string(self).with_context(|| "Failed to serialize config to YAML")?
         } else {
-            toml::to_string_pretty(self)
-                .with_context(|| "Failed to serialize config to TOML")?
+            toml::to_string_pretty(self).with_context(|| "Failed to serialize config to TOML")?
         };
 
         fs::write(&config_file, content)
@@ -188,7 +187,7 @@ impl CliConfig {
         let config_dir = dirs::config_dir()
             .context("Failed to get config directory")?
             .join("agentmem");
-        
+
         Ok(config_dir.join("config.toml"))
     }
 
@@ -271,6 +270,8 @@ impl MergedConfig {
 
     /// Get default agent ID
     pub fn default_agent_id(&self) -> Option<&str> {
-        self.project.as_ref().and_then(|p| p.default_agent_id.as_deref())
+        self.project
+            .as_ref()
+            .and_then(|p| p.default_agent_id.as_deref())
     }
 }

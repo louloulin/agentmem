@@ -1,5 +1,5 @@
 //! 存储优化管理器
-//! 
+//!
 //! 实现 Phase 4.1 存储优化功能，包括：
 //! - 多维索引和查询优化
 //! - 向量压缩和量化
@@ -7,13 +7,13 @@
 //! - 多级缓存和预热机制
 //! - 对象池和内存复用
 
-use agent_mem_traits::{Result, AgentMemError};
+use agent_mem_traits::{AgentMemError, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, BTreeMap};
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
-use tracing::{info, error};
+use tracing::{error, info};
 
 /// 存储优化配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -308,11 +308,7 @@ impl Default for StorageOptimizationConfig {
         Self {
             index_optimization: IndexOptimizationConfig {
                 enable_multi_dimensional: true,
-                index_types: vec![
-                    IndexType::BTree,
-                    IndexType::Hash,
-                    IndexType::Vector,
-                ],
+                index_types: vec![IndexType::BTree, IndexType::Hash, IndexType::Vector],
                 query_optimizer: QueryOptimizerConfig {
                     enable_plan_cache: true,
                     stats_update_interval: 3600,
@@ -731,11 +727,17 @@ impl StorageOptimizationManager {
     pub async fn new(config: StorageOptimizationConfig) -> Result<Self> {
         info!("Initializing Storage Optimization Manager");
 
-        let index_manager = Arc::new(RwLock::new(IndexManager::new(config.index_optimization.clone())));
-        let compression_manager = Arc::new(RwLock::new(CompressionManager::new(config.compression.clone())));
+        let index_manager = Arc::new(RwLock::new(IndexManager::new(
+            config.index_optimization.clone(),
+        )));
+        let compression_manager = Arc::new(RwLock::new(CompressionManager::new(
+            config.compression.clone(),
+        )));
         let sharding_manager = Arc::new(RwLock::new(ShardingManager::new(config.sharding.clone())));
         let cache_manager = Arc::new(RwLock::new(CacheManager::new(config.caching.clone())));
-        let memory_pool_manager = Arc::new(RwLock::new(MemoryPoolManager::new(config.memory_pool.clone())));
+        let memory_pool_manager = Arc::new(RwLock::new(MemoryPoolManager::new(
+            config.memory_pool.clone(),
+        )));
 
         info!("Storage Optimization Manager initialized successfully");
 
@@ -756,7 +758,9 @@ impl StorageOptimizationManager {
 
         let mut running = self.running.write().await;
         if *running {
-            return Err(AgentMemError::storage_error("Storage optimization system is already running"));
+            return Err(AgentMemError::storage_error(
+                "Storage optimization system is already running",
+            ));
         }
 
         // 启动各个子系统
@@ -1000,7 +1004,13 @@ impl IndexManager {
 
     pub async fn optimize_query(&self, query: &str) -> Result<QueryPlan> {
         // 简化的查询优化实现
-        let plan_id = format!("plan_{}", SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs());
+        let plan_id = format!(
+            "plan_{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+        );
 
         Ok(QueryPlan {
             plan_id,
@@ -1076,16 +1086,14 @@ impl CompressionManager {
     }
 
     pub async fn get_stats(&self) -> Vec<CompressionStats> {
-        vec![
-            CompressionStats {
-                original_size_bytes: 1024 * 1024, // 1MB
-                compressed_size_bytes: 512 * 1024, // 512KB
-                compression_ratio: 0.5,
-                compression_time_ms: 15.2,
-                decompression_time_ms: 8.7,
-                algorithm: CompressionAlgorithm::Zstd,
-            },
-        ]
+        vec![CompressionStats {
+            original_size_bytes: 1024 * 1024,  // 1MB
+            compressed_size_bytes: 512 * 1024, // 512KB
+            compression_ratio: 0.5,
+            compression_time_ms: 15.2,
+            decompression_time_ms: 8.7,
+            algorithm: CompressionAlgorithm::Zstd,
+        }]
     }
 }
 
@@ -1179,7 +1187,7 @@ impl CacheManager {
                 miss_count: 1500,
                 hit_rate: 0.85,
                 current_size_bytes: 80 * 1024 * 1024, // 80MB
-                max_size_bytes: 100 * 1024 * 1024, // 100MB
+                max_size_bytes: 100 * 1024 * 1024,    // 100MB
                 usage_ratio: 0.8,
                 avg_access_time_ms: 0.5,
             },
@@ -1190,7 +1198,7 @@ impl CacheManager {
                 miss_count: 3800,
                 hit_rate: 0.62,
                 current_size_bytes: 800 * 1024 * 1024, // 800MB
-                max_size_bytes: 1024 * 1024 * 1024, // 1GB
+                max_size_bytes: 1024 * 1024 * 1024,    // 1GB
                 usage_ratio: 0.78,
                 avg_access_time_ms: 2.3,
             },
@@ -1216,7 +1224,10 @@ impl MemoryPoolManager {
 
     pub async fn allocate(&self, object_type: &str) -> Result<usize> {
         // 简化的对象分配实现
-        let object_id = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as usize;
+        let object_id = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as usize;
         info!("Allocated object {} of type: {}", object_id, object_type);
         Ok(object_id)
     }

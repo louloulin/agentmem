@@ -7,12 +7,12 @@
 //! - 语义理解和推理
 //! - 多模态内容处理
 
+use agent_mem_llm::LLMProvider;
+use agent_mem_traits::{Message as TraitsMessage, Result};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use agent_mem_traits::{Result, Message as TraitsMessage};
-use agent_mem_llm::LLMProvider;
-use chrono::{DateTime, Utc};
 use tracing::{debug, info, warn};
 
 /// 提取的事实信息
@@ -30,21 +30,21 @@ pub struct ExtractedFact {
 /// 事实类别（扩展版本）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FactCategory {
-    Personal,      // 个人信息（姓名、年龄、职业等）
-    Preference,    // 偏好设置（喜好、厌恶等）
-    Relationship,  // 关系信息（家庭、朋友、同事等）
-    Event,         // 事件记录（发生的事情）
-    Knowledge,     // 知识事实（客观信息）
-    Procedural,    // 程序性知识（如何做某事）
-    Emotional,     // 情感状态（心情、感受等）
-    Goal,          // 目标和计划
-    Skill,         // 技能和能力
-    Location,      // 地理位置信息
-    Temporal,      // 时间相关信息
-    Financial,     // 财务信息
-    Health,        // 健康相关信息
-    Educational,   // 教育背景
-    Professional,  // 职业相关
+    Personal,     // 个人信息（姓名、年龄、职业等）
+    Preference,   // 偏好设置（喜好、厌恶等）
+    Relationship, // 关系信息（家庭、朋友、同事等）
+    Event,        // 事件记录（发生的事情）
+    Knowledge,    // 知识事实（客观信息）
+    Procedural,   // 程序性知识（如何做某事）
+    Emotional,    // 情感状态（心情、感受等）
+    Goal,         // 目标和计划
+    Skill,        // 技能和能力
+    Location,     // 地理位置信息
+    Temporal,     // 时间相关信息
+    Financial,    // 财务信息
+    Health,       // 健康相关信息
+    Educational,  // 教育背景
+    Professional, // 职业相关
 }
 
 /// 实体信息
@@ -60,42 +60,42 @@ pub struct Entity {
 /// 关系类型
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum RelationType {
-    FamilyOf,        // 家庭关系
-    WorksAt,         // 工作关系
-    Likes,           // 喜欢
-    Dislikes,        // 不喜欢
-    FriendOf,        // 朋友关系
-    HasProperty,     // 拥有属性
-    LocatedAt,       // 位于
-    ParticipatesIn,  // 参与
-    OccursAt,        // 发生于
-    Causes,          // 导致
-    Other(String),   // 其他关系
+    FamilyOf,       // 家庭关系
+    WorksAt,        // 工作关系
+    Likes,          // 喜欢
+    Dislikes,       // 不喜欢
+    FriendOf,       // 朋友关系
+    HasProperty,    // 拥有属性
+    LocatedAt,      // 位于
+    ParticipatesIn, // 参与
+    OccursAt,       // 发生于
+    Causes,         // 导致
+    Other(String),  // 其他关系
 }
 
 /// 关系
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Relation {
-    pub subject: String,        // 主体
-    pub predicate: String,      // 谓词
-    pub object: String,         // 客体
+    pub subject: String,             // 主体
+    pub predicate: String,           // 谓词
+    pub object: String,              // 客体
     pub relation_type: RelationType, // 关系类型
-    pub confidence: f32,        // 置信度
-    pub subject_id: String,     // 主体ID
-    pub object_id: String,      // 客体ID
+    pub confidence: f32,             // 置信度
+    pub subject_id: String,          // 主体ID
+    pub object_id: String,           // 客体ID
 }
 
 /// 结构化事实
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StructuredFact {
-    pub id: String,             // 事实ID
-    pub fact_type: String,      // 事实类型
-    pub description: String,    // 事实描述
-    pub entities: Vec<Entity>,  // 相关实体
-    pub relations: Vec<Relation>, // 相关关系
-    pub confidence: f32,        // 置信度
-    pub importance: f32,        // 重要性
-    pub source_messages: Vec<String>, // 来源消息ID
+    pub id: String,                        // 事实ID
+    pub fact_type: String,                 // 事实类型
+    pub description: String,               // 事实描述
+    pub entities: Vec<Entity>,             // 相关实体
+    pub relations: Vec<Relation>,          // 相关关系
+    pub confidence: f32,                   // 置信度
+    pub importance: f32,                   // 重要性
+    pub source_messages: Vec<String>,      // 来源消息ID
     pub metadata: HashMap<String, String>, // 元数据
 }
 
@@ -126,11 +126,11 @@ pub enum EntityType {
 /// 时间信息
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TemporalInfo {
-    pub timestamp: Option<String>,      // ISO 8601 格式时间戳
-    pub duration: Option<String>,       // 持续时间描述
-    pub frequency: Option<String>,      // 频率描述
-    pub relative_time: Option<String>,  // 相对时间（如"昨天"、"下周"）
-    pub time_range: Option<TimeRange>,  // 时间范围
+    pub timestamp: Option<String>,     // ISO 8601 格式时间戳
+    pub duration: Option<String>,      // 持续时间描述
+    pub frequency: Option<String>,     // 频率描述
+    pub relative_time: Option<String>, // 相对时间（如"昨天"、"下周"）
+    pub time_range: Option<TimeRange>, // 时间范围
 }
 
 /// 时间范围
@@ -176,8 +176,12 @@ impl FactExtractor {
         // 尝试提取 JSON 部分
         let json_text = self.extract_json_from_response(&response_text)?;
 
-        let response: FactExtractionResponse = serde_json::from_str(&json_text)
-            .map_err(|e| agent_mem_traits::AgentMemError::internal_error(format!("Failed to parse response: {}", e)))?;
+        let response: FactExtractionResponse = serde_json::from_str(&json_text).map_err(|e| {
+            agent_mem_traits::AgentMemError::internal_error(format!(
+                "Failed to parse response: {}",
+                e
+            ))
+        })?;
 
         let mut facts = response.facts;
 
@@ -215,7 +219,7 @@ impl FactExtractor {
 
         // 如果找不到 JSON，返回错误
         Err(agent_mem_traits::AgentMemError::internal_error(
-            "No valid JSON found in response".to_string()
+            "No valid JSON found in response".to_string(),
         ))
     }
 
@@ -225,7 +229,9 @@ impl FactExtractor {
 
         // 处理 category 字段中的多值情况，如 "Personal|Professional" -> "Personal"
         let category_re = regex::Regex::new(r#""category":\s*"([^"|]+)\|[^"]*""#).unwrap();
-        cleaned = category_re.replace_all(&cleaned, r#""category": "$1""#).to_string();
+        cleaned = category_re
+            .replace_all(&cleaned, r#""category": "$1""#)
+            .to_string();
 
         // 处理未知的实体类型，映射到已知类型
         let entity_type_mappings = [
@@ -289,11 +295,15 @@ impl FactExtractor {
         // 处理数字字段被错误地作为数字而不是字符串的情况
         // 将 "name": 30 转换为 "name": "30"
         let number_to_string_re = regex::Regex::new(r#""name":\s*(\d+)"#).unwrap();
-        cleaned = number_to_string_re.replace_all(&cleaned, r#""name": "$1""#).to_string();
+        cleaned = number_to_string_re
+            .replace_all(&cleaned, r#""name": "$1""#)
+            .to_string();
 
         // 处理其他可能的数字字段
         let id_number_re = regex::Regex::new(r#""id":\s*(\d+)"#).unwrap();
-        cleaned = id_number_re.replace_all(&cleaned, r#""id": "$1""#).to_string();
+        cleaned = id_number_re
+            .replace_all(&cleaned, r#""id": "$1""#)
+            .to_string();
 
         cleaned
     }
@@ -427,7 +437,9 @@ Requirements:
         for fact in facts.iter_mut() {
             if fact.temporal_info.is_none() {
                 // 如果没有时间信息，尝试从内容中提取
-                let temporal_info = self.extract_temporal_info_from_content(&fact.content).await?;
+                let temporal_info = self
+                    .extract_temporal_info_from_content(&fact.content)
+                    .await?;
                 fact.temporal_info = temporal_info;
             }
         }
@@ -456,7 +468,10 @@ Requirements:
     }
 
     /// 从内容中提取时间信息
-    async fn extract_temporal_info_from_content(&self, content: &str) -> Result<Option<TemporalInfo>> {
+    async fn extract_temporal_info_from_content(
+        &self,
+        content: &str,
+    ) -> Result<Option<TemporalInfo>> {
         // 简化的时间信息提取逻辑
         let mut temporal_info = TemporalInfo {
             timestamp: None,
@@ -483,8 +498,11 @@ Requirements:
         }
 
         // 如果有任何时间信息，返回结构
-        if temporal_info.timestamp.is_some() || temporal_info.duration.is_some() ||
-           temporal_info.frequency.is_some() || temporal_info.relative_time.is_some() {
+        if temporal_info.timestamp.is_some()
+            || temporal_info.duration.is_some()
+            || temporal_info.frequency.is_some()
+            || temporal_info.relative_time.is_some()
+        {
             Ok(Some(temporal_info))
         } else {
             Ok(None)
@@ -515,17 +533,17 @@ Requirements:
     pub fn merge_similar_facts(&self, facts: Vec<ExtractedFact>) -> Vec<ExtractedFact> {
         // 简单的去重逻辑，基于内容相似性
         let mut merged_facts = Vec::new();
-        
+
         for fact in facts {
             let is_similar = merged_facts.iter().any(|existing: &ExtractedFact| {
                 self.calculate_similarity(&fact.content, &existing.content) > 0.8
             });
-            
+
             if !is_similar {
                 merged_facts.push(fact);
             }
         }
-        
+
         merged_facts
     }
 
@@ -533,10 +551,10 @@ Requirements:
     fn calculate_similarity(&self, text1: &str, text2: &str) -> f32 {
         let words1: std::collections::HashSet<&str> = text1.split_whitespace().collect();
         let words2: std::collections::HashSet<&str> = text2.split_whitespace().collect();
-        
+
         let intersection = words1.intersection(&words2).count();
         let union = words1.union(&words2).count();
-        
+
         if union == 0 {
             0.0
         } else {
@@ -547,8 +565,12 @@ Requirements:
     fn extract_person_entities(&self, content: &str) -> Option<Entity> {
         // 简化的人物实体识别
         let person_patterns = vec![
-            r"我叫(\w+)", r"我是(\w+)", r"名字是(\w+)",
-            r"My name is (\w+)", r"I am (\w+)", r"called (\w+)"
+            r"我叫(\w+)",
+            r"我是(\w+)",
+            r"名字是(\w+)",
+            r"My name is (\w+)",
+            r"I am (\w+)",
+            r"called (\w+)",
         ];
 
         for pattern in person_patterns {
@@ -573,9 +595,24 @@ Requirements:
     fn extract_location_entities(&self, content: &str) -> Option<Entity> {
         // 简化的地点实体识别
         let location_keywords = vec![
-            "北京", "上海", "广州", "深圳", "杭州", "南京", "成都", "武汉",
-            "Beijing", "Shanghai", "Guangzhou", "Shenzhen", "Hangzhou",
-            "New York", "London", "Tokyo", "Paris", "Berlin"
+            "北京",
+            "上海",
+            "广州",
+            "深圳",
+            "杭州",
+            "南京",
+            "成都",
+            "武汉",
+            "Beijing",
+            "Shanghai",
+            "Guangzhou",
+            "Shenzhen",
+            "Hangzhou",
+            "New York",
+            "London",
+            "Tokyo",
+            "Paris",
+            "Berlin",
         ];
 
         for keyword in location_keywords {
@@ -596,9 +633,25 @@ Requirements:
     fn extract_organization_entities(&self, content: &str) -> Option<Entity> {
         // 简化的组织实体识别
         let org_keywords = vec![
-            "公司", "企业", "组织", "机构", "学校", "大学", "医院",
-            "Company", "Corporation", "Organization", "University", "School", "Hospital",
-            "Google", "Microsoft", "Apple", "Amazon", "Facebook", "Tesla"
+            "公司",
+            "企业",
+            "组织",
+            "机构",
+            "学校",
+            "大学",
+            "医院",
+            "Company",
+            "Corporation",
+            "Organization",
+            "University",
+            "School",
+            "Hospital",
+            "Google",
+            "Microsoft",
+            "Apple",
+            "Amazon",
+            "Facebook",
+            "Tesla",
         ];
 
         for keyword in org_keywords {
@@ -755,7 +808,10 @@ impl AdvancedFactExtractor {
     }
 
     /// 提取结构化事实 (Mem5 核心功能)
-    pub async fn extract_structured_facts(&self, messages: &[Message]) -> Result<Vec<StructuredFact>> {
+    pub async fn extract_structured_facts(
+        &self,
+        messages: &[Message],
+    ) -> Result<Vec<StructuredFact>> {
         info!("开始提取结构化事实，消息数量: {}", messages.len());
 
         // 1. 实体识别 (简化实现)
@@ -799,9 +855,14 @@ impl AdvancedFactExtractor {
                         self.relation_to_description(&relation.relation_type),
                         object.name
                     ),
-                    confidence: (relation.confidence + subject.confidence + object.confidence) / 3.0,
+                    confidence: (relation.confidence + subject.confidence + object.confidence)
+                        / 3.0,
                     importance: self.calculate_importance(&relation.relation_type, subject, object),
-                    source_messages: messages.iter().enumerate().map(|(i, _)| format!("msg_{}", i)).collect(),
+                    source_messages: messages
+                        .iter()
+                        .enumerate()
+                        .map(|(i, _)| format!("msg_{}", i))
+                        .collect(),
                     metadata: HashMap::new(),
                 };
                 facts.push(fact);
@@ -819,7 +880,11 @@ impl AdvancedFactExtractor {
                     description: format!("识别到{:?}: {}", entity.entity_type, entity.name),
                     confidence: entity.confidence,
                     importance: self.calculate_entity_importance(&entity.entity_type),
-                    source_messages: messages.iter().enumerate().map(|(i, _)| format!("msg_{}", i)).collect(),
+                    source_messages: messages
+                        .iter()
+                        .enumerate()
+                        .map(|(i, _)| format!("msg_{}", i))
+                        .collect(),
                     metadata: HashMap::new(),
                 };
                 facts.push(fact);
@@ -841,7 +906,9 @@ impl AdvancedFactExtractor {
             for (i, word) in words.iter().enumerate() {
                 // 简单的人名识别
                 if word.len() >= 2 && word.chars().all(|c| c.is_alphabetic()) {
-                    if i > 0 && (words[i-1] == "我叫" || words[i-1] == "叫" || words[i-1] == "是") {
+                    if i > 0
+                        && (words[i - 1] == "我叫" || words[i - 1] == "叫" || words[i - 1] == "是")
+                    {
                         entities.push(Entity {
                             id: format!("entity_{}", entity_id),
                             name: word.to_string(),
@@ -866,7 +933,8 @@ impl AdvancedFactExtractor {
                 }
 
                 // 简单的组织识别
-                if word.ends_with("公司") || word.ends_with("企业") || word.ends_with("机构") {
+                if word.ends_with("公司") || word.ends_with("企业") || word.ends_with("机构")
+                {
                     entities.push(Entity {
                         id: format!("entity_{}", entity_id),
                         name: word.to_string(),
@@ -883,7 +951,11 @@ impl AdvancedFactExtractor {
     }
 
     /// 简化的关系提取
-    async fn extract_relations_simple(&self, entities: &[Entity], messages: &[Message]) -> Result<Vec<Relation>> {
+    async fn extract_relations_simple(
+        &self,
+        entities: &[Entity],
+        messages: &[Message],
+    ) -> Result<Vec<Relation>> {
         let mut relations = Vec::new();
 
         // 简化的关系提取逻辑
@@ -895,7 +967,9 @@ impl AdvancedFactExtractor {
                 for entity in entities {
                     if entity.entity_type == EntityType::Person {
                         for location in entities {
-                            if location.entity_type == EntityType::Location || location.entity_type == EntityType::Organization {
+                            if location.entity_type == EntityType::Location
+                                || location.entity_type == EntityType::Organization
+                            {
                                 relations.push(Relation {
                                     subject: entity.name.clone(),
                                     predicate: "工作于".to_string(),
@@ -950,7 +1024,12 @@ impl AdvancedFactExtractor {
     }
 
     /// 计算关系重要性
-    fn calculate_importance(&self, relation_type: &RelationType, subject: &Entity, object: &Entity) -> f32 {
+    fn calculate_importance(
+        &self,
+        relation_type: &RelationType,
+        subject: &Entity,
+        object: &Entity,
+    ) -> f32 {
         let base_importance = match relation_type {
             RelationType::FamilyOf => 0.9,
             RelationType::WorksAt => 0.8,

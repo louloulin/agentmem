@@ -102,9 +102,10 @@ impl ChromaStore {
             .map_err(|e| AgentMemError::network_error(format!("Request failed: {}", e)))?;
 
         if response.status().is_success() {
-            let collections: Vec<ChromaCollectionResponse> = response.json().await.map_err(|e| {
-                AgentMemError::parsing_error(format!("Failed to parse collections: {}", e))
-            })?;
+            let collections: Vec<ChromaCollectionResponse> =
+                response.json().await.map_err(|e| {
+                    AgentMemError::parsing_error(format!("Failed to parse collections: {}", e))
+                })?;
 
             // 检查集合是否已存在
             if collections.iter().any(|c| c.name == self.collection_name) {
@@ -439,7 +440,10 @@ impl VectorStore for ChromaStore {
 
     async fn clear(&self) -> Result<()> {
         // 删除集合
-        let url = format!("{}/api/v1/collections/{}", self.base_url, self.collection_name);
+        let url = format!(
+            "{}/api/v1/collections/{}",
+            self.base_url, self.collection_name
+        );
         let response = self
             .client
             .delete(&url)
@@ -471,7 +475,8 @@ impl VectorStore for ChromaStore {
         threshold: Option<f32>,
     ) -> Result<Vec<VectorSearchResult>> {
         use crate::utils::VectorStoreDefaults;
-        self.default_search_with_filters(query_vector, limit, filters, threshold).await
+        self.default_search_with_filters(query_vector, limit, filters, threshold)
+            .await
     }
 
     async fn health_check(&self) -> Result<agent_mem_traits::HealthStatus> {
@@ -582,7 +587,8 @@ mod tests {
         use std::env;
 
         async fn create_real_chroma_store() -> Option<ChromaStore> {
-            let chroma_url = env::var("CHROMA_URL").unwrap_or_else(|_| "http://localhost:8000".to_string());
+            let chroma_url =
+                env::var("CHROMA_URL").unwrap_or_else(|_| "http://localhost:8000".to_string());
 
             let config = VectorStoreConfig {
                 provider: "chroma".to_string(),
@@ -594,7 +600,10 @@ mod tests {
             match ChromaStore::new(config).await {
                 Ok(store) => Some(store),
                 Err(_) => {
-                    println!("Skipping real Chroma test - Chroma server not available at {}", chroma_url);
+                    println!(
+                        "Skipping real Chroma test - Chroma server not available at {}",
+                        chroma_url
+                    );
                     None
                 }
             }
@@ -607,7 +616,11 @@ mod tests {
             };
 
             let health = store.health_check().await;
-            assert!(health.is_ok(), "Chroma health check should succeed: {:?}", health);
+            assert!(
+                health.is_ok(),
+                "Chroma health check should succeed: {:?}",
+                health
+            );
 
             let health_status = health.unwrap();
             assert_eq!(health_status.status, "healthy");
@@ -646,14 +659,22 @@ mod tests {
 
             // 添加向量
             let result = store.add_vectors(test_vectors.clone()).await;
-            assert!(result.is_ok(), "Adding vectors should succeed: {:?}", result);
+            assert!(
+                result.is_ok(),
+                "Adding vectors should succeed: {:?}",
+                result
+            );
             let ids = result.unwrap();
             assert_eq!(ids.len(), 2);
 
             // 搜索向量
             let query_vector = vec![0.15, 0.25, 0.35, 0.45, 0.55];
             let search_result = store.search_vectors(query_vector, 10, None).await;
-            assert!(search_result.is_ok(), "Vector search should succeed: {:?}", search_result);
+            assert!(
+                search_result.is_ok(),
+                "Vector search should succeed: {:?}",
+                search_result
+            );
 
             let results = search_result.unwrap();
             assert!(!results.is_empty(), "Search should return results");
@@ -661,7 +682,11 @@ mod tests {
 
             // 清理测试数据
             let delete_result = store.delete_vectors(ids).await;
-            assert!(delete_result.is_ok(), "Deleting vectors should succeed: {:?}", delete_result);
+            assert!(
+                delete_result.is_ok(),
+                "Deleting vectors should succeed: {:?}",
+                delete_result
+            );
         }
 
         #[tokio::test]
@@ -672,7 +697,11 @@ mod tests {
 
             // 测试集合创建和管理
             let collection_info = store.get_collection_info().await;
-            assert!(collection_info.is_ok(), "Getting collection info should succeed: {:?}", collection_info);
+            assert!(
+                collection_info.is_ok(),
+                "Getting collection info should succeed: {:?}",
+                collection_info
+            );
 
             let info = collection_info.unwrap();
             assert_eq!(info.name, "test_integration");

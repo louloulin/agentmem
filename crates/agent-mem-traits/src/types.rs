@@ -51,21 +51,29 @@ impl Messages {
         match self {
             Messages::Single(s) => {
                 if s.trim().is_empty() {
-                    return Err(crate::AgentMemError::ValidationError("Empty message".to_string()));
+                    return Err(crate::AgentMemError::ValidationError(
+                        "Empty message".to_string(),
+                    ));
                 }
             }
             Messages::Structured(msg) => {
                 if msg.content.trim().is_empty() {
-                    return Err(crate::AgentMemError::ValidationError("Empty message content".to_string()));
+                    return Err(crate::AgentMemError::ValidationError(
+                        "Empty message content".to_string(),
+                    ));
                 }
             }
             Messages::Multiple(msgs) => {
                 if msgs.is_empty() {
-                    return Err(crate::AgentMemError::ValidationError("Empty message list".to_string()));
+                    return Err(crate::AgentMemError::ValidationError(
+                        "Empty message list".to_string(),
+                    ));
                 }
                 for msg in msgs {
                     if msg.content.trim().is_empty() {
-                        return Err(crate::AgentMemError::ValidationError("Empty message content in list".to_string()));
+                        return Err(crate::AgentMemError::ValidationError(
+                            "Empty message content in list".to_string(),
+                        ));
                     }
                 }
             }
@@ -87,12 +95,11 @@ impl Messages {
         match self {
             Messages::Single(s) => s.clone(),
             Messages::Structured(msg) => msg.content.clone(),
-            Messages::Multiple(msgs) => {
-                msgs.iter()
-                    .map(|m| m.content.clone())
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            }
+            Messages::Multiple(msgs) => msgs
+                .iter()
+                .map(|m| m.content.clone())
+                .collect::<Vec<_>>()
+                .join("\n"),
         }
     }
 
@@ -141,7 +148,9 @@ impl Message {
     /// Validate message content
     pub fn validate(&self) -> crate::Result<()> {
         if self.content.trim().is_empty() {
-            return Err(crate::AgentMemError::ValidationError("Empty message content".to_string()));
+            return Err(crate::AgentMemError::ValidationError(
+                "Empty message content".to_string(),
+            ));
         }
         Ok(())
     }
@@ -213,12 +222,12 @@ impl Session {
 /// Types of memory
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum MemoryType {
-    Factual,    // 事实性记忆
+    Factual, // 事实性记忆
     #[default]
-    Episodic,   // 情节性记忆
+    Episodic, // 情节性记忆
     Procedural, // 程序性记忆
-    Semantic,   // 语义记忆
-    Working,    // 工作记忆
+    Semantic, // 语义记忆
+    Working, // 工作记忆
 }
 
 /// An extracted fact from content
@@ -391,10 +400,14 @@ impl EnhancedSearchRequest {
     /// Validate the search request
     pub fn validate(&self) -> crate::Result<()> {
         if self.query.trim().is_empty() {
-            return Err(crate::AgentMemError::ValidationError("Empty search query".to_string()));
+            return Err(crate::AgentMemError::ValidationError(
+                "Empty search query".to_string(),
+            ));
         }
         if self.limit == 0 {
-            return Err(crate::AgentMemError::ValidationError("Limit must be greater than 0".to_string()));
+            return Err(crate::AgentMemError::ValidationError(
+                "Limit must be greater than 0".to_string(),
+            ));
         }
         Ok(())
     }
@@ -435,28 +448,38 @@ impl MetadataBuilder {
     }
 
     pub fn user_id(mut self, user_id: String) -> Self {
-        self.data.insert("user_id".to_string(), serde_json::Value::String(user_id));
+        self.data
+            .insert("user_id".to_string(), serde_json::Value::String(user_id));
         self
     }
 
     pub fn agent_id(mut self, agent_id: String) -> Self {
-        self.data.insert("agent_id".to_string(), serde_json::Value::String(agent_id));
+        self.data
+            .insert("agent_id".to_string(), serde_json::Value::String(agent_id));
         self
     }
 
     pub fn memory_type(mut self, memory_type: MemoryType) -> Self {
-        self.data.insert("memory_type".to_string(), serde_json::Value::String(memory_type.to_string()));
+        self.data.insert(
+            "memory_type".to_string(),
+            serde_json::Value::String(memory_type.to_string()),
+        );
         self
     }
 
     pub fn importance(mut self, score: f64) -> Self {
-        self.data.insert("importance".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(score).unwrap_or_else(|| serde_json::Number::from(0))));
+        self.data.insert(
+            "importance".to_string(),
+            serde_json::Value::Number(
+                serde_json::Number::from_f64(score).unwrap_or_else(|| serde_json::Number::from(0)),
+            ),
+        );
         self
     }
 
     pub fn custom<T: Serialize>(mut self, key: String, value: T) -> crate::Result<Self> {
-        let value = serde_json::to_value(value)
-            .map_err(crate::AgentMemError::SerializationError)?;
+        let value =
+            serde_json::to_value(value).map_err(crate::AgentMemError::SerializationError)?;
         self.data.insert(key, value);
         Ok(self)
     }
@@ -486,29 +509,50 @@ impl FilterBuilder {
     }
 
     pub fn user_id(mut self, user_id: String) -> Self {
-        self.filters.insert("user_id".to_string(), serde_json::Value::String(user_id));
+        self.filters
+            .insert("user_id".to_string(), serde_json::Value::String(user_id));
         self
     }
 
     pub fn agent_id(mut self, agent_id: String) -> Self {
-        self.filters.insert("agent_id".to_string(), serde_json::Value::String(agent_id));
+        self.filters
+            .insert("agent_id".to_string(), serde_json::Value::String(agent_id));
         self
     }
 
     pub fn date_range(mut self, start: DateTime<Utc>, end: DateTime<Utc>) -> Self {
-        self.filters.insert("created_at_gte".to_string(), serde_json::Value::String(start.to_rfc3339()));
-        self.filters.insert("created_at_lte".to_string(), serde_json::Value::String(end.to_rfc3339()));
+        self.filters.insert(
+            "created_at_gte".to_string(),
+            serde_json::Value::String(start.to_rfc3339()),
+        );
+        self.filters.insert(
+            "created_at_lte".to_string(),
+            serde_json::Value::String(end.to_rfc3339()),
+        );
         self
     }
 
     pub fn memory_type(mut self, memory_type: MemoryType) -> Self {
-        self.filters.insert("memory_type".to_string(), serde_json::Value::String(memory_type.to_string()));
+        self.filters.insert(
+            "memory_type".to_string(),
+            serde_json::Value::String(memory_type.to_string()),
+        );
         self
     }
 
     pub fn importance_range(mut self, min: f64, max: f64) -> Self {
-        self.filters.insert("importance_gte".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(min).unwrap_or_else(|| serde_json::Number::from(0))));
-        self.filters.insert("importance_lte".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(max).unwrap_or_else(|| serde_json::Number::from(1))));
+        self.filters.insert(
+            "importance_gte".to_string(),
+            serde_json::Value::Number(
+                serde_json::Number::from_f64(min).unwrap_or_else(|| serde_json::Number::from(0)),
+            ),
+        );
+        self.filters.insert(
+            "importance_lte".to_string(),
+            serde_json::Value::Number(
+                serde_json::Number::from_f64(max).unwrap_or_else(|| serde_json::Number::from(1)),
+            ),
+        );
         self
     }
 
@@ -623,12 +667,12 @@ impl std::str::FromStr for MemoryType {
             "procedural" => Ok(MemoryType::Procedural),
             "semantic" => Ok(MemoryType::Semantic),
             "working" => Ok(MemoryType::Working),
-            _ => Err(crate::AgentMemError::ValidationError(format!("Invalid memory type: {s}"))),
+            _ => Err(crate::AgentMemError::ValidationError(format!(
+                "Invalid memory type: {s}"
+            ))),
         }
     }
 }
-
-
 
 /// Processing options for memory operations
 #[derive(Debug, Clone, Serialize, Deserialize)]

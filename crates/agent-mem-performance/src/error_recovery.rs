@@ -1,5 +1,5 @@
 //! 错误处理和恢复系统
-//! 
+//!
 //! 提供生产级的错误处理、重试策略、熔断器和降级机制
 
 use agent_mem_traits::{AgentMemError, Result};
@@ -96,7 +96,12 @@ pub enum BackoffStrategy {
 
 impl BackoffStrategy {
     /// 计算延迟时间
-    pub fn calculate_delay(&self, attempt: u32, base_delay: Duration, max_delay: Duration) -> Duration {
+    pub fn calculate_delay(
+        &self,
+        attempt: u32,
+        base_delay: Duration,
+        max_delay: Duration,
+    ) -> Duration {
         let delay = match self {
             BackoffStrategy::Fixed => base_delay,
             BackoffStrategy::Linear => base_delay * attempt,
@@ -107,7 +112,7 @@ impl BackoffStrategy {
                 base + jitter
             }
         };
-        
+
         delay.min(max_delay)
     }
 }
@@ -203,7 +208,7 @@ impl CircuitBreaker {
             CircuitBreakerState::HalfOpen => {
                 let mut success_count = self.success_count.write().await;
                 *success_count += 1;
-                
+
                 if *success_count >= self.config.success_threshold {
                     drop(state);
                     drop(success_count);
@@ -224,7 +229,7 @@ impl CircuitBreaker {
                 let mut failure_count = self.failure_count.write().await;
                 *failure_count += 1;
                 *self.last_failure_time.write().await = Some(Instant::now());
-                
+
                 if *failure_count >= self.config.failure_threshold {
                     drop(state);
                     drop(failure_count);
@@ -348,7 +353,9 @@ impl ProductionErrorHandler {
         if let Some(breaker) = breakers.get(service_name) {
             breaker.clone()
         } else {
-            let config = self.config.circuit_breaker_configs
+            let config = self
+                .config
+                .circuit_breaker_configs
                 .get(service_name)
                 .or_else(|| self.config.circuit_breaker_configs.get("default"))
                 .cloned()
@@ -361,10 +368,7 @@ impl ProductionErrorHandler {
     }
 
     /// 执行带有错误恢复的操作
-    pub async fn execute_with_recovery<F, T>(&self,
-        operation_name: &str,
-        operation: F
-    ) -> Result<T>
+    pub async fn execute_with_recovery<F, T>(&self, operation_name: &str, operation: F) -> Result<T>
     where
         F: Fn() -> Pin<Box<dyn Future<Output = Result<T>> + Send>> + Send + Sync,
         T: Send + 'static,
@@ -407,13 +411,16 @@ impl ProductionErrorHandler {
     {
         let mut last_error = None;
 
-        for attempt in 1..=3 { // 默认最多重试3次
+        for attempt in 1..=3 {
+            // 默认最多重试3次
             match operation().await {
                 Ok(result) => return Ok(result),
                 Err(error) => {
                     let error_type = ErrorType::from_error(&error);
                     let default_policy = RetryPolicy::default();
-                    let retry_policy = self.retry_policies.get(&error_type)
+                    let retry_policy = self
+                        .retry_policies
+                        .get(&error_type)
                         .unwrap_or(&default_policy);
 
                     if attempt >= retry_policy.max_attempts {
@@ -454,23 +461,40 @@ impl ProductionErrorHandler {
                     info!("Using empty result fallback for {}", operation_name);
                     // 这里需要根据具体类型返回适当的空结果
                     // 由于泛型限制，这里返回错误，实际使用时需要具体实现
-                    Err(AgentMemError::internal_error("Fallback not implemented for this type".to_string()))
+                    Err(AgentMemError::internal_error(
+                        "Fallback not implemented for this type".to_string(),
+                    ))
                 }
                 FallbackStrategy::DefaultValue(value) => {
-                    info!("Using default value fallback for {}: {}", operation_name, value);
-                    Err(AgentMemError::internal_error("Default value fallback not implemented".to_string()))
+                    info!(
+                        "Using default value fallback for {}: {}",
+                        operation_name, value
+                    );
+                    Err(AgentMemError::internal_error(
+                        "Default value fallback not implemented".to_string(),
+                    ))
                 }
                 FallbackStrategy::CachedValue => {
                     info!("Using cached value fallback for {}", operation_name);
-                    Err(AgentMemError::internal_error("Cached value fallback not implemented".to_string()))
+                    Err(AgentMemError::internal_error(
+                        "Cached value fallback not implemented".to_string(),
+                    ))
                 }
                 FallbackStrategy::AlternativeService(service) => {
-                    info!("Using alternative service fallback for {}: {}", operation_name, service);
-                    Err(AgentMemError::internal_error("Alternative service fallback not implemented".to_string()))
+                    info!(
+                        "Using alternative service fallback for {}: {}",
+                        operation_name, service
+                    );
+                    Err(AgentMemError::internal_error(
+                        "Alternative service fallback not implemented".to_string(),
+                    ))
                 }
             }
         } else {
-            Err(AgentMemError::internal_error(format!("No fallback strategy for {}", operation_name)))
+            Err(AgentMemError::internal_error(format!(
+                "No fallback strategy for {}",
+                operation_name
+            )))
         }
     }
 
@@ -481,12 +505,15 @@ impl ProductionErrorHandler {
 
         for (service_name, breaker) in breakers.iter() {
             let state = breaker.get_state().await;
-            stats.insert(service_name.clone(), RecoveryStats {
-                circuit_breaker_state: state,
-                total_requests: 0, // 这里需要实际的统计数据
-                failed_requests: 0,
-                success_rate: 0.0,
-            });
+            stats.insert(
+                service_name.clone(),
+                RecoveryStats {
+                    circuit_breaker_state: state,
+                    total_requests: 0, // 这里需要实际的统计数据
+                    failed_requests: 0,
+                    success_rate: 0.0,
+                },
+            );
         }
 
         stats
@@ -556,9 +583,18 @@ mod tests {
             retryable_errors: vec![ErrorType::Network],
         };
 
-        let delay1 = policy.backoff_strategy.calculate_delay(1, policy.base_delay, policy.max_delay);
-        let delay2 = policy.backoff_strategy.calculate_delay(2, policy.base_delay, policy.max_delay);
-        let delay3 = policy.backoff_strategy.calculate_delay(3, policy.base_delay, policy.max_delay);
+        let delay1 =
+            policy
+                .backoff_strategy
+                .calculate_delay(1, policy.base_delay, policy.max_delay);
+        let delay2 =
+            policy
+                .backoff_strategy
+                .calculate_delay(2, policy.base_delay, policy.max_delay);
+        let delay3 =
+            policy
+                .backoff_strategy
+                .calculate_delay(3, policy.base_delay, policy.max_delay);
 
         assert_eq!(delay1, Duration::from_millis(10));
         assert_eq!(delay2, Duration::from_millis(20));
@@ -577,14 +613,18 @@ mod tests {
             let count = call_count_clone.fetch_add(1, Ordering::SeqCst);
             Box::pin(async move {
                 if count < 2 {
-                    Err(AgentMemError::network_error("Simulated network error".to_string()))
+                    Err(AgentMemError::network_error(
+                        "Simulated network error".to_string(),
+                    ))
                 } else {
                     Ok("Success".to_string())
                 }
             })
         };
 
-        let result = handler.execute_with_recovery("test_operation", operation).await;
+        let result = handler
+            .execute_with_recovery("test_operation", operation)
+            .await;
 
         // 应该最终成功（经过重试）
         assert!(result.is_ok());

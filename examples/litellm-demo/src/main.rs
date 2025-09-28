@@ -2,7 +2,7 @@
 //!
 //! 展示 AgentMem 的 LiteLLM 统一接口功能，支持多种 LLM 提供商
 
-use agent_mem_llm::providers::litellm::{LiteLLMProvider, LiteLLMMessage, SupportedModel};
+use agent_mem_llm::providers::litellm::{LiteLLMMessage, LiteLLMProvider, SupportedModel};
 use agent_mem_llm::LLMFactory;
 use agent_mem_traits::LLMConfig;
 use std::env;
@@ -64,9 +64,9 @@ async fn demo_direct_litellm() -> anyhow::Result<()> {
     // 检查是否有 API 密钥
     if let Ok(api_key) = env::var("OPENAI_API_KEY") {
         println!("   🔑 检测到 OpenAI API 密钥，尝试实际调用...");
-        
+
         let provider_with_key = provider.with_api_key(api_key);
-        
+
         match provider_with_key.generate_response(&messages).await {
             Ok(response) => {
                 println!("   ✅ LLM 响应成功:");
@@ -106,7 +106,7 @@ async fn demo_factory_litellm() -> anyhow::Result<()> {
     match LLMFactory::create_provider(&config) {
         Ok(provider) => {
             println!("   ✅ 工厂创建成功");
-            
+
             let model_info = provider.get_model_info();
             println!("   📊 模型信息:");
             println!("      - 提供商: {}", model_info.provider);
@@ -131,7 +131,7 @@ async fn demo_factory_litellm() -> anyhow::Result<()> {
 
             if config.api_key.is_some() {
                 println!("   🔑 尝试通过工厂接口调用 LLM...");
-                
+
                 match provider.generate(&messages).await {
                     Ok(response) => {
                         println!("   ✅ 工厂接口调用成功:");
@@ -161,33 +161,42 @@ fn demo_supported_models() {
     println!("   📚 LiteLLM 支持的模型:");
 
     let models = vec![
-        ("OpenAI", vec![
-            SupportedModel::GPT4,
-            SupportedModel::GPT4Turbo,
-            SupportedModel::GPT35Turbo,
-        ]),
-        ("Anthropic", vec![
-            SupportedModel::Claude3Opus,
-            SupportedModel::Claude3Sonnet,
-            SupportedModel::Claude3Haiku,
-        ]),
-        ("AWS Bedrock", vec![
-            SupportedModel::BedrockClaude,
-            SupportedModel::BedrockTitan,
-        ]),
-        ("Azure OpenAI", vec![
-            SupportedModel::AzureGPT4,
-            SupportedModel::AzureGPT35,
-        ]),
-        ("Google", vec![
-            SupportedModel::Gemini15Pro,
-            SupportedModel::Gemini15Flash,
-        ]),
-        ("其他", vec![
-            SupportedModel::Groq,
-            SupportedModel::Together,
-            SupportedModel::Ollama,
-        ]),
+        (
+            "OpenAI",
+            vec![
+                SupportedModel::GPT4,
+                SupportedModel::GPT4Turbo,
+                SupportedModel::GPT35Turbo,
+            ],
+        ),
+        (
+            "Anthropic",
+            vec![
+                SupportedModel::Claude3Opus,
+                SupportedModel::Claude3Sonnet,
+                SupportedModel::Claude3Haiku,
+            ],
+        ),
+        (
+            "AWS Bedrock",
+            vec![SupportedModel::BedrockClaude, SupportedModel::BedrockTitan],
+        ),
+        (
+            "Azure OpenAI",
+            vec![SupportedModel::AzureGPT4, SupportedModel::AzureGPT35],
+        ),
+        (
+            "Google",
+            vec![SupportedModel::Gemini15Pro, SupportedModel::Gemini15Flash],
+        ),
+        (
+            "其他",
+            vec![
+                SupportedModel::Groq,
+                SupportedModel::Together,
+                SupportedModel::Ollama,
+            ],
+        ),
     ];
 
     for (provider, provider_models) in models {
@@ -205,7 +214,7 @@ fn demo_supported_models() {
 /// 演示配置选项
 fn demo_configuration_options() {
     println!("   ⚙️  LiteLLM 配置选项:");
-    
+
     println!("      🔧 基础配置:");
     println!("         - model: 模型名称");
     println!("         - api_key: API 密钥");

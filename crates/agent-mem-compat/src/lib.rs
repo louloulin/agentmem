@@ -32,18 +32,18 @@
 //! ```
 
 pub mod client;
+pub mod cloud_integration;
+pub mod compute_optimization;
 pub mod config;
 pub mod context_aware;
 pub mod enterprise_monitoring;
 pub mod enterprise_security;
-pub mod storage_optimization;
-pub mod compute_optimization;
-pub mod cloud_integration;
+pub mod error;
 pub mod graph_memory;
 pub mod personalization;
 pub mod procedural_memory;
+pub mod storage_optimization;
 pub mod types;
-pub mod error;
 pub mod utils;
 
 #[cfg(test)]
@@ -53,23 +53,24 @@ mod tests;
 pub use client::Mem0Client;
 pub use config::Mem0Config;
 pub use context_aware::{
-    ContextAwareManager, ContextAwareConfig, ContextInfo, ContextPattern,
-    ContextAwareSearchRequest, ContextAwareSearchResult, ContextLearningResult,
+    ContextAwareConfig, ContextAwareManager, ContextAwareSearchRequest, ContextAwareSearchResult,
+    ContextInfo, ContextLearningResult, ContextPattern,
 };
 pub use enterprise_security::{
-    EnterpriseSecurityManager, EnterpriseSecurityConfig, Role, Permission, UserAccount,
-    JwtClaims, OAuth2TokenResponse, AuditEventType, AuditLogEntry, UserSession,
+    AuditEventType, AuditLogEntry, EnterpriseSecurityConfig, EnterpriseSecurityManager, JwtClaims,
+    OAuth2TokenResponse, Permission, Role, UserAccount, UserSession,
 };
-pub use graph_memory::{GraphMemoryManager, GraphMemoryConfig, FusedMemory};
+pub use error::{Mem0Error, Result};
+pub use graph_memory::{FusedMemory, GraphMemoryConfig, GraphMemoryManager};
 pub use personalization::{
-    PersonalizationManager, PersonalizationConfig, UserPreference, UserBehavior,
-    PersonalizedSearchRequest, PersonalizedSearchResult, MemoryRecommendation,
-    UserProfile, UserProfileStats, PersonalizationLearningResult, PreferenceType, BehaviorType,
+    BehaviorType, MemoryRecommendation, PersonalizationConfig, PersonalizationLearningResult,
+    PersonalizationManager, PersonalizedSearchRequest, PersonalizedSearchResult, PreferenceType,
+    UserBehavior, UserPreference, UserProfile, UserProfileStats,
 };
 pub use procedural_memory::{
-    ProceduralMemoryManager, ProceduralMemoryConfig, Workflow, WorkflowStep, WorkflowExecution,
-    TaskChain, Task, StepType, StepStatus, ExecutionStatus, ChainStatus, TaskStatus, TaskPriority,
-    StepExecutionResult, TaskExecutionResult,
+    ChainStatus, ExecutionStatus, ProceduralMemoryConfig, ProceduralMemoryManager,
+    StepExecutionResult, StepStatus, StepType, Task, TaskChain, TaskExecutionResult, TaskPriority,
+    TaskStatus, Workflow, WorkflowExecution, WorkflowStep,
 };
 pub use types::{
     AddMemoryRequest, BatchAddResult, BatchDeleteItem, BatchDeleteRequest, BatchDeleteResult,
@@ -77,7 +78,6 @@ pub use types::{
     FilterOperation, Memory, MemoryFilter, MemoryHistory, MemorySearchResult,
     MemorySearchResultItem, SearchMemoryRequest, SortField, SortOrder, UpdateMemoryRequest,
 };
-pub use error::{Mem0Error, Result};
 
 /// Version information
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

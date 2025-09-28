@@ -2,11 +2,11 @@
 //!
 //! 使用真实的 AI 模型和 OCR 服务进行图像处理
 
-use super::{MultimodalProcessor, MultimodalContent, ContentType, ProcessingStatus};
+use super::{ContentType, MultimodalContent, MultimodalProcessor, ProcessingStatus};
 use agent_mem_traits::{AgentMemError, Result};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use tracing::{debug, info, warn, error};
+use tracing::{debug, error, info, warn};
 
 /// 真实图像处理器配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -50,9 +50,7 @@ pub struct RealImageProcessor {
 impl RealImageProcessor {
     /// 创建新的真实图像处理器
     pub fn new(config: RealImageProcessorConfig) -> Self {
-        Self {
-            config,
-        }
+        Self { config }
     }
 
     /// 使用真实 AI 模型进行图像分析（模拟实现）
@@ -69,7 +67,9 @@ impl RealImageProcessor {
         }
 
         // 基于文件特征进行智能分析
-        let filename = content.metadata.get("filename")
+        let filename = content
+            .metadata
+            .get("filename")
             .and_then(|v| v.as_str())
             .unwrap_or(&content.id);
 
@@ -77,11 +77,17 @@ impl RealImageProcessor {
 
         let analysis = if filename.to_lowercase().contains("screenshot") {
             format!("Screenshot analysis: UI interface detected with {} estimated UI elements. Likely contains text, buttons, and interactive components.", file_size / 1000)
-        } else if filename.to_lowercase().contains("document") || filename.to_lowercase().contains("pdf") {
+        } else if filename.to_lowercase().contains("document")
+            || filename.to_lowercase().contains("pdf")
+        {
             format!("Document image analysis: Text-heavy document detected with estimated {} words. Contains structured text content suitable for OCR.", file_size / 100)
-        } else if filename.to_lowercase().contains("chart") || filename.to_lowercase().contains("graph") {
+        } else if filename.to_lowercase().contains("chart")
+            || filename.to_lowercase().contains("graph")
+        {
             format!("Data visualization analysis: Chart or graph detected with {} estimated data points. Contains quantitative information and labels.", file_size / 500)
-        } else if filename.to_lowercase().contains("photo") || filename.to_lowercase().contains("image") {
+        } else if filename.to_lowercase().contains("photo")
+            || filename.to_lowercase().contains("image")
+        {
             format!("Photographic content analysis: Natural image detected ({} bytes). May contain people, objects, scenes, and environmental elements.", file_size)
         } else {
             format!("General image analysis: Visual content detected ({} bytes). Requires detailed AI model analysis for complete understanding.", file_size)
@@ -100,7 +106,9 @@ impl RealImageProcessor {
         }
 
         // 基于文件特征进行智能 OCR 模拟
-        let filename = content.metadata.get("filename")
+        let filename = content
+            .metadata
+            .get("filename")
             .and_then(|v| v.as_str())
             .unwrap_or(&content.id);
 
@@ -108,9 +116,13 @@ impl RealImageProcessor {
 
         let extracted_text = if filename.to_lowercase().contains("screenshot") {
             format!("OCR Result: UI text extracted from screenshot. Detected {} text elements including buttons, labels, and menu items.", file_size / 1000)
-        } else if filename.to_lowercase().contains("document") || filename.to_lowercase().contains("pdf") {
+        } else if filename.to_lowercase().contains("document")
+            || filename.to_lowercase().contains("pdf")
+        {
             format!("OCR Result: Document text extraction completed. Extracted approximately {} words from structured document content.", file_size / 100)
-        } else if filename.to_lowercase().contains("chart") || filename.to_lowercase().contains("graph") {
+        } else if filename.to_lowercase().contains("chart")
+            || filename.to_lowercase().contains("graph")
+        {
             format!("OCR Result: Chart text extraction. Identified {} data labels, axis titles, and legend text from visualization.", file_size / 500)
         } else {
             format!("OCR Result: General text extraction from image. Processed {} bytes of visual content for text recognition.", file_size)
@@ -127,12 +139,14 @@ impl RealImageProcessor {
 
         if let Some(data) = &content.data {
             // 解码 Base64 图像数据
-            let image_data = general_purpose::STANDARD.decode(data)
-                .map_err(|e| AgentMemError::parsing_error(&format!("Failed to decode base64 image: {}", e)))?;
+            let image_data = general_purpose::STANDARD.decode(data).map_err(|e| {
+                AgentMemError::parsing_error(&format!("Failed to decode base64 image: {}", e))
+            })?;
 
             // 加载图像
-            let img = image::load_from_memory(&image_data)
-                .map_err(|e| AgentMemError::parsing_error(&format!("Failed to load image: {}", e)))?;
+            let img = image::load_from_memory(&image_data).map_err(|e| {
+                AgentMemError::parsing_error(&format!("Failed to load image: {}", e))
+            })?;
 
             // 转换为灰度图像以提高 OCR 准确性
             let gray_img = img.to_luma8();
@@ -140,15 +154,18 @@ impl RealImageProcessor {
             // 保存临时文件用于 Tesseract
             let temp_dir = std::env::temp_dir();
             let temp_file = temp_dir.join(format!("ocr_temp_{}.png", uuid::Uuid::new_v4()));
-            
-            gray_img.save(&temp_file)
-                .map_err(|e| AgentMemError::storage_error(&format!("Failed to save temp image: {}", e)))?;
+
+            gray_img.save(&temp_file).map_err(|e| {
+                AgentMemError::storage_error(&format!("Failed to save temp image: {}", e))
+            })?;
 
             // 使用 Tesseract 进行 OCR
-            let mut tesseract = tesseract::Tesseract::new(None, Some("eng"))
-                .map_err(|e| AgentMemError::config_error(&format!("Failed to initialize Tesseract: {}", e)))?;
+            let mut tesseract = tesseract::Tesseract::new(None, Some("eng")).map_err(|e| {
+                AgentMemError::config_error(&format!("Failed to initialize Tesseract: {}", e))
+            })?;
 
-            let text = tesseract.set_image(&temp_file.to_string_lossy())
+            let text = tesseract
+                .set_image(&temp_file.to_string_lossy())
                 .and_then(|_| tesseract.get_text())
                 .map_err(|e| AgentMemError::processing_error(&format!("OCR failed: {}", e)))?;
 
@@ -164,20 +181,38 @@ impl RealImageProcessor {
     /// 回退到基于规则的 OCR
     async fn fallback_ocr(&self, content: &MultimodalContent) -> Result<String> {
         // 基于文件名和元数据的智能文本提取
-        let filename = content.metadata.get("filename")
+        let filename = content
+            .metadata
+            .get("filename")
             .and_then(|v| v.as_str())
             .unwrap_or(&content.id);
 
         let file_size = content.size.unwrap_or(0);
 
         let extracted_text = if filename.to_lowercase().contains("screenshot") {
-            format!("Screenshot analysis: UI elements detected, estimated {} text regions", file_size / 1000)
-        } else if filename.to_lowercase().contains("document") || filename.to_lowercase().contains("pdf") {
-            format!("Document text extraction: Estimated {} words from document image", file_size / 100)
-        } else if filename.to_lowercase().contains("chart") || filename.to_lowercase().contains("graph") {
-            format!("Chart analysis: Data visualization detected with {} data points", file_size / 500)
+            format!(
+                "Screenshot analysis: UI elements detected, estimated {} text regions",
+                file_size / 1000
+            )
+        } else if filename.to_lowercase().contains("document")
+            || filename.to_lowercase().contains("pdf")
+        {
+            format!(
+                "Document text extraction: Estimated {} words from document image",
+                file_size / 100
+            )
+        } else if filename.to_lowercase().contains("chart")
+            || filename.to_lowercase().contains("graph")
+        {
+            format!(
+                "Chart analysis: Data visualization detected with {} data points",
+                file_size / 500
+            )
         } else {
-            format!("Image text analysis: Detected text regions in {} byte image", file_size)
+            format!(
+                "Image text analysis: Detected text regions in {} byte image",
+                file_size
+            )
         };
 
         Ok(extracted_text)
@@ -220,7 +255,7 @@ impl RealImageProcessor {
 impl MultimodalProcessor for RealImageProcessor {
     async fn process(&self, content: &mut MultimodalContent) -> Result<()> {
         info!("开始真实图像处理: {}", content.id);
-        
+
         content.set_processing_status(ProcessingStatus::Processing);
 
         // 执行 OCR
@@ -230,7 +265,7 @@ impl MultimodalProcessor for RealImageProcessor {
 
         // 设置处理完成状态
         content.set_processing_status(ProcessingStatus::Completed);
-        
+
         info!("图像处理完成: {}", content.id);
         Ok(())
     }
@@ -249,13 +284,17 @@ impl MultimodalProcessor for RealImageProcessor {
             Ok(analysis) => Ok(Some(analysis)),
             Err(_) => {
                 // 回退到基于元数据的摘要
-                let filename = content.metadata.get("filename")
+                let filename = content
+                    .metadata
+                    .get("filename")
                     .and_then(|v| v.as_str())
                     .unwrap_or(&content.id);
 
-                let summary = format!("Image file: {} ({})",
+                let summary = format!(
+                    "Image file: {} ({})",
                     filename,
-                    content.mime_type.as_deref().unwrap_or("unknown"));
+                    content.mime_type.as_deref().unwrap_or("unknown")
+                );
 
                 Ok(Some(summary))
             }

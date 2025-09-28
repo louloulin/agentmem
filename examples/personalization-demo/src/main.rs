@@ -1,5 +1,5 @@
 //! 个性化记忆管理演示程序
-//! 
+//!
 //! 展示 AgentMem 的个性化功能，包括：
 //! - 用户行为记录和学习
 //! - 个性化搜索和推荐
@@ -7,8 +7,8 @@
 //! - 用户档案分析
 
 use agent_mem_compat::{
-    Mem0Client, UserBehavior, BehaviorType, PersonalizedSearchRequest, 
-    UserPreference, PreferenceType, PersonalizationConfig, PersonalizationManager
+    BehaviorType, Mem0Client, PersonalizationConfig, PersonalizationManager,
+    PersonalizedSearchRequest, PreferenceType, UserBehavior, UserPreference,
 };
 use agent_mem_traits::Session;
 use chrono::Utc;
@@ -54,7 +54,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for (i, memory_content) in memories.iter().enumerate() {
         let memory_id = client.add(user_id, memory_content, None).await?;
         memory_ids.push(memory_id.clone());
-        println!("  ✅ 添加记忆 {}: {} (ID: {})", i + 1, memory_content, memory_id);
+        println!(
+            "  ✅ 添加记忆 {}: {} (ID: {})",
+            i + 1,
+            memory_content,
+            memory_id
+        );
     }
 
     // 演示 2: 记录用户行为
@@ -188,7 +193,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         metadata: HashMap::new(),
     };
 
-    match client.update_user_preference(manual_preference.clone()).await {
+    match client
+        .update_user_preference(manual_preference.clone())
+        .await
+    {
         Ok(_) => {
             println!("  ✅ 成功添加用户偏好:");
             println!("    类型: {:?}", manual_preference.preference_type);
@@ -232,14 +240,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("    行为历史: {} 条", profile.behavior_history.len());
                 println!("    兴趣标签: {} 个", profile.interest_tags.len());
                 println!("    活跃时间段: {:?}", profile.active_hours);
-                
+
                 println!("  📈 用户统计:");
                 println!("    总搜索次数: {}", profile.stats.total_searches);
                 println!("    总访问次数: {}", profile.stats.total_accesses);
-                println!("    平均会话时长: {:.1} 秒", profile.stats.avg_session_duration);
+                println!(
+                    "    平均会话时长: {:.1} 秒",
+                    profile.stats.avg_session_duration
+                );
                 println!("    最活跃时间: {}:00", profile.stats.most_active_hour);
                 println!("    偏好多样性: {:.2}", profile.stats.preference_diversity);
-                
+
                 if !profile.stats.top_search_terms.is_empty() {
                     println!("    热门搜索词: {:?}", profile.stats.top_search_terms);
                 }

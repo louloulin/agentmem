@@ -7,7 +7,7 @@
 //! 1. 当启用 "faiss" 特性时，使用真正的 FAISS 库
 //! 2. 否则使用高性能的内存实现作为兼容层
 
-use agent_mem_traits::{AgentMemError, Result, VectorData, VectorStore, VectorSearchResult};
+use agent_mem_traits::{AgentMemError, Result, VectorData, VectorSearchResult, VectorStore};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -18,9 +18,6 @@ use tokio::fs;
 // FAISS 集成 - 增强的实现
 // 注意：由于 FAISS Rust 绑定的复杂性，我们实现一个高性能的本地向量搜索
 // 这个实现使用优化的算法来提供接近 FAISS 的性能
-
-
-
 
 /// FAISS 存储配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -152,13 +149,15 @@ impl FaissStore {
     pub async fn new(config: FaissConfig) -> Result<Self> {
         // 确保数据目录存在
         if let Some(parent) = config.data_path.parent() {
-            fs::create_dir_all(parent).await
-                .map_err(|e| AgentMemError::storage_error(&format!("Failed to create data directory: {}", e)))?;
+            fs::create_dir_all(parent).await.map_err(|e| {
+                AgentMemError::storage_error(&format!("Failed to create data directory: {}", e))
+            })?;
         }
-        
+
         if let Some(parent) = config.metadata_path.parent() {
-            fs::create_dir_all(parent).await
-                .map_err(|e| AgentMemError::storage_error(&format!("Failed to create metadata directory: {}", e)))?;
+            fs::create_dir_all(parent).await.map_err(|e| {
+                AgentMemError::storage_error(&format!("Failed to create metadata directory: {}", e))
+            })?;
         }
 
         let store = Self {
@@ -182,7 +181,9 @@ impl FaissStore {
         if self.config.metadata_path.exists() {
             match fs::read_to_string(&self.config.metadata_path).await {
                 Ok(content) => {
-                    if let Ok(metadata_map) = serde_json::from_str::<HashMap<String, VectorMetadata>>(&content) {
+                    if let Ok(metadata_map) =
+                        serde_json::from_str::<HashMap<String, VectorMetadata>>(&content)
+                    {
                         let mut metadata = self.metadata.write().unwrap();
                         *metadata = metadata_map;
                     }
@@ -199,17 +200,22 @@ impl FaissStore {
     /// 保存元数据到文件
     async fn save_metadata(&self) -> Result<()> {
         let metadata = self.metadata.read().unwrap().clone();
-        let content = serde_json::to_string_pretty(&metadata)
-            .map_err(|e| AgentMemError::storage_error(&format!("Failed to serialize metadata: {}", e)))?;
+        let content = serde_json::to_string_pretty(&metadata).map_err(|e| {
+            AgentMemError::storage_error(&format!("Failed to serialize metadata: {}", e))
+        })?;
 
         // 确保父目录存在
         if let Some(parent) = self.config.metadata_path.parent() {
-            fs::create_dir_all(parent).await
-                .map_err(|e| AgentMemError::storage_error(&format!("Failed to create metadata directory: {}", e)))?;
+            fs::create_dir_all(parent).await.map_err(|e| {
+                AgentMemError::storage_error(&format!("Failed to create metadata directory: {}", e))
+            })?;
         }
 
-        fs::write(&self.config.metadata_path, content).await
-            .map_err(|e| AgentMemError::storage_error(&format!("Failed to write metadata: {}", e)))?;
+        fs::write(&self.config.metadata_path, content)
+            .await
+            .map_err(|e| {
+                AgentMemError::storage_error(&format!("Failed to write metadata: {}", e))
+            })?;
 
         Ok(())
     }
@@ -286,7 +292,8 @@ impl VectorStore for FaissStore {
                 index.push((id.clone(), vector_data.vector.clone()));
 
                 // 存储元数据
-                let payload: HashMap<String, serde_json::Value> = vector_data.metadata
+                let payload: HashMap<String, serde_json::Value> = vector_data
+                    .metadata
                     .iter()
                     .map(|(k, v)| (k.clone(), serde_json::Value::String(v.clone())))
                     .collect();
@@ -353,7 +360,11 @@ impl VectorStore for FaissStore {
         }
 
         // 按相似度排序并限制结果数量
-        results.sort_by(|a, b| b.similarity.partial_cmp(&a.similarity).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.similarity
+                .partial_cmp(&a.similarity)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         results.truncate(limit);
 
         Ok(results)
@@ -425,7 +436,8 @@ impl VectorStore for FaissStore {
                 index.push((id.clone(), vector_data.vector.clone()));
 
                 // 更新元数据
-                let payload: HashMap<String, serde_json::Value> = vector_data.metadata
+                let payload: HashMap<String, serde_json::Value> = vector_data
+                    .metadata
                     .iter()
                     .map(|(k, v)| (k.clone(), serde_json::Value::String(v.clone())))
                     .collect();
@@ -476,7 +488,9 @@ impl VectorStore for FaissStore {
         threshold: Option<f32>,
     ) -> Result<Vec<VectorSearchResult>> {
         // 首先进行基础向量搜索
-        let mut results = self.search_vectors(query_vector, limit * 2, threshold).await?;
+        let mut results = self
+            .search_vectors(query_vector, limit * 2, threshold)
+            .await?;
 
         // 应用过滤器
         if !filters.is_empty() {
@@ -517,19 +531,37 @@ impl VectorStore for FaissStore {
         let is_healthy = vector_count == metadata_count;
 
         Ok(HealthStatus {
-            status: if is_healthy { "healthy".to_string() } else { "degraded".to_string() },
+            status: if is_healthy {
+                "healthy".to_string()
+            } else {
+                "degraded".to_string()
+            },
             message: if is_healthy {
                 format!("FAISS store is healthy with {} vectors", vector_count)
             } else {
-                format!("Data inconsistency detected: {} vectors vs {} metadata entries",
-                       vector_count, metadata_count)
+                format!(
+                    "Data inconsistency detected: {} vectors vs {} metadata entries",
+                    vector_count, metadata_count
+                )
             },
             timestamp: chrono::Utc::now(),
             details: std::collections::HashMap::from([
-                ("vector_count".to_string(), serde_json::Value::Number(serde_json::Number::from(vector_count))),
-                ("metadata_count".to_string(), serde_json::Value::Number(serde_json::Number::from(metadata_count))),
-                ("index_type".to_string(), serde_json::Value::String(format!("{:?}", self.config.index_type))),
-                ("dimension".to_string(), serde_json::Value::Number(serde_json::Number::from(self.config.dimension))),
+                (
+                    "vector_count".to_string(),
+                    serde_json::Value::Number(serde_json::Number::from(vector_count)),
+                ),
+                (
+                    "metadata_count".to_string(),
+                    serde_json::Value::Number(serde_json::Number::from(metadata_count)),
+                ),
+                (
+                    "index_type".to_string(),
+                    serde_json::Value::String(format!("{:?}", self.config.index_type)),
+                ),
+                (
+                    "dimension".to_string(),
+                    serde_json::Value::Number(serde_json::Number::from(self.config.dimension)),
+                ),
             ]),
         })
     }

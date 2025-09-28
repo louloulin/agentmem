@@ -1,13 +1,13 @@
 //! Simple AgentMem Core Demo
-//! 
+//!
 //! This example demonstrates basic usage of the AgentMem core functionality,
 //! including memory creation, storage, and retrieval.
 
-use agent_mem_core::{MemoryEngine, MemoryEngineConfig, Memory};
+use agent_mem_core::{Memory, MemoryEngine, MemoryEngineConfig};
 use agent_mem_traits::{MemoryType, Session};
 use chrono::Utc;
 use std::collections::HashMap;
-use tracing::{info, error};
+use tracing::{error, info};
 use uuid::Uuid;
 
 #[tokio::main]
@@ -27,7 +27,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Create some test memories
     let memories = create_test_memories();
-    
+
     // Add memories to the engine
     for memory in memories {
         match engine.add_memory(memory.clone()).await {
@@ -46,7 +46,10 @@ async fn main() -> anyhow::Result<()> {
             info!("Engine Statistics:");
             info!("  Total memories: {}", stats.total_memories);
             info!("  Memories by level: {:?}", stats.memories_by_level);
-            info!("  Average importance by level: {:?}", stats.avg_importance_by_level);
+            info!(
+                "  Average importance by level: {:?}",
+                stats.avg_importance_by_level
+            );
         }
         Err(e) => {
             error!("Failed to get statistics: {}", e);
@@ -83,8 +86,14 @@ fn create_test_memories() -> Vec<Memory> {
             hash: None,
             metadata: {
                 let mut meta = HashMap::new();
-                meta.insert("priority".to_string(), serde_json::Value::String("high".to_string()));
-                meta.insert("category".to_string(), serde_json::Value::String("development".to_string()));
+                meta.insert(
+                    "priority".to_string(),
+                    serde_json::Value::String("high".to_string()),
+                );
+                meta.insert(
+                    "category".to_string(),
+                    serde_json::Value::String("development".to_string()),
+                );
                 meta
             },
             score: Some(0.8),
@@ -109,8 +118,14 @@ fn create_test_memories() -> Vec<Memory> {
             hash: None,
             metadata: {
                 let mut meta = HashMap::new();
-                meta.insert("user_id".to_string(), serde_json::Value::String("john-doe".to_string()));
-                meta.insert("preference_type".to_string(), serde_json::Value::String("ui".to_string()));
+                meta.insert(
+                    "user_id".to_string(),
+                    serde_json::Value::String("john-doe".to_string()),
+                );
+                meta.insert(
+                    "preference_type".to_string(),
+                    serde_json::Value::String("ui".to_string()),
+                );
                 meta
             },
             score: Some(0.6),
@@ -135,7 +150,10 @@ fn create_test_memories() -> Vec<Memory> {
             hash: None,
             metadata: {
                 let mut meta = HashMap::new();
-                meta.insert("category".to_string(), serde_json::Value::String("general-knowledge".to_string()));
+                meta.insert(
+                    "category".to_string(),
+                    serde_json::Value::String("general-knowledge".to_string()),
+                );
                 meta
             },
             score: Some(0.4),

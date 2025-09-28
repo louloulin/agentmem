@@ -173,7 +173,9 @@ impl LLMProvider for OllamaProvider {
             if let Some(thinking) = &ollama_response.message.thinking {
                 thinking.clone()
             } else {
-                return Err(AgentMemError::llm_error("Empty response from Ollama".to_string()));
+                return Err(AgentMemError::llm_error(
+                    "Empty response from Ollama".to_string(),
+                ));
             }
         } else {
             ollama_response.message.content

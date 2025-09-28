@@ -3,7 +3,7 @@
 //! This module provides common implementations for VectorStore trait methods
 //! to reduce code duplication across different storage backends.
 
-use agent_mem_traits::{Result, VectorData, VectorSearchResult, HealthStatus, VectorStoreStats};
+use agent_mem_traits::{HealthStatus, Result, VectorData, VectorSearchResult, VectorStoreStats};
 use async_trait::async_trait;
 use std::collections::HashMap;
 
@@ -22,8 +22,10 @@ pub trait VectorStoreDefaults: Send + Sync {
         Self: agent_mem_traits::VectorStore,
     {
         // 首先进行基础向量搜索
-        let mut results = self.search_vectors(query_vector, limit * 2, threshold).await?;
-        
+        let mut results = self
+            .search_vectors(query_vector, limit * 2, threshold)
+            .await?;
+
         // 应用过滤器
         if !filters.is_empty() {
             results.retain(|result| {
@@ -43,7 +45,7 @@ pub trait VectorStoreDefaults: Send + Sync {
                 })
             });
         }
-        
+
         // 限制结果数量
         results.truncate(limit);
         Ok(results)
@@ -56,14 +58,23 @@ pub trait VectorStoreDefaults: Send + Sync {
     {
         // 基本健康检查
         let vector_count = self.count_vectors().await?;
-        
+
         Ok(HealthStatus {
             status: "healthy".to_string(),
-            message: format!("{} store is healthy with {} vectors", store_name, vector_count),
+            message: format!(
+                "{} store is healthy with {} vectors",
+                store_name, vector_count
+            ),
             timestamp: chrono::Utc::now(),
             details: HashMap::from([
-                ("vector_count".to_string(), serde_json::Value::Number(serde_json::Number::from(vector_count))),
-                ("store_type".to_string(), serde_json::Value::String(store_name.to_string())),
+                (
+                    "vector_count".to_string(),
+                    serde_json::Value::Number(serde_json::Number::from(vector_count)),
+                ),
+                (
+                    "store_type".to_string(),
+                    serde_json::Value::String(store_name.to_string()),
+                ),
             ]),
         })
     }
@@ -74,7 +85,7 @@ pub trait VectorStoreDefaults: Send + Sync {
         Self: agent_mem_traits::VectorStore,
     {
         let vector_count = self.count_vectors().await?;
-        
+
         Ok(VectorStoreStats {
             total_vectors: vector_count,
             dimension,
@@ -83,17 +94,20 @@ pub trait VectorStoreDefaults: Send + Sync {
     }
 
     /// Default implementation for add_vectors_batch
-    async fn default_add_vectors_batch(&self, batches: Vec<Vec<VectorData>>) -> Result<Vec<Vec<String>>>
+    async fn default_add_vectors_batch(
+        &self,
+        batches: Vec<Vec<VectorData>>,
+    ) -> Result<Vec<Vec<String>>>
     where
         Self: agent_mem_traits::VectorStore,
     {
         let mut all_results = Vec::new();
-        
+
         for batch in batches {
             let batch_result = self.add_vectors(batch).await?;
             all_results.push(batch_result);
         }
-        
+
         Ok(all_results)
     }
 
@@ -103,12 +117,12 @@ pub trait VectorStoreDefaults: Send + Sync {
         Self: agent_mem_traits::VectorStore,
     {
         let mut results = Vec::new();
-        
+
         for batch in id_batches {
             let result = self.delete_vectors(batch).await;
             results.push(result.is_ok());
         }
-        
+
         Ok(results)
     }
 }

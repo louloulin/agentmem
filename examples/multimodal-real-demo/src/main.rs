@@ -1,15 +1,14 @@
 //! 真实多模态处理演示程序
-//! 
+//!
 //! 演示真实的图像和音频处理功能
 
 use agent_mem_intelligence::multimodal::{
-    MultimodalContent, ContentType, ProcessingStatus,
-    real_image::{RealImageProcessor, RealImageProcessorConfig},
     real_audio::{RealAudioProcessor, RealAudioProcessorConfig},
-    MultimodalProcessor,
+    real_image::{RealImageProcessor, RealImageProcessorConfig},
+    ContentType, MultimodalContent, MultimodalProcessor, ProcessingStatus,
 };
 use std::collections::HashMap;
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -65,7 +64,7 @@ async fn test_real_image_processing() -> Result<(), Box<dyn std::error::Error>> 
         match processor.process(&mut content).await {
             Ok(()) => {
                 info!("✅ 图像处理成功: {}", filename);
-                
+
                 if let Some(extracted_text) = &content.extracted_text {
                     info!("📝 提取的文本: {}", extracted_text);
                 }
@@ -122,7 +121,7 @@ async fn test_real_audio_processing() -> Result<(), Box<dyn std::error::Error>> 
         match processor.process(&mut content).await {
             Ok(()) => {
                 info!("✅ 音频处理成功: {}", filename);
-                
+
                 if let Some(extracted_text) = &content.extracted_text {
                     info!("🗣️  转录文本: {}", extracted_text);
                 }
@@ -144,19 +143,26 @@ async fn test_real_audio_processing() -> Result<(), Box<dyn std::error::Error>> 
 }
 
 /// 创建模拟图像内容
-fn create_mock_image_content(filename: &str, content_type: &str, mime_type: &str) -> MultimodalContent {
-    let mut content = MultimodalContent::new(
-        uuid::Uuid::new_v4().to_string(),
-        ContentType::Image,
-    );
+fn create_mock_image_content(
+    filename: &str,
+    content_type: &str,
+    mime_type: &str,
+) -> MultimodalContent {
+    let mut content = MultimodalContent::new(uuid::Uuid::new_v4().to_string(), ContentType::Image);
 
     // 设置基本信息
     content.mime_type = Some(mime_type.to_string());
     content.size = Some(generate_mock_file_size(content_type));
 
     // 设置元数据
-    content.set_metadata("filename".to_string(), serde_json::Value::String(filename.to_string()));
-    content.set_metadata("content_type".to_string(), serde_json::Value::String(content_type.to_string()));
+    content.set_metadata(
+        "filename".to_string(),
+        serde_json::Value::String(filename.to_string()),
+    );
+    content.set_metadata(
+        "content_type".to_string(),
+        serde_json::Value::String(content_type.to_string()),
+    );
 
     // 模拟 Base64 数据（实际应用中这里是真实的图像数据）
     let mock_data = format!("mock_image_data_for_{}", filename);
@@ -166,19 +172,26 @@ fn create_mock_image_content(filename: &str, content_type: &str, mime_type: &str
 }
 
 /// 创建模拟音频内容
-fn create_mock_audio_content(filename: &str, content_type: &str, mime_type: &str) -> MultimodalContent {
-    let mut content = MultimodalContent::new(
-        uuid::Uuid::new_v4().to_string(),
-        ContentType::Audio,
-    );
+fn create_mock_audio_content(
+    filename: &str,
+    content_type: &str,
+    mime_type: &str,
+) -> MultimodalContent {
+    let mut content = MultimodalContent::new(uuid::Uuid::new_v4().to_string(), ContentType::Audio);
 
     // 设置基本信息
     content.mime_type = Some(mime_type.to_string());
     content.size = Some(generate_mock_file_size(content_type));
 
     // 设置元数据
-    content.set_metadata("filename".to_string(), serde_json::Value::String(filename.to_string()));
-    content.set_metadata("content_type".to_string(), serde_json::Value::String(content_type.to_string()));
+    content.set_metadata(
+        "filename".to_string(),
+        serde_json::Value::String(filename.to_string()),
+    );
+    content.set_metadata(
+        "content_type".to_string(),
+        serde_json::Value::String(content_type.to_string()),
+    );
 
     // 模拟 Base64 数据（实际应用中这里是真实的音频数据）
     let mock_data = format!("mock_audio_data_for_{}", filename);

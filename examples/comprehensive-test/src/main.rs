@@ -1,28 +1,28 @@
-use agent_mem_core::{MemoryEngine, MemoryEngineConfig, Memory};
+use agent_mem_core::{Memory, MemoryEngine, MemoryEngineConfig};
 use agent_mem_traits::{MemoryType, Session};
 use chrono::Utc;
 use std::collections::HashMap;
-use tracing::{info, error};
+use tracing::{error, info};
 use uuid::Uuid;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize tracing
     tracing_subscriber::fmt::init();
-    
+
     info!("🚀 Starting AgentMem Comprehensive Test");
-    
+
     // Test 1: Engine Creation and Configuration
     info!("📋 Test 1: Engine Creation and Configuration");
     let config = MemoryEngineConfig::default();
     let engine = MemoryEngine::new(config);
     info!("✅ Memory engine created successfully");
-    
+
     // Test 2: Memory Creation and Addition
     info!("📋 Test 2: Memory Creation and Addition");
     let memories = create_test_memories();
     let mut memory_ids = Vec::new();
-    
+
     for memory in memories {
         let id = memory.id.clone();
         match engine.add_memory(memory).await {
@@ -35,7 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
-    
+
     // Test 3: Memory Retrieval
     info!("📋 Test 3: Memory Retrieval");
     for id in &memory_ids {
@@ -51,21 +51,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
-    
+
     // Test 4: Memory Update
     info!("📋 Test 4: Memory Update");
     if let Some(first_id) = memory_ids.first() {
         if let Ok(Some(mut memory)) = engine.get_memory(first_id).await {
             memory.content = "Updated content for comprehensive test".to_string();
             memory.updated_at = Some(Utc::now());
-            
+
             match engine.update_memory(memory).await {
                 Ok(_) => info!("✅ Updated memory: {}", first_id),
                 Err(e) => error!("❌ Failed to update memory {}: {}", first_id, e),
             }
         }
     }
-    
+
     // Test 5: Engine Statistics
     info!("📋 Test 5: Engine Statistics");
     match engine.get_statistics().await {
@@ -73,13 +73,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             info!("✅ Engine Statistics:");
             info!("   Total memories: {}", stats.total_memories);
             info!("   Memories by level: {:?}", stats.memories_by_level);
-            info!("   Average importance by level: {:?}", stats.avg_importance_by_level);
+            info!(
+                "   Average importance by level: {:?}",
+                stats.avg_importance_by_level
+            );
         }
         Err(e) => {
             error!("❌ Failed to get statistics: {}", e);
         }
     }
-    
+
     // Test 6: Memory Processing
     info!("📋 Test 6: Memory Processing");
     match engine.process_memories().await {
@@ -97,7 +100,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             error!("❌ Failed to process memories: {}", e);
         }
     }
-    
+
     // Test 7: Memory Deletion
     info!("📋 Test 7: Memory Deletion");
     if let Some(last_id) = memory_ids.last() {
@@ -107,14 +110,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Err(e) => error!("❌ Failed to delete memory {}: {}", last_id, e),
         }
     }
-    
+
     info!("🎉 Comprehensive test completed successfully!");
     Ok(())
 }
 
 fn create_test_memories() -> Vec<Memory> {
     let now = Utc::now();
-    
+
     vec![
         Memory {
             id: Uuid::new_v4().to_string(),
@@ -122,8 +125,14 @@ fn create_test_memories() -> Vec<Memory> {
             hash: None,
             metadata: {
                 let mut meta = HashMap::new();
-                meta.insert("priority".to_string(), serde_json::Value::String("high".to_string()));
-                meta.insert("category".to_string(), serde_json::Value::String("development".to_string()));
+                meta.insert(
+                    "priority".to_string(),
+                    serde_json::Value::String("high".to_string()),
+                );
+                meta.insert(
+                    "category".to_string(),
+                    serde_json::Value::String("development".to_string()),
+                );
                 meta
             },
             score: Some(0.9),
@@ -148,8 +157,14 @@ fn create_test_memories() -> Vec<Memory> {
             hash: None,
             metadata: {
                 let mut meta = HashMap::new();
-                meta.insert("user_id".to_string(), serde_json::Value::String("john".to_string()));
-                meta.insert("preference_type".to_string(), serde_json::Value::String("ui".to_string()));
+                meta.insert(
+                    "user_id".to_string(),
+                    serde_json::Value::String("john".to_string()),
+                );
+                meta.insert(
+                    "preference_type".to_string(),
+                    serde_json::Value::String("ui".to_string()),
+                );
                 meta
             },
             score: Some(0.6),
@@ -174,7 +189,10 @@ fn create_test_memories() -> Vec<Memory> {
             hash: None,
             metadata: {
                 let mut meta = HashMap::new();
-                meta.insert("category".to_string(), serde_json::Value::String("general-knowledge".to_string()));
+                meta.insert(
+                    "category".to_string(),
+                    serde_json::Value::String("general-knowledge".to_string()),
+                );
                 meta.insert("verified".to_string(), serde_json::Value::Bool(true));
                 meta
             },
@@ -200,8 +218,14 @@ fn create_test_memories() -> Vec<Memory> {
             hash: None,
             metadata: {
                 let mut meta = HashMap::new();
-                meta.insert("branch".to_string(), serde_json::Value::String("auth-system".to_string()));
-                meta.insert("status".to_string(), serde_json::Value::String("active".to_string()));
+                meta.insert(
+                    "branch".to_string(),
+                    serde_json::Value::String("auth-system".to_string()),
+                );
+                meta.insert(
+                    "status".to_string(),
+                    serde_json::Value::String("active".to_string()),
+                );
                 meta
             },
             score: Some(0.8),
@@ -226,8 +250,14 @@ fn create_test_memories() -> Vec<Memory> {
             hash: None,
             metadata: {
                 let mut meta = HashMap::new();
-                meta.insert("type".to_string(), serde_json::Value::String("meeting".to_string()));
-                meta.insert("client".to_string(), serde_json::Value::String("acme-corp".to_string()));
+                meta.insert(
+                    "type".to_string(),
+                    serde_json::Value::String("meeting".to_string()),
+                );
+                meta.insert(
+                    "client".to_string(),
+                    serde_json::Value::String("acme-corp".to_string()),
+                );
                 meta
             },
             score: Some(0.7),

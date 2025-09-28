@@ -6,21 +6,17 @@
 //! - 错误恢复和重试机制
 //! - 性能监控和统计
 
-use agent_mem_traits::{Result, VectorStore, VectorData, VectorStoreConfig};
-use agent_mem_utils::migration::{
-    DataMigrator, MigrationConfig, MigrationTools, MigrationStatus
-};
 use agent_mem_storage::backends::memory::MemoryVectorStore;
-use std::sync::Arc;
+use agent_mem_traits::{Result, VectorData, VectorStore, VectorStoreConfig};
+use agent_mem_utils::migration::{DataMigrator, MigrationConfig, MigrationStatus, MigrationTools};
 use std::collections::HashMap;
+use std::sync::Arc;
 use tracing::{info, warn};
 
 #[tokio::main]
 async fn main() -> Result<()> {
     // 初始化日志
-    tracing_subscriber::fmt()
-        .with_env_filter("info")
-        .init();
+    tracing_subscriber::fmt().with_env_filter("info").init();
 
     info!("🚀 开始存储迁移演示");
 
@@ -46,7 +42,7 @@ async fn demo_basic_migration() -> Result<()> {
 
     // 创建源存储（包含数据）
     let source = create_populated_store("source", 100).await?;
-    
+
     // 创建目标存储（空）
     let target = create_empty_store("target").await?;
 
@@ -61,9 +57,9 @@ async fn demo_basic_migration() -> Result<()> {
     // 执行迁移
     let migrator = DataMigrator::new(config);
     info!("开始迁移 100 条记录...");
-    
+
     let result = migrator.migrate(source.clone(), target.clone()).await?;
-    
+
     info!("✅ 迁移完成:");
     info!("  - 总记录数: {}", result.total_records);
     info!("  - 成功记录: {}", result.successful_records);
@@ -104,7 +100,7 @@ async fn demo_large_scale_migration() -> Result<()> {
     };
 
     let migrator = DataMigrator::new(config);
-    
+
     // 预估迁移时间
     let config = MigrationConfig {
         batch_size: 500,
@@ -120,15 +116,17 @@ async fn demo_large_scale_migration() -> Result<()> {
     // 执行迁移
     info!("开始大规模迁移 5000 条记录...");
     let result = migrator.migrate(source, target).await?;
-    
+
     info!("✅ 大规模迁移完成:");
     info!("  - 总记录数: {}", result.total_records);
     info!("  - 成功记录: {}", result.successful_records);
     info!("  - 失败记录: {}", result.failed_records);
     info!("  - 实际耗时: {:.2}秒", result.duration_seconds);
     info!("  - 平均速度: {:.2} 记录/秒", result.average_speed);
-    info!("  - 预估准确度: {:.1}%", 
-          (estimated_time.as_secs_f64() / result.duration_seconds) * 100.0);
+    info!(
+        "  - 预估准确度: {:.1}%",
+        (estimated_time.as_secs_f64() / result.duration_seconds) * 100.0
+    );
 
     Ok(())
 }
@@ -142,24 +140,35 @@ async fn demo_migration_tools() -> Result<()> {
 
     // 兼容性检查
     info!("🔍 检查存储兼容性...");
-    let is_compatible = MigrationTools::validate_compatibility(source.clone(), target.clone()).await?;
-    info!("兼容性检查结果: {}", if is_compatible { "✅ 兼容" } else { "❌ 不兼容" });
+    let is_compatible =
+        MigrationTools::validate_compatibility(source.clone(), target.clone()).await?;
+    info!(
+        "兼容性检查结果: {}",
+        if is_compatible {
+            "✅ 兼容"
+        } else {
+            "❌ 不兼容"
+        }
+    );
 
     // 创建迁移器并监控进度
     let migrator = MigrationTools::create_migrator();
-    
+
     // 模拟进度监控
     info!("📊 监控迁移进度...");
     let progress = migrator.get_progress().await;
     info!("当前状态: {:?}", progress.status);
-    info!("处理进度: {}/{}", progress.processed_records, progress.total_records);
+    info!(
+        "处理进度: {}/{}",
+        progress.processed_records, progress.total_records
+    );
 
     // 暂停和恢复功能
     info!("⏸️  测试暂停功能...");
     migrator.pause().await;
     let progress = migrator.get_progress().await;
     assert_eq!(progress.status, MigrationStatus::Preparing);
-    
+
     info!("▶️  测试恢复功能...");
     migrator.resume().await;
     let progress = migrator.get_progress().await;
@@ -186,10 +195,10 @@ async fn demo_error_handling() -> Result<()> {
     };
 
     let migrator = DataMigrator::new(config);
-    
+
     info!("🔄 执行带错误恢复的迁移...");
     let result = migrator.migrate(source, target).await?;
-    
+
     info!("✅ 错误恢复迁移完成:");
     info!("  - 总记录数: {}", result.total_records);
     info!("  - 成功记录: {}", result.successful_records);
@@ -208,7 +217,7 @@ async fn create_populated_store(name: &str, count: usize) -> Result<Arc<MemoryVe
     let mut config = VectorStoreConfig::default();
     config.dimension = Some(128); // 设置为我们测试向量的维度
     let store = Arc::new(MemoryVectorStore::new(config).await?);
-    
+
     // 生成测试数据
     let mut vectors = Vec::new();
     for i in 0..count {
@@ -218,18 +227,18 @@ async fn create_populated_store(name: &str, count: usize) -> Result<Arc<MemoryVe
         metadata.insert("index".to_string(), i.to_string());
         metadata.insert("source".to_string(), name.to_string());
         metadata.insert("timestamp".to_string(), chrono::Utc::now().to_rfc3339());
-        
+
         vectors.push(VectorData {
             id,
             vector,
             metadata,
         });
     }
-    
+
     // 批量添加数据
     store.add_vectors(vectors).await?;
     info!("📊 创建存储 '{}' 包含 {} 条记录", name, count);
-    
+
     Ok(store)
 }
 
@@ -246,11 +255,11 @@ async fn create_empty_store(name: &str) -> Result<Arc<MemoryVectorStore>> {
 fn generate_test_vector(seed: usize, dim: usize) -> Vec<f32> {
     let mut vector = Vec::with_capacity(dim);
     for i in 0..dim {
-        let value = ((seed * 31 + i * 17) as f32).sin() * 0.5 + 
-                   ((seed * 13 + i * 7) as f32).cos() * 0.3;
+        let value =
+            ((seed * 31 + i * 17) as f32).sin() * 0.5 + ((seed * 13 + i * 7) as f32).cos() * 0.3;
         vector.push(value);
     }
-    
+
     // 归一化
     let norm: f32 = vector.iter().map(|x| x * x).sum::<f32>().sqrt();
     if norm > 0.0 {
@@ -258,6 +267,6 @@ fn generate_test_vector(seed: usize, dim: usize) -> Vec<f32> {
             *v /= norm;
         }
     }
-    
+
     vector
 }

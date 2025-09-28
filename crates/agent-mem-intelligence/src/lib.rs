@@ -16,8 +16,8 @@ pub mod reasoning;
 pub mod similarity;
 
 // 新增智能推理模块
-pub mod fact_extraction;
 pub mod decision_engine;
+pub mod fact_extraction;
 pub mod intelligent_processor;
 
 // Mem5 增强模块
@@ -38,8 +38,21 @@ pub use reasoning::MemoryReasoner;
 pub use similarity::SemanticSimilarity;
 
 // 导出新的智能推理模块
-pub use fact_extraction::{FactExtractor, ExtractedFact, FactCategory, AdvancedFactExtractor, StructuredFact, Entity, Relation, EntityType, RelationType};
-pub use decision_engine::{MemoryDecisionEngine, MemoryDecision, MemoryAction, ExistingMemory, EnhancedDecisionEngine, DecisionContext, DecisionResult};
-pub use intelligent_processor::{IntelligentMemoryProcessor, IntelligentProcessingResult, MemoryHealthReport, EnhancedIntelligentProcessor, EnhancedProcessingResult};
-pub use conflict_resolution::{ConflictResolver, ConflictDetection, ConflictResolution, ConflictType, ResolutionStrategy};
-pub use importance_evaluator::{ImportanceEvaluator as EnhancedImportanceEvaluator, ImportanceEvaluation, ImportanceFactors};
+pub use conflict_resolution::{
+    ConflictDetection, ConflictResolution, ConflictResolver, ConflictType, ResolutionStrategy,
+};
+pub use decision_engine::{
+    DecisionContext, DecisionResult, EnhancedDecisionEngine, ExistingMemory, MemoryAction,
+    MemoryDecision, MemoryDecisionEngine,
+};
+pub use fact_extraction::{
+    AdvancedFactExtractor, Entity, EntityType, ExtractedFact, FactCategory, FactExtractor,
+    Relation, RelationType, StructuredFact,
+};
+pub use importance_evaluator::{
+    ImportanceEvaluation, ImportanceEvaluator as EnhancedImportanceEvaluator, ImportanceFactors,
+};
+pub use intelligent_processor::{
+    EnhancedIntelligentProcessor, EnhancedProcessingResult, IntelligentMemoryProcessor,
+    IntelligentProcessingResult, MemoryHealthReport,
+};

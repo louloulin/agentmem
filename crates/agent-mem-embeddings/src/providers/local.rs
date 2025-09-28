@@ -8,14 +8,14 @@
 use crate::config::EmbeddingConfig;
 use agent_mem_traits::{AgentMemError, Embedder, Result};
 use async_trait::async_trait;
-use std::path::{Path, PathBuf};
+use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tracing::{debug, info, warn, error};
-use std::collections::HashMap;
+use tracing::{debug, info, warn};
 
 #[cfg(feature = "local")]
-use candle_core::{Device, Tensor};
+use candle_core::Device;
 #[cfg(feature = "local")]
 use candle_transformers::models::bert::BertModel;
 #[cfg(feature = "local")]
@@ -57,8 +57,9 @@ impl ModelCache {
             .join("agentmem")
             .join("models");
 
-        std::fs::create_dir_all(&cache_dir)
-            .map_err(|e| AgentMemError::storage_error(format!("Failed to create cache directory: {}", e)))?;
+        std::fs::create_dir_all(&cache_dir).map_err(|e| {
+            AgentMemError::storage_error(format!("Failed to create cache directory: {}", e))
+        })?;
 
         Ok(Self {
             cache_dir,
@@ -76,16 +77,22 @@ impl ModelCache {
 
         info!("Downloading model {} from {}", model_name, url);
 
-        let response = reqwest::get(url).await
-            .map_err(|e| AgentMemError::network_error(format!("Failed to download model: {}", e)))?;
+        let response = reqwest::get(url).await.map_err(|e| {
+            AgentMemError::network_error(format!("Failed to download model: {}", e))
+        })?;
 
-        let bytes = response.bytes().await
-            .map_err(|e| AgentMemError::network_error(format!("Failed to read model data: {}", e)))?;
+        let bytes = response.bytes().await.map_err(|e| {
+            AgentMemError::network_error(format!("Failed to read model data: {}", e))
+        })?;
 
-        tokio::fs::write(&model_path, &bytes).await
+        tokio::fs::write(&model_path, &bytes)
+            .await
             .map_err(|e| AgentMemError::storage_error(format!("Failed to save model: {}", e)))?;
 
-        info!("Model {} downloaded and cached at {:?}", model_name, model_path);
+        info!(
+            "Model {} downloaded and cached at {:?}",
+            model_name, model_path
+        );
         Ok(model_path)
     }
 }
@@ -143,7 +150,10 @@ impl LocalEmbedder {
             if model_path.ends_with(".onnx") {
                 let model_path = PathBuf::from(model_path);
                 let tokenizer_path = model_path.with_extension("tokenizer.json");
-                return Ok(LocalModelType::Onnx { model_path, tokenizer_path });
+                return Ok(LocalModelType::Onnx {
+                    model_path,
+                    tokenizer_path,
+                });
             } else if model_path.contains("/") && !model_path.starts_with("./") {
                 // HuggingFace 模型名称格式
                 return Ok(LocalModelType::HuggingFace {
@@ -154,7 +164,10 @@ impl LocalEmbedder {
                 // 本地 Candle 模型路径
                 let model_path = PathBuf::from(model_path);
                 let tokenizer_path = model_path.with_file_name("tokenizer.json");
-                return Ok(LocalModelType::Candle { model_path, tokenizer_path });
+                return Ok(LocalModelType::Candle {
+                    model_path,
+                    tokenizer_path,
+                });
             }
         }
 
@@ -176,20 +189,30 @@ impl LocalEmbedder {
 
         match &self.model_type.clone() {
             #[cfg(feature = "local")]
-            LocalModelType::Candle { model_path, tokenizer_path } => {
+            LocalModelType::Candle {
+                model_path,
+                tokenizer_path,
+            } => {
                 self.load_candle_model(model_path, tokenizer_path).await?;
-            },
+            }
             #[cfg(feature = "onnx")]
-            LocalModelType::Onnx { model_path, tokenizer_path } => {
+            LocalModelType::Onnx {
+                model_path,
+                tokenizer_path,
+            } => {
                 self.load_onnx_model(model_path, tokenizer_path).await?;
-            },
-            LocalModelType::HuggingFace { model_name, cache_dir } => {
-                self.load_huggingface_model(model_name, cache_dir.as_ref()).await?;
-            },
+            }
+            LocalModelType::HuggingFace {
+                model_name,
+                cache_dir,
+            } => {
+                self.load_huggingface_model(model_name, cache_dir.as_ref())
+                    .await?;
+            }
             #[cfg(not(feature = "onnx"))]
             LocalModelType::Onnx { .. } => {
                 warn!("ONNX feature not enabled, using deterministic embedding");
-            },
+            }
             #[cfg(not(any(feature = "local", feature = "onnx")))]
             _ => {
                 warn!("No local model backend enabled, using deterministic embedding");
@@ -204,7 +227,11 @@ impl LocalEmbedder {
     }
 
     #[cfg(feature = "local")]
-    async fn load_candle_model(&mut self, model_path: &PathBuf, tokenizer_path: &PathBuf) -> Result<()> {
+    async fn load_candle_model(
+        &mut self,
+        model_path: &PathBuf,
+        tokenizer_path: &PathBuf,
+    ) -> Result<()> {
         use candle_core::Device;
 
         info!("Loading Candle model from {:?}", model_path);
@@ -213,8 +240,9 @@ impl LocalEmbedder {
         let device = Device::Cpu;
 
         // 加载分词器
-        let tokenizer = Tokenizer::from_file(tokenizer_path)
-            .map_err(|e| AgentMemError::embedding_error(format!("Failed to load tokenizer: {}", e)))?;
+        let tokenizer = Tokenizer::from_file(tokenizer_path).map_err(|e| {
+            AgentMemError::embedding_error(format!("Failed to load tokenizer: {}", e))
+        })?;
 
         self.device = Some(device);
         self.candle_tokenizer = Some(Arc::new(tokenizer));
@@ -223,14 +251,20 @@ impl LocalEmbedder {
     }
 
     #[cfg(feature = "onnx")]
-    async fn load_onnx_model(&mut self, model_path: &PathBuf, tokenizer_path: &PathBuf) -> Result<()> {
+    async fn load_onnx_model(
+        &mut self,
+        model_path: &PathBuf,
+        tokenizer_path: &PathBuf,
+    ) -> Result<()> {
         info!("Loading ONNX model from {:?}", model_path);
 
         // 初始化 ONNX Runtime 环境
         let environment = Environment::builder()
             .with_name("AgentMem")
             .build()
-            .map_err(|e| AgentMemError::model_error(format!("Failed to create ONNX environment: {}", e)))?;
+            .map_err(|e| {
+                AgentMemError::model_error(format!("Failed to create ONNX environment: {}", e))
+            })?;
 
         // 创建会话
         let session = SessionBuilder::new(&environment)?
@@ -248,23 +282,30 @@ impl LocalEmbedder {
         Ok(())
     }
 
-    async fn load_huggingface_model(&mut self, model_name: &str, cache_dir: Option<&PathBuf>) -> Result<()> {
+    async fn load_huggingface_model(
+        &mut self,
+        model_name: &str,
+        cache_dir: Option<&PathBuf>,
+    ) -> Result<()> {
         info!("Loading HuggingFace model: {}", model_name);
 
         #[cfg(all(feature = "local", feature = "huggingface"))]
         {
             // 使用 hf-hub 下载模型
-            let api = hf_hub::api::sync::Api::new()
-                .map_err(|e| AgentMemError::embedding_error(format!("Failed to create HF API: {}", e)))?;
+            let api = hf_hub::api::sync::Api::new().map_err(|e| {
+                AgentMemError::embedding_error(format!("Failed to create HF API: {}", e))
+            })?;
 
             let repo = api.model(model_name.to_string());
 
             // 下载模型文件
-            let model_path = repo.get("pytorch_model.bin")
-                .map_err(|e| AgentMemError::embedding_error(format!("Failed to download model: {}", e)))?;
+            let model_path = repo.get("pytorch_model.bin").map_err(|e| {
+                AgentMemError::embedding_error(format!("Failed to download model: {}", e))
+            })?;
 
-            let tokenizer_path = repo.get("tokenizer.json")
-                .map_err(|e| AgentMemError::embedding_error(format!("Failed to download tokenizer: {}", e)))?;
+            let tokenizer_path = repo.get("tokenizer.json").map_err(|e| {
+                AgentMemError::embedding_error(format!("Failed to download tokenizer: {}", e))
+            })?;
 
             // 加载模型和分词器
             self.load_candle_model(&model_path, &tokenizer_path).await?;
@@ -282,13 +323,9 @@ impl LocalEmbedder {
     async fn generate_embedding_real(&self, text: &str) -> Result<Vec<f32>> {
         match &self.model_type {
             #[cfg(feature = "local")]
-            LocalModelType::Candle { .. } => {
-                self.generate_candle_embedding(text).await
-            },
+            LocalModelType::Candle { .. } => self.generate_candle_embedding(text).await,
             #[cfg(feature = "onnx")]
-            LocalModelType::Onnx { .. } => {
-                self.generate_onnx_embedding(text).await
-            },
+            LocalModelType::Onnx { .. } => self.generate_onnx_embedding(text).await,
             LocalModelType::HuggingFace { .. } => {
                 #[cfg(feature = "local")]
                 {
@@ -298,15 +335,11 @@ impl LocalEmbedder {
                 {
                     Ok(self.generate_deterministic_embedding(text))
                 }
-            },
-            #[cfg(not(feature = "onnx"))]
-            LocalModelType::Onnx { .. } => {
-                Ok(self.generate_deterministic_embedding(text))
-            },
-            #[cfg(not(any(feature = "local", feature = "onnx")))]
-            _ => {
-                Ok(self.generate_deterministic_embedding(text))
             }
+            #[cfg(not(feature = "onnx"))]
+            LocalModelType::Onnx { .. } => Ok(self.generate_deterministic_embedding(text)),
+            #[cfg(not(any(feature = "local", feature = "onnx")))]
+            _ => Ok(self.generate_deterministic_embedding(text)),
         }
     }
 
@@ -314,8 +347,9 @@ impl LocalEmbedder {
     async fn generate_candle_embedding(&self, text: &str) -> Result<Vec<f32>> {
         if let Some(tokenizer) = &self.candle_tokenizer {
             // 分词
-            let encoding = tokenizer.encode(text, true)
-                .map_err(|e| AgentMemError::embedding_error(format!("Tokenization failed: {}", e)))?;
+            let encoding = tokenizer.encode(text, true).map_err(|e| {
+                AgentMemError::embedding_error(format!("Tokenization failed: {}", e))
+            })?;
 
             // 由于模型加载比较复杂，这里提供一个基于输入的确定性嵌入生成
             let embedding = self.generate_deterministic_embedding(text);
@@ -329,7 +363,8 @@ impl LocalEmbedder {
     async fn generate_onnx_embedding(&self, text: &str) -> Result<Vec<f32>> {
         if let (Some(_session), Some(tokenizer)) = (&self.onnx_session, &self.onnx_tokenizer) {
             // 分词
-            let _encoding = tokenizer.encode(text, true)
+            let _encoding = tokenizer
+                .encode(text, true)
                 .map_err(|e| AgentMemError::model_error(format!("Tokenization failed: {}", e)))?;
 
             // 这里需要实际的 ONNX 推理，目前使用确定性嵌入
@@ -342,7 +377,7 @@ impl LocalEmbedder {
 
     /// 生成确定性嵌入（作为后备方案）
     fn generate_deterministic_embedding(&self, text: &str) -> Vec<f32> {
-        use sha2::{Sha256, Digest};
+        use sha2::{Digest, Sha256};
 
         let mut hasher = Sha256::new();
         hasher.update(text.as_bytes());
@@ -408,7 +443,7 @@ impl Embedder for LocalEmbedder {
             Ok(embedding) => {
                 debug!("Generated embedding with {} dimensions", embedding.len());
                 Ok(embedding)
-            },
+            }
             Err(e) => {
                 warn!("Real model failed, falling back to deterministic: {}", e);
                 Ok(self.generate_deterministic_embedding(text))
@@ -443,16 +478,14 @@ impl Embedder for LocalEmbedder {
 
     fn model_name(&self) -> &str {
         match &self.model_type {
-            LocalModelType::Candle { model_path, .. } => {
-                model_path.file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or("candle-model")
-            },
-            LocalModelType::Onnx { model_path, .. } => {
-                model_path.file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or("onnx-model")
-            },
+            LocalModelType::Candle { model_path, .. } => model_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("candle-model"),
+            LocalModelType::Onnx { model_path, .. } => model_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("onnx-model"),
             LocalModelType::HuggingFace { model_name, .. } => model_name,
         }
     }

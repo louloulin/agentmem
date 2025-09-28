@@ -1,12 +1,12 @@
 //! Main server implementation
 
+use crate::routes::memory::MemoryManager;
 use crate::{
     config::ServerConfig,
     error::{ServerError, ServerResult},
     routes::create_router,
     telemetry::setup_telemetry,
 };
-use crate::routes::memory::MemoryManager;
 use axum::Router;
 use std::net::SocketAddr;
 use std::sync::Arc;

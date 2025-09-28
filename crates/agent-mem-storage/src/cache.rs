@@ -6,13 +6,13 @@
 //! - 缓存策略（LRU、TTL）
 //! - 缓存预热和失效
 
-use agent_mem_traits::{Result, VectorData, VectorSearchResult, AgentMemError};
+use agent_mem_traits::{VectorData, VectorSearchResult};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use tracing::debug;
 
 /// 缓存条目
 #[derive(Debug, Clone)]
@@ -110,7 +110,7 @@ pub struct CacheStats {
 }
 
 /// LRU 缓存实现
-pub struct LRUCache<K, V> 
+pub struct LRUCache<K, V>
 where
     K: Clone + Eq + std::hash::Hash,
     V: Clone,
@@ -168,7 +168,7 @@ where
 
             // 更新访问信息
             let data = entry.access().clone();
-            
+
             // 更新LRU顺序
             if self.config.enable_lru {
                 self.access_order.retain(|k| k != key);
@@ -250,7 +250,7 @@ where
     /// 清理过期条目
     pub fn cleanup_expired(&mut self) -> usize {
         let mut expired_keys = Vec::new();
-        
+
         for (key, entry) in &self.cache {
             if entry.is_expired() {
                 expired_keys.push(key.clone());
@@ -290,7 +290,7 @@ where
     fn update_stats(&mut self) {
         self.stats.current_entries = self.cache.len();
         self.stats.usage_rate = self.stats.current_entries as f64 / self.stats.max_entries as f64;
-        
+
         if self.stats.total_requests > 0 {
             self.stats.hit_rate = self.stats.cache_hits as f64 / self.stats.total_requests as f64;
         }
@@ -382,15 +382,15 @@ impl VectorCacheManager {
         use std::hash::{Hash, Hasher};
 
         let mut hasher = DefaultHasher::new();
-        
+
         // 对查询向量进行哈希（简化处理，实际应用中可能需要更精确的方法）
         for &val in query_vector {
             val.to_bits().hash(&mut hasher);
         }
-        
+
         limit.hash(&mut hasher);
         threshold.map(|t| t.to_bits()).hash(&mut hasher);
-        
+
         // 对过滤器进行哈希
         let mut filter_keys: Vec<_> = filters.keys().collect();
         filter_keys.sort();
@@ -436,7 +436,9 @@ impl agent_mem_traits::VectorStore for CachedVectorStore {
 
         // 缓存新添加的向量
         for vector in vectors {
-            self.cache_manager.put_vector(vector.id.clone(), vector).await;
+            self.cache_manager
+                .put_vector(vector.id.clone(), vector)
+                .await;
         }
 
         Ok(result)
@@ -449,9 +451,8 @@ impl agent_mem_traits::VectorStore for CachedVectorStore {
         threshold: Option<f32>,
     ) -> agent_mem_traits::Result<Vec<VectorSearchResult>> {
         let filters = HashMap::new();
-        let query_hash = VectorCacheManager::generate_search_hash(
-            &query_vector, limit, threshold, &filters
-        );
+        let query_hash =
+            VectorCacheManager::generate_search_hash(&query_vector, limit, threshold, &filters);
 
         // 尝试从缓存获取
         if let Some(cached_results) = self.cache_manager.get_search_results(&query_hash).await {
@@ -461,10 +462,15 @@ impl agent_mem_traits::VectorStore for CachedVectorStore {
 
         // 缓存未命中，执行实际搜索
         debug!("Cache miss for search query: {}", query_hash);
-        let results = self.inner.search_vectors(query_vector, limit, threshold).await?;
+        let results = self
+            .inner
+            .search_vectors(query_vector, limit, threshold)
+            .await?;
 
         // 缓存搜索结果
-        self.cache_manager.put_search_results(query_hash, results.clone()).await;
+        self.cache_manager
+            .put_search_results(query_hash, results.clone())
+            .await;
 
         Ok(results)
     }
@@ -485,7 +491,9 @@ impl agent_mem_traits::VectorStore for CachedVectorStore {
 
         // 更新缓存
         for vector in vectors {
-            self.cache_manager.put_vector(vector.id.clone(), vector).await;
+            self.cache_manager
+                .put_vector(vector.id.clone(), vector)
+                .await;
         }
 
         Ok(result)
@@ -504,7 +512,9 @@ impl agent_mem_traits::VectorStore for CachedVectorStore {
 
         // 如果找到，缓存结果
         if let Some(ref vector) = result {
-            self.cache_manager.put_vector(id.to_string(), vector.clone()).await;
+            self.cache_manager
+                .put_vector(id.to_string(), vector.clone())
+                .await;
         }
 
         Ok(result)
@@ -530,9 +540,8 @@ impl agent_mem_traits::VectorStore for CachedVectorStore {
         filters: &HashMap<String, serde_json::Value>,
         threshold: Option<f32>,
     ) -> agent_mem_traits::Result<Vec<VectorSearchResult>> {
-        let query_hash = VectorCacheManager::generate_search_hash(
-            &query_vector, limit, threshold, filters
-        );
+        let query_hash =
+            VectorCacheManager::generate_search_hash(&query_vector, limit, threshold, filters);
 
         // 尝试从缓存获取
         if let Some(cached_results) = self.cache_manager.get_search_results(&query_hash).await {
@@ -542,10 +551,15 @@ impl agent_mem_traits::VectorStore for CachedVectorStore {
 
         // 缓存未命中，执行实际搜索
         debug!("Cache miss for filtered search query: {}", query_hash);
-        let results = self.inner.search_with_filters(query_vector, limit, filters, threshold).await?;
+        let results = self
+            .inner
+            .search_with_filters(query_vector, limit, filters, threshold)
+            .await?;
 
         // 缓存搜索结果
-        self.cache_manager.put_search_results(query_hash, results.clone()).await;
+        self.cache_manager
+            .put_search_results(query_hash, results.clone())
+            .await;
 
         Ok(results)
     }
@@ -558,20 +572,28 @@ impl agent_mem_traits::VectorStore for CachedVectorStore {
         self.inner.get_stats().await
     }
 
-    async fn add_vectors_batch(&self, batches: Vec<Vec<VectorData>>) -> agent_mem_traits::Result<Vec<Vec<String>>> {
+    async fn add_vectors_batch(
+        &self,
+        batches: Vec<Vec<VectorData>>,
+    ) -> agent_mem_traits::Result<Vec<Vec<String>>> {
         let result = self.inner.add_vectors_batch(batches.clone()).await?;
 
         // 缓存所有新添加的向量
         for batch in batches {
             for vector in batch {
-                self.cache_manager.put_vector(vector.id.clone(), vector).await;
+                self.cache_manager
+                    .put_vector(vector.id.clone(), vector)
+                    .await;
             }
         }
 
         Ok(result)
     }
 
-    async fn delete_vectors_batch(&self, id_batches: Vec<Vec<String>>) -> agent_mem_traits::Result<Vec<bool>> {
+    async fn delete_vectors_batch(
+        &self,
+        id_batches: Vec<Vec<String>>,
+    ) -> agent_mem_traits::Result<Vec<bool>> {
         let result = self.inner.delete_vectors_batch(id_batches.clone()).await?;
 
         // 从缓存中删除

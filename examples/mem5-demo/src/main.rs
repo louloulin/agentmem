@@ -1,5 +1,5 @@
 //! Mem5 Enhanced AgentMem Demo
-//! 
+//!
 //! This demo showcases the new Mem5Client with enhanced features:
 //! - Full Mem0 API compatibility
 //! - Batch operations
@@ -8,11 +8,11 @@
 //! - Performance monitoring
 
 use agent_mem_client::Mem5Client;
-use agent_mem_compat::client::{Messages, EnhancedAddRequest};
+use agent_mem_compat::client::{EnhancedAddRequest, Messages};
 use anyhow::Result;
 use serde_json::json;
 use std::collections::HashMap;
-use tracing::{info, error};
+use tracing::{error, info};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -27,66 +27,77 @@ async fn main() -> Result<()> {
 
     // Test 1: Basic add operation with single message
     info!("📝 Test 1: Adding a single memory");
-    let memory_id = client.add(
-        Messages::Single("I love programming in Rust because it's fast and safe".to_string()),
-        Some("user123".to_string()),
-        Some("agent456".to_string()),
-        Some("session789".to_string()),
-        Some({
-            let mut metadata = HashMap::new();
-            metadata.insert("category".to_string(), json!("preference"));
-            metadata.insert("confidence".to_string(), json!(0.9));
-            metadata
-        }),
-        true, // infer
-        Some("episodic".to_string()),
-        None,
-    ).await?;
+    let memory_id = client
+        .add(
+            Messages::Single("I love programming in Rust because it's fast and safe".to_string()),
+            Some("user123".to_string()),
+            Some("agent456".to_string()),
+            Some("session789".to_string()),
+            Some({
+                let mut metadata = HashMap::new();
+                metadata.insert("category".to_string(), json!("preference"));
+                metadata.insert("confidence".to_string(), json!(0.9));
+                metadata
+            }),
+            true, // infer
+            Some("episodic".to_string()),
+            None,
+        )
+        .await?;
     info!("✅ Added memory with ID: {}", memory_id);
 
     // Test 2: Add operation with multiple messages
     info!("📝 Test 2: Adding multiple messages as one memory");
-    let memory_id2 = client.add(
-        Messages::Multiple(vec![
-            "I work as a software engineer".to_string(),
-            "I specialize in backend development".to_string(),
-            "I have 5 years of experience".to_string(),
-        ]),
-        Some("user123".to_string()),
-        Some("agent456".to_string()),
-        Some("session789".to_string()),
-        Some({
-            let mut metadata = HashMap::new();
-            metadata.insert("category".to_string(), json!("professional"));
-            metadata.insert("importance".to_string(), json!("high"));
-            metadata
-        }),
-        true,
-        Some("semantic".to_string()),
-        None,
-    ).await?;
+    let memory_id2 = client
+        .add(
+            Messages::Multiple(vec![
+                "I work as a software engineer".to_string(),
+                "I specialize in backend development".to_string(),
+                "I have 5 years of experience".to_string(),
+            ]),
+            Some("user123".to_string()),
+            Some("agent456".to_string()),
+            Some("session789".to_string()),
+            Some({
+                let mut metadata = HashMap::new();
+                metadata.insert("category".to_string(), json!("professional"));
+                metadata.insert("importance".to_string(), json!("high"));
+                metadata
+            }),
+            true,
+            Some("semantic".to_string()),
+            None,
+        )
+        .await?;
     info!("✅ Added multi-message memory with ID: {}", memory_id2);
 
     // Test 3: Search memories
     info!("🔍 Test 3: Searching for memories");
-    let search_results = client.search(
-        "programming".to_string(),
-        Some("user123".to_string()),
-        Some("agent456".to_string()),
-        None,
-        10, // limit
-        Some({
-            let mut filters = HashMap::new();
-            filters.insert("category".to_string(), json!("preference"));
-            filters
-        }),
-        Some(0.5), // threshold
-    ).await?;
-    
+    let search_results = client
+        .search(
+            "programming".to_string(),
+            Some("user123".to_string()),
+            Some("agent456".to_string()),
+            None,
+            10, // limit
+            Some({
+                let mut filters = HashMap::new();
+                filters.insert("category".to_string(), json!("preference"));
+                filters
+            }),
+            Some(0.5), // threshold
+        )
+        .await?;
+
     info!("🔍 Found {} memories:", search_results.len());
     for (i, memory) in search_results.iter().enumerate() {
-        info!("  {}. ID: {}, Content: {}, Importance: {:?}",
-              i + 1, memory.id, memory.content, memory.importance);
+        info!(
+            "  {}. ID: {}, Content: {}, Importance: {:?}",
+            i + 1,
+            memory.id,
+            memory.content,
+            memory.importance
+        );
     }
 
     // Test 4: Batch add operation
@@ -137,13 +148,15 @@ async fn main() -> Result<()> {
     ];
 
     let batch_result = client.add_batch(batch_requests).await?;
-    info!("📦 Batch add completed: {} successful, {} failed", 
-          batch_result.successful, batch_result.failed);
-    
+    info!(
+        "📦 Batch add completed: {} successful, {} failed",
+        batch_result.successful, batch_result.failed
+    );
+
     for (i, result_id) in batch_result.results.iter().enumerate() {
         info!("  {}. Added memory ID: {}", i + 1, result_id);
     }
-    
+
     if !batch_result.errors.is_empty() {
         for (i, error) in batch_result.errors.iter().enumerate() {
             error!("  Error {}: {}", i + 1, error);
@@ -152,20 +165,22 @@ async fn main() -> Result<()> {
 
     // Test 5: Advanced search with different filters
     info!("🔍 Test 5: Advanced search with category filter");
-    let hobby_search = client.search(
-        "weekend".to_string(),
-        Some("user123".to_string()),
-        None,
-        None,
-        5,
-        Some({
-            let mut filters = HashMap::new();
-            filters.insert("category".to_string(), json!("hobby"));
-            filters
-        }),
-        None,
-    ).await?;
-    
+    let hobby_search = client
+        .search(
+            "weekend".to_string(),
+            Some("user123".to_string()),
+            None,
+            None,
+            5,
+            Some({
+                let mut filters = HashMap::new();
+                filters.insert("category".to_string(), json!("hobby"));
+                filters
+            }),
+            None,
+        )
+        .await?;
+
     info!("🔍 Found {} hobby-related memories:", hobby_search.len());
     for memory in hobby_search {
         info!("  - {}", memory.content);

@@ -173,7 +173,8 @@ impl ImportanceScorer {
         };
 
         // Apply decay based on time since last access
-        let time_since_access = current_time - memory.updated_at.unwrap_or(memory.created_at).timestamp();
+        let time_since_access =
+            current_time - memory.updated_at.unwrap_or(memory.created_at).timestamp();
         let decay_factor = self
             .decay_rate
             .powf(time_since_access as f32 / (24.0 * 60.0 * 60.0)); // Daily decay

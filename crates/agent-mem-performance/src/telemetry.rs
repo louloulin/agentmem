@@ -17,8 +17,6 @@ use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 use tracing::{debug, info};
 
-
-
 #[cfg(feature = "jaeger")]
 use opentelemetry::{global, trace::Tracer, KeyValue};
 
@@ -365,7 +363,8 @@ impl PerformanceMonitor {
         if metrics.average_response_time_ms == 0.0 {
             metrics.average_response_time_ms = duration_ms;
         } else {
-            metrics.average_response_time_ms = (metrics.average_response_time_ms * 0.9) + (duration_ms * 0.1);
+            metrics.average_response_time_ms =
+                (metrics.average_response_time_ms * 0.9) + (duration_ms * 0.1);
         }
 
         // Update error rate
@@ -375,7 +374,10 @@ impl PerformanceMonitor {
             metrics.error_rate = metrics.error_rate * 0.9;
         }
 
-        debug!("Request recorded: duration={:?}, success={}", duration, success);
+        debug!(
+            "Request recorded: duration={:?}, success={}",
+            duration, success
+        );
     }
 
     /// Get performance report
@@ -399,7 +401,7 @@ impl PerformanceMonitor {
         // Define health thresholds
         metrics.cpu_usage_percent < 90.0
             && metrics.error_rate < 0.05  // Less than 5% error rate
-            && metrics.average_response_time_ms < 1000.0  // Less than 1 second
+            && metrics.average_response_time_ms < 1000.0 // Less than 1 second
     }
 
     /// Get health status
@@ -466,7 +468,8 @@ impl TelemetrySystem {
     pub fn new(config: TelemetryConfig) -> Self {
         let event_tracker = Arc::new(EventTracker::new(config.max_events, config.enabled));
         let performance_monitor = Arc::new(PerformanceMonitor::new(config.enabled));
-        let adaptive_optimizer = Arc::new(AdaptiveOptimizer::new(config.adaptive_optimization_enabled));
+        let adaptive_optimizer =
+            Arc::new(AdaptiveOptimizer::new(config.adaptive_optimization_enabled));
 
         Self {
             config,
@@ -630,7 +633,9 @@ impl AdaptiveOptimizer {
             (old_batch_size as f64 * 1.1) as usize
         } else {
             (old_batch_size as f64 * 0.9) as usize
-        }.max(10).min(1000);
+        }
+        .max(10)
+        .min(1000);
 
         if new_batch_size != old_batch_size {
             settings.batch_size = new_batch_size;
@@ -648,7 +653,10 @@ impl AdaptiveOptimizer {
             let mut history = self.optimization_history.write().await;
             history.push(optimization_event);
 
-            info!("Batch size optimized: {} -> {}", old_batch_size, new_batch_size);
+            info!(
+                "Batch size optimized: {} -> {}",
+                old_batch_size, new_batch_size
+            );
         }
 
         Ok(())
@@ -670,7 +678,9 @@ impl AdaptiveOptimizer {
             (old_cache_size as f64 * 0.9) as usize
         } else {
             old_cache_size
-        }.max(100).min(10000);
+        }
+        .max(100)
+        .min(10000);
 
         if new_cache_size != old_cache_size {
             settings.cache_size = new_cache_size;
@@ -688,7 +698,10 @@ impl AdaptiveOptimizer {
             let mut history = self.optimization_history.write().await;
             history.push(optimization_event);
 
-            info!("Cache size optimized: {} -> {}", old_cache_size, new_cache_size);
+            info!(
+                "Cache size optimized: {} -> {}",
+                old_cache_size, new_cache_size
+            );
         }
 
         Ok(())
@@ -705,9 +718,7 @@ impl AdaptiveOptimizer {
 
         // Calculate average performance improvement
         let performance_improvement_percent = if !history.is_empty() {
-            history.iter()
-                .map(|e| e.performance_impact)
-                .sum::<f64>() / history.len() as f64
+            history.iter().map(|e| e.performance_impact).sum::<f64>() / history.len() as f64
         } else {
             0.0
         };
@@ -770,8 +781,8 @@ mod tests {
     async fn test_event_tracker() {
         let tracker = EventTracker::new(100, true);
 
-        let event = MemoryEvent::new(EventType::MemoryCreated)
-            .with_memory_id("test_memory".to_string());
+        let event =
+            MemoryEvent::new(EventType::MemoryCreated).with_memory_id("test_memory".to_string());
 
         tracker.track_event(event).await;
 
@@ -785,9 +796,17 @@ mod tests {
         let tracker = EventTracker::new(100, true);
 
         // Track multiple events
-        tracker.track_event(MemoryEvent::new(EventType::MemoryCreated)).await;
-        tracker.track_event(MemoryEvent::new(EventType::MemoryUpdated)).await;
-        tracker.track_event(MemoryEvent::new(EventType::MemoryCreated).with_error("Test error".to_string())).await;
+        tracker
+            .track_event(MemoryEvent::new(EventType::MemoryCreated))
+            .await;
+        tracker
+            .track_event(MemoryEvent::new(EventType::MemoryUpdated))
+            .await;
+        tracker
+            .track_event(
+                MemoryEvent::new(EventType::MemoryCreated).with_error("Test error".to_string()),
+            )
+            .await;
 
         let stats = tracker.get_event_stats().await;
         assert_eq!(stats.total_events, 3);
@@ -825,8 +844,8 @@ mod tests {
         let config = TelemetryConfig::default();
         let telemetry = TelemetrySystem::new(config);
 
-        let event = MemoryEvent::new(EventType::MemoryCreated)
-            .with_memory_id("test_memory".to_string());
+        let event =
+            MemoryEvent::new(EventType::MemoryCreated).with_memory_id("test_memory".to_string());
 
         telemetry.track_event(event).await;
 
@@ -845,7 +864,10 @@ mod tests {
             memory_usage_bytes: 1024 * 1024,
         };
 
-        optimizer.optimize_batch_size(&performance_data).await.unwrap();
+        optimizer
+            .optimize_batch_size(&performance_data)
+            .await
+            .unwrap();
 
         let stats = optimizer.get_optimization_stats().await;
         assert!(stats.total_optimizations > 0);
@@ -861,7 +883,10 @@ mod tests {
             temporal_patterns: Vec::new(),
         };
 
-        optimizer.adjust_cache_strategy(&access_patterns).await.unwrap();
+        optimizer
+            .adjust_cache_strategy(&access_patterns)
+            .await
+            .unwrap();
 
         let stats = optimizer.get_optimization_stats().await;
         assert!(stats.total_optimizations > 0);
@@ -918,16 +943,25 @@ impl ProductionTelemetrySystem {
 
         let builder = PrometheusBuilder::new();
         builder.install().map_err(|e| {
-            agent_mem_traits::AgentMemError::internal_error(format!("Failed to initialize Prometheus: {}", e))
+            agent_mem_traits::AgentMemError::internal_error(format!(
+                "Failed to initialize Prometheus: {}",
+                e
+            ))
         })?;
 
         // Register core metrics
         metrics::describe_counter!("agentmem_requests_total", "Total number of requests");
         metrics::describe_counter!("agentmem_errors_total", "Total number of errors");
-        metrics::describe_histogram!("agentmem_request_duration_seconds", "Request duration in seconds");
+        metrics::describe_histogram!(
+            "agentmem_request_duration_seconds",
+            "Request duration in seconds"
+        );
         metrics::describe_gauge!("agentmem_memory_usage_bytes", "Memory usage in bytes");
         metrics::describe_gauge!("agentmem_cache_hit_rate", "Cache hit rate");
-        metrics::describe_gauge!("agentmem_active_connections", "Number of active connections");
+        metrics::describe_gauge!(
+            "agentmem_active_connections",
+            "Number of active connections"
+        );
 
         info!("Prometheus metrics initialized");
         Ok(())
@@ -950,7 +984,10 @@ impl ProductionTelemetrySystem {
             .with_service_name("agentmem")
             .install_simple()
             .map_err(|e| {
-                agent_mem_traits::AgentMemError::internal_error(format!("Failed to initialize Jaeger: {}", e))
+                agent_mem_traits::AgentMemError::internal_error(format!(
+                    "Failed to initialize Jaeger: {}",
+                    e
+                ))
             })?;
 
         let telemetry = OpenTelemetryLayer::new(tracer);
@@ -993,7 +1030,9 @@ impl ProductionTelemetrySystem {
         self.event_tracker.track_event(event).await;
 
         // Record performance metrics
-        self.performance_monitor.record_request(duration, success).await;
+        self.performance_monitor
+            .record_request(duration, success)
+            .await;
 
         // Update Prometheus metrics if enabled
         #[cfg(feature = "prometheus")]
@@ -1028,7 +1067,8 @@ impl ProductionTelemetrySystem {
         SystemMetrics {
             total_requests: telemetry_report.event_stats.total_events as u64,
             error_rate: if telemetry_report.event_stats.total_events > 0 {
-                telemetry_report.event_stats.error_events as f64 / telemetry_report.event_stats.total_events as f64
+                telemetry_report.event_stats.error_events as f64
+                    / telemetry_report.event_stats.total_events as f64
             } else {
                 0.0
             },

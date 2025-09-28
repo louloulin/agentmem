@@ -1,9 +1,11 @@
 //! AWS Bedrock LLM 提供商实现
-//! 
+//!
 //! AWS Bedrock 是亚马逊的托管式基础模型服务，
 //! 支持多种领先的 AI 模型，包括 Claude、Llama、Titan 等。
 
-use agent_mem_traits::{AgentMemError, LLMConfig, LLMProvider, Message, MessageRole, ModelInfo, Result};
+use agent_mem_traits::{
+    AgentMemError, LLMConfig, LLMProvider, Message, MessageRole, ModelInfo, Result,
+};
 use async_trait::async_trait;
 use futures::Stream;
 use reqwest::Client;
@@ -108,14 +110,16 @@ impl BedrockProvider {
     /// 创建新的 Bedrock 提供商实例
     pub fn new(config: LLMConfig) -> Result<Self> {
         // 验证必需的配置
-        let api_key = config.api_key.as_ref()
+        let api_key = config
+            .api_key
+            .as_ref()
             .ok_or_else(|| AgentMemError::config_error("AWS access key is required"))?;
-        
+
         // 解析 API 密钥格式：access_key:secret_key:region
         let parts: Vec<&str> = api_key.split(':').collect();
         if parts.len() != 3 {
             return Err(AgentMemError::config_error(
-                "AWS credentials format should be 'access_key:secret_key:region'"
+                "AWS credentials format should be 'access_key:secret_key:region'",
             ));
         }
 
@@ -126,7 +130,9 @@ impl BedrockProvider {
         let client = Client::builder()
             .timeout(Duration::from_secs(60)) // Bedrock 可能需要更长时间
             .build()
-            .map_err(|e| AgentMemError::llm_error(&format!("Failed to create HTTP client: {}", e)))?;
+            .map_err(|e| {
+                AgentMemError::llm_error(&format!("Failed to create HTTP client: {}", e))
+            })?;
 
         Ok(Self {
             config,
@@ -148,7 +154,7 @@ impl BedrockProvider {
     /// 转换消息为提示文本
     pub fn convert_messages_to_prompt(&self, messages: &[Message]) -> String {
         let mut prompt = String::new();
-        
+
         for message in messages {
             match message.role {
                 MessageRole::System => {
@@ -186,12 +192,18 @@ impl BedrockProvider {
     }
 
     /// 生成 AWS 签名
-    async fn sign_request(&self, _method: &str, url: &str, body: &str) -> Result<reqwest::RequestBuilder> {
+    async fn sign_request(
+        &self,
+        _method: &str,
+        url: &str,
+        body: &str,
+    ) -> Result<reqwest::RequestBuilder> {
         // 这里应该实现 AWS Signature Version 4
         // 为了简化，我们使用基本的请求构建
         // 在实际生产环境中，需要完整的 AWS 签名实现
-        
-        let request = self.client
+
+        let request = self
+            .client
             .post(url)
             .header("Content-Type", "application/json")
             .header("Accept", "application/json")
@@ -211,8 +223,9 @@ impl BedrockProvider {
             stop_sequences: vec!["Human:".to_string()],
         };
 
-        let body = serde_json::to_string(&request)
-            .map_err(|e| AgentMemError::llm_error(&format!("Failed to serialize request: {}", e)))?;
+        let body = serde_json::to_string(&request).map_err(|e| {
+            AgentMemError::llm_error(&format!("Failed to serialize request: {}", e))
+        })?;
 
         let url = self.build_api_url(&self.config.model);
         let request_builder = self.sign_request("POST", &url, &body).await?;
@@ -223,20 +236,20 @@ impl BedrockProvider {
             .map_err(|e| AgentMemError::llm_error(&format!("Request failed: {}", e)))?;
 
         if response.status().is_success() {
-            let claude_response: BedrockClaudeResponse = response
-                .json()
-                .await
-                .map_err(|e| AgentMemError::llm_error(&format!("Failed to parse response: {}", e)))?;
-            
+            let claude_response: BedrockClaudeResponse = response.json().await.map_err(|e| {
+                AgentMemError::llm_error(&format!("Failed to parse response: {}", e))
+            })?;
+
             Ok(claude_response.completion)
         } else {
             let error_text = response
                 .text()
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
-            
+
             Err(AgentMemError::llm_error(&format!(
-                "Bedrock API error: {}", error_text
+                "Bedrock API error: {}",
+                error_text
             )))
         }
     }
@@ -250,8 +263,9 @@ impl BedrockProvider {
             top_p: self.config.top_p.unwrap_or(0.9),
         };
 
-        let body = serde_json::to_string(&request)
-            .map_err(|e| AgentMemError::llm_error(&format!("Failed to serialize request: {}", e)))?;
+        let body = serde_json::to_string(&request).map_err(|e| {
+            AgentMemError::llm_error(&format!("Failed to serialize request: {}", e))
+        })?;
 
         let url = self.build_api_url(&self.config.model);
         let request_builder = self.sign_request("POST", &url, &body).await?;
@@ -262,20 +276,20 @@ impl BedrockProvider {
             .map_err(|e| AgentMemError::llm_error(&format!("Request failed: {}", e)))?;
 
         if response.status().is_success() {
-            let llama_response: BedrockLlamaResponse = response
-                .json()
-                .await
-                .map_err(|e| AgentMemError::llm_error(&format!("Failed to parse response: {}", e)))?;
-            
+            let llama_response: BedrockLlamaResponse = response.json().await.map_err(|e| {
+                AgentMemError::llm_error(&format!("Failed to parse response: {}", e))
+            })?;
+
             Ok(llama_response.generation)
         } else {
             let error_text = response
                 .text()
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
-            
+
             Err(AgentMemError::llm_error(&format!(
-                "Bedrock API error: {}", error_text
+                "Bedrock API error: {}",
+                error_text
             )))
         }
     }
@@ -292,8 +306,9 @@ impl BedrockProvider {
             },
         };
 
-        let body = serde_json::to_string(&request)
-            .map_err(|e| AgentMemError::llm_error(&format!("Failed to serialize request: {}", e)))?;
+        let body = serde_json::to_string(&request).map_err(|e| {
+            AgentMemError::llm_error(&format!("Failed to serialize request: {}", e))
+        })?;
 
         let url = self.build_api_url(&self.config.model);
         let request_builder = self.sign_request("POST", &url, &body).await?;
@@ -304,20 +319,20 @@ impl BedrockProvider {
             .map_err(|e| AgentMemError::llm_error(&format!("Request failed: {}", e)))?;
 
         if response.status().is_success() {
-            let titan_response: BedrockTitanResponse = response
-                .json()
-                .await
-                .map_err(|e| AgentMemError::llm_error(&format!("Failed to parse response: {}", e)))?;
-            
+            let titan_response: BedrockTitanResponse = response.json().await.map_err(|e| {
+                AgentMemError::llm_error(&format!("Failed to parse response: {}", e))
+            })?;
+
             Ok(titan_response.output_text)
         } else {
             let error_text = response
                 .text()
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
-            
+
             Err(AgentMemError::llm_error(&format!(
-                "Bedrock API error: {}", error_text
+                "Bedrock API error: {}",
+                error_text
             )))
         }
     }
@@ -327,7 +342,7 @@ impl BedrockProvider {
 impl LLMProvider for BedrockProvider {
     async fn generate(&self, messages: &[Message]) -> Result<String> {
         let prompt = self.convert_messages_to_prompt(messages);
-        
+
         match self.detect_model_type() {
             "claude" => self.invoke_claude(&prompt).await,
             "llama" => self.invoke_llama(&prompt).await,
@@ -336,10 +351,15 @@ impl LLMProvider for BedrockProvider {
         }
     }
 
-    async fn generate_stream(&self, _messages: &[Message]) -> Result<Box<dyn Stream<Item = Result<String>> + Send + Unpin>> {
+    async fn generate_stream(
+        &self,
+        _messages: &[Message],
+    ) -> Result<Box<dyn Stream<Item = Result<String>> + Send + Unpin>> {
         // Bedrock 流式生成需要额外的实现
         // 目前返回错误，表示不支持
-        Err(AgentMemError::llm_error("Streaming not yet implemented for Bedrock"))
+        Err(AgentMemError::llm_error(
+            "Streaming not yet implemented for Bedrock",
+        ))
     }
 
     fn get_model_info(&self) -> ModelInfo {

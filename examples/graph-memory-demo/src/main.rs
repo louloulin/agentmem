@@ -1,48 +1,52 @@
 //! 图记忆和关系推理演示
-//! 
+//!
 //! 展示 AgentMem 6.0 的图记忆和关系推理功能，包括：
 //! - 知识图谱构建
 //! - 多种关系推理算法
 //! - 图遍历和查询
 //! - 图统计分析
 
-use agent_mem_core::graph_memory::{
-    GraphMemoryEngine, NodeType, RelationType, ReasoningType,
-};
+use agent_mem_core::graph_memory::{GraphMemoryEngine, NodeType, ReasoningType, RelationType};
 use agent_mem_core::types::Memory;
-use std::collections::HashMap;
-use tracing::{info, error};
 use colored::*;
 use indicatif::{ProgressBar, ProgressStyle};
+use std::collections::HashMap;
+use tracing::{error, info};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 初始化日志
     tracing_subscriber::fmt::init();
-    
-    println!("{}", "🧠 AgentMem 6.0 图记忆和关系推理演示".bright_blue().bold());
+
+    println!(
+        "{}",
+        "🧠 AgentMem 6.0 图记忆和关系推理演示".bright_blue().bold()
+    );
     println!();
-    
+
     // 创建图记忆引擎
     let engine = GraphMemoryEngine::new();
-    
+
     // 演示 1: 构建知识图谱
     println!("{}", "第 1 步: 构建知识图谱".bright_green().bold());
     demo_build_knowledge_graph(&engine).await?;
-    
+
     // 演示 2: 关系推理
     println!("\n{}", "第 2 步: 关系推理演示".bright_green().bold());
     demo_relationship_reasoning(&engine).await?;
-    
+
     // 演示 3: 图遍历和查询
     println!("\n{}", "第 3 步: 图遍历和查询".bright_green().bold());
     demo_graph_traversal(&engine).await?;
-    
+
     // 演示 4: 图统计分析
     println!("\n{}", "第 4 步: 图统计分析".bright_green().bold());
     demo_graph_statistics(&engine).await?;
 
-    println!("\n{}", "🎉 图记忆和关系推理演示完成！".bright_green().bold());
+    println!(
+        "\n{}",
+        "🎉 图记忆和关系推理演示完成！".bright_green().bold()
+    );
     println!();
     println!("📈 演示成果：");
     println!("  • ✅ 成功构建了复杂的知识图谱");
@@ -56,26 +60,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// 构建知识图谱演示
-async fn demo_build_knowledge_graph(engine: &GraphMemoryEngine) -> Result<(), Box<dyn std::error::Error>> {
+async fn demo_build_knowledge_graph(
+    engine: &GraphMemoryEngine,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("🔗 构建知识图谱演示");
-    
+
     let pb = ProgressBar::new(10);
-    pb.set_style(ProgressStyle::default_bar()
-        .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}")
-        .unwrap()
-        .progress_chars("#>-"));
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}")
+            .unwrap()
+            .progress_chars("#>-"),
+    );
 
     // 创建实体节点
     pb.set_message("创建实体节点");
-    let apple_memory = create_memory("apple", "agent1", "Apple is a red fruit that grows on trees", "user1");
+    let apple_memory = create_memory(
+        "apple",
+        "agent1",
+        "Apple is a red fruit that grows on trees",
+        "user1",
+    );
     let apple_id = engine.add_node(apple_memory, NodeType::Entity).await?;
     pb.inc(1);
 
-    let fruit_memory = create_memory("fruit", "agent1", "Fruit is a healthy food category", "user1");
+    let fruit_memory = create_memory(
+        "fruit",
+        "agent1",
+        "Fruit is a healthy food category",
+        "user1",
+    );
     let fruit_id = engine.add_node(fruit_memory, NodeType::Concept).await?;
     pb.inc(1);
 
-    let tree_memory = create_memory("tree", "agent1", "Tree is a large plant with branches", "user1");
+    let tree_memory = create_memory(
+        "tree",
+        "agent1",
+        "Tree is a large plant with branches",
+        "user1",
+    );
     let tree_id = engine.add_node(tree_memory, NodeType::Entity).await?;
     pb.inc(1);
 
@@ -83,25 +106,55 @@ async fn demo_build_knowledge_graph(engine: &GraphMemoryEngine) -> Result<(), Bo
     let healthy_id = engine.add_node(healthy_memory, NodeType::Concept).await?;
     pb.inc(1);
 
-    let eating_memory = create_memory("eating_apple", "agent1", "John ate an apple yesterday", "user1");
+    let eating_memory = create_memory(
+        "eating_apple",
+        "agent1",
+        "John ate an apple yesterday",
+        "user1",
+    );
     let eating_id = engine.add_node(eating_memory, NodeType::Event).await?;
     pb.inc(1);
 
     // 创建关系边
     pb.set_message("创建关系边");
-    engine.add_edge(apple_id.clone(), fruit_id.clone(), RelationType::IsA, 1.0).await?;
+    engine
+        .add_edge(apple_id.clone(), fruit_id.clone(), RelationType::IsA, 1.0)
+        .await?;
     pb.inc(1);
 
-    engine.add_edge(apple_id.clone(), tree_id.clone(), RelationType::PartOf, 0.8).await?;
+    engine
+        .add_edge(apple_id.clone(), tree_id.clone(), RelationType::PartOf, 0.8)
+        .await?;
     pb.inc(1);
 
-    engine.add_edge(fruit_id.clone(), healthy_id.clone(), RelationType::RelatedTo, 0.9).await?;
+    engine
+        .add_edge(
+            fruit_id.clone(),
+            healthy_id.clone(),
+            RelationType::RelatedTo,
+            0.9,
+        )
+        .await?;
     pb.inc(1);
 
-    engine.add_edge(eating_id.clone(), apple_id.clone(), RelationType::RelatedTo, 1.0).await?;
+    engine
+        .add_edge(
+            eating_id.clone(),
+            apple_id.clone(),
+            RelationType::RelatedTo,
+            1.0,
+        )
+        .await?;
     pb.inc(1);
 
-    engine.add_edge(apple_id.clone(), healthy_id.clone(), RelationType::CausedBy, 0.7).await?;
+    engine
+        .add_edge(
+            apple_id.clone(),
+            healthy_id.clone(),
+            RelationType::CausedBy,
+            0.7,
+        )
+        .await?;
     pb.inc(1);
 
     pb.finish_with_message("✅ 知识图谱构建完成");
@@ -116,7 +169,9 @@ async fn demo_build_knowledge_graph(engine: &GraphMemoryEngine) -> Result<(), Bo
 }
 
 /// 关系推理演示
-async fn demo_relationship_reasoning(engine: &GraphMemoryEngine) -> Result<(), Box<dyn std::error::Error>> {
+async fn demo_relationship_reasoning(
+    engine: &GraphMemoryEngine,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("🧠 关系推理演示");
 
     // 获取一些节点ID用于推理（简化演示）
@@ -130,7 +185,10 @@ async fn demo_relationship_reasoning(engine: &GraphMemoryEngine) -> Result<(), B
     println!("    前提: Apple → Fruit → Healthy");
     println!("    结论: Apple → Healthy");
 
-    match engine.reason_relationships(&apple_id, &healthy_id, ReasoningType::Deductive).await {
+    match engine
+        .reason_relationships(&apple_id, &healthy_id, ReasoningType::Deductive)
+        .await
+    {
         Ok(paths) => {
             println!("    ✅ 找到 {} 条推理路径", paths.len());
             for (i, path) in paths.iter().enumerate() {
@@ -145,7 +203,10 @@ async fn demo_relationship_reasoning(engine: &GraphMemoryEngine) -> Result<(), B
     println!("    观察: 多个水果都是健康的");
     println!("    推论: 水果类别具有健康属性");
 
-    match engine.reason_relationships(&apple_id, &healthy_id, ReasoningType::Inductive).await {
+    match engine
+        .reason_relationships(&apple_id, &healthy_id, ReasoningType::Inductive)
+        .await
+    {
         Ok(paths) => {
             println!("    ✅ 归纳推理完成，找到 {} 个模式", paths.len());
         }
@@ -157,7 +218,10 @@ async fn demo_relationship_reasoning(engine: &GraphMemoryEngine) -> Result<(), B
     println!("    观察: 某人很健康");
     println!("    推测: 可能经常吃水果");
 
-    match engine.reason_relationships(&healthy_id, &apple_id, ReasoningType::Abductive).await {
+    match engine
+        .reason_relationships(&healthy_id, &apple_id, ReasoningType::Abductive)
+        .await
+    {
         Ok(paths) => {
             println!("    ✅ 溯因推理完成，找到 {} 个可能原因", paths.len());
         }
@@ -169,7 +233,10 @@ async fn demo_relationship_reasoning(engine: &GraphMemoryEngine) -> Result<(), B
     println!("    类比: Apple:Fruit :: Rose:Flower");
     println!("    推理: 基于相似结构进行推理");
 
-    match engine.reason_relationships(&apple_id, &healthy_id, ReasoningType::Analogical).await {
+    match engine
+        .reason_relationships(&apple_id, &healthy_id, ReasoningType::Analogical)
+        .await
+    {
         Ok(paths) => {
             println!("    ✅ 类比推理完成，找到 {} 个类比关系", paths.len());
         }
@@ -181,7 +248,10 @@ async fn demo_relationship_reasoning(engine: &GraphMemoryEngine) -> Result<(), B
     println!("    因果链: 吃苹果 → 摄入营养 → 身体健康");
     println!("    推理: 识别因果关系链");
 
-    match engine.reason_relationships(&apple_id, &healthy_id, ReasoningType::Causal).await {
+    match engine
+        .reason_relationships(&apple_id, &healthy_id, ReasoningType::Causal)
+        .await
+    {
         Ok(paths) => {
             println!("    ✅ 因果推理完成，找到 {} 条因果链", paths.len());
         }
@@ -199,7 +269,9 @@ async fn demo_relationship_reasoning(engine: &GraphMemoryEngine) -> Result<(), B
 }
 
 /// 图遍历和查询演示
-async fn demo_graph_traversal(engine: &GraphMemoryEngine) -> Result<(), Box<dyn std::error::Error>> {
+async fn demo_graph_traversal(
+    engine: &GraphMemoryEngine,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("🔍 图遍历和查询演示");
 
     let apple_id = "apple".to_string();
@@ -212,7 +284,11 @@ async fn demo_graph_traversal(engine: &GraphMemoryEngine) -> Result<(), Box<dyn 
         Ok(nodes) => {
             println!("    找到 {} 个直接相关节点:", nodes.len());
             for node in &nodes {
-                println!("      • {} ({})", node.memory.content, format!("{:?}", node.node_type).cyan());
+                println!(
+                    "      • {} ({})",
+                    node.memory.content,
+                    format!("{:?}", node.node_type).cyan()
+                );
             }
         }
         Err(e) => println!("    ❌ 遍历失败: {}", e),
@@ -224,7 +300,11 @@ async fn demo_graph_traversal(engine: &GraphMemoryEngine) -> Result<(), Box<dyn 
         Ok(nodes) => {
             println!("    找到 {} 个相关节点 (深度≤2):", nodes.len());
             for node in &nodes {
-                println!("      • {} ({})", node.memory.content, format!("{:?}", node.node_type).cyan());
+                println!(
+                    "      • {} ({})",
+                    node.memory.content,
+                    format!("{:?}", node.node_type).cyan()
+                );
             }
         }
         Err(e) => println!("    ❌ 遍历失败: {}", e),
@@ -232,11 +312,18 @@ async fn demo_graph_traversal(engine: &GraphMemoryEngine) -> Result<(), Box<dyn 
 
     // 按关系类型过滤
     println!("\n  🔗 按关系类型过滤 (IsA 关系):");
-    match engine.find_related_nodes(&apple_id, 2, Some(vec![RelationType::IsA])).await {
+    match engine
+        .find_related_nodes(&apple_id, 2, Some(vec![RelationType::IsA]))
+        .await
+    {
         Ok(nodes) => {
             println!("    找到 {} 个 IsA 关系节点:", nodes.len());
             for node in &nodes {
-                println!("      • {} ({})", node.memory.content, format!("{:?}", node.node_type).cyan());
+                println!(
+                    "      • {} ({})",
+                    node.memory.content,
+                    format!("{:?}", node.node_type).cyan()
+                );
             }
         }
         Err(e) => println!("    ❌ 遍历失败: {}", e),
@@ -252,14 +339,22 @@ async fn demo_graph_traversal(engine: &GraphMemoryEngine) -> Result<(), Box<dyn 
 }
 
 /// 图统计分析演示
-async fn demo_graph_statistics(engine: &GraphMemoryEngine) -> Result<(), Box<dyn std::error::Error>> {
+async fn demo_graph_statistics(
+    engine: &GraphMemoryEngine,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("📊 图统计分析演示");
 
     match engine.get_graph_stats().await {
         Ok(stats) => {
             println!("\n📈 图统计信息：");
-            println!("  • 总节点数: {}", stats.total_nodes.to_string().bright_yellow());
-            println!("  • 总边数: {}", stats.total_edges.to_string().bright_yellow());
+            println!(
+                "  • 总节点数: {}",
+                stats.total_nodes.to_string().bright_yellow()
+            );
+            println!(
+                "  • 总边数: {}",
+                stats.total_edges.to_string().bright_yellow()
+            );
 
             println!("\n🏷️ 节点类型分布：");
             for (node_type, count) in &stats.node_types {
@@ -268,7 +363,11 @@ async fn demo_graph_statistics(engine: &GraphMemoryEngine) -> Result<(), Box<dyn
 
             println!("\n🔗 关系类型分布：");
             for (relation_type, count) in &stats.relation_types {
-                println!("  • {:?}: {}", relation_type, count.to_string().bright_green());
+                println!(
+                    "  • {:?}: {}",
+                    relation_type,
+                    count.to_string().bright_green()
+                );
             }
 
             // 计算图密度
@@ -280,11 +379,16 @@ async fn demo_graph_statistics(engine: &GraphMemoryEngine) -> Result<(), Box<dyn
 
             println!("\n📊 图特征分析：");
             println!("  • 图密度: {:.4}", density.to_string().bright_magenta());
-            println!("  • 平均度数: {:.2}", if stats.total_nodes > 0 {
-                (stats.total_edges * 2) as f64 / stats.total_nodes as f64
-            } else {
-                0.0
-            }.to_string().bright_magenta());
+            println!(
+                "  • 平均度数: {:.2}",
+                if stats.total_nodes > 0 {
+                    (stats.total_edges * 2) as f64 / stats.total_nodes as f64
+                } else {
+                    0.0
+                }
+                .to_string()
+                .bright_magenta()
+            );
         }
         Err(e) => {
             error!("获取图统计信息失败: {}", e);

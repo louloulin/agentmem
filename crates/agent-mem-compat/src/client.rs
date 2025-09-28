@@ -9,12 +9,25 @@
 
 use crate::{
     config::Mem0Config,
-    context_aware::{ContextAwareManager, ContextAwareConfig, ContextAwareSearchRequest, ContextAwareSearchResult, ContextInfo, ContextPattern, ContextLearningResult},
-    enterprise_security::{EnterpriseSecurityManager, EnterpriseSecurityConfig, Permission, AuditEventType, UserSession, JwtClaims},
+    context_aware::{
+        ContextAwareConfig, ContextAwareManager, ContextAwareSearchRequest,
+        ContextAwareSearchResult, ContextInfo, ContextLearningResult, ContextPattern,
+    },
+    enterprise_security::{
+        AuditEventType, EnterpriseSecurityConfig, EnterpriseSecurityManager, JwtClaims, Permission,
+        UserSession,
+    },
     error::{Mem0Error, Result},
-    graph_memory::{GraphMemoryManager, GraphMemoryConfig, FusedMemory},
-    personalization::{PersonalizationManager, PersonalizationConfig, UserBehavior, PersonalizedSearchRequest, PersonalizedSearchResult, MemoryRecommendation, UserPreference, UserProfile, PersonalizationLearningResult},
-    procedural_memory::{ProceduralMemoryManager, ProceduralMemoryConfig, Workflow, WorkflowStep, WorkflowExecution, TaskChain, Task, StepExecutionResult, TaskExecutionResult},
+    graph_memory::{FusedMemory, GraphMemoryConfig, GraphMemoryManager},
+    personalization::{
+        MemoryRecommendation, PersonalizationConfig, PersonalizationLearningResult,
+        PersonalizationManager, PersonalizedSearchRequest, PersonalizedSearchResult, UserBehavior,
+        UserPreference, UserProfile,
+    },
+    procedural_memory::{
+        ProceduralMemoryConfig, ProceduralMemoryManager, StepExecutionResult, Task, TaskChain,
+        TaskExecutionResult, Workflow, WorkflowExecution, WorkflowStep,
+    },
     types::{
         AddMemoryRequest, BatchAddResult, BatchDeleteItem, BatchDeleteRequest, BatchDeleteResult,
         BatchUpdateItem, BatchUpdateRequest, BatchUpdateResult, ChangeType, DeleteMemoryResponse,
@@ -22,18 +35,18 @@ use crate::{
         SearchMemoryRequest, SortField, SortOrder, UpdateMemoryRequest,
     },
     utils::{
-        calculate_importance_score, generate_memory_id,
-        sanitize_metadata, validate_memory_content, validate_user_id,
+        calculate_importance_score, generate_memory_id, sanitize_metadata, validate_memory_content,
+        validate_user_id,
     },
 };
 
+use agent_mem_performance::batch::{BatchConfig, BatchItem, BatchProcessor};
 use agent_mem_traits::Message;
-use agent_mem_performance::batch::{BatchProcessor, BatchItem, BatchConfig};
 use async_trait::async_trait;
 use chrono::Utc;
 use dashmap::DashMap;
 use std::{collections::HashMap, sync::Arc};
-use tracing::{debug, info, warn, instrument};
+use tracing::{debug, info, instrument, warn};
 
 /// Enhanced message types for Mem0 compatibility
 #[derive(Debug, Clone)]
@@ -92,9 +105,7 @@ impl Messages {
         match self {
             Messages::Single(s) => vec![Message::user(s)],
             Messages::Structured(msg) => vec![msg.clone()],
-            Messages::Multiple(msgs) => {
-                msgs.iter().map(|s| Message::user(s)).collect()
-            }
+            Messages::Multiple(msgs) => msgs.iter().map(|s| Message::user(s)).collect(),
         }
     }
 }
@@ -130,8 +141,6 @@ pub struct BatchAddRequest {
     pub requests: Vec<EnhancedAddRequest>,
 }
 
-
-
 /// Memory operation for batch processing
 #[derive(Debug, Clone)]
 pub struct MemoryOperation {
@@ -155,7 +164,11 @@ impl BatchItem for MemoryOperation {
         let memory = Memory {
             id: memory_id.clone(),
             memory: content,
-            user_id: self.request.user_id.clone().unwrap_or_else(|| "default".to_string()),
+            user_id: self
+                .request
+                .user_id
+                .clone()
+                .unwrap_or_else(|| "default".to_string()),
             agent_id: self.request.agent_id.clone(),
             run_id: self.request.run_id.clone(),
             metadata: self.request.metadata.clone().unwrap_or_default(),
@@ -222,7 +235,7 @@ impl Mem0Client {
         let config = Mem0Config::default();
         Self::with_config(config).await
     }
-    
+
     /// Create a new Mem0Client with custom configuration
     pub async fn with_config(config: Mem0Config) -> Result<Self> {
         config.validate()?;
@@ -294,10 +307,15 @@ impl Mem0Client {
         };
 
         // Initialize enterprise security manager
-        let enterprise_security = match EnterpriseSecurityManager::new(EnterpriseSecurityConfig::default()) {
+        let enterprise_security = match EnterpriseSecurityManager::new(
+            EnterpriseSecurityConfig::default(),
+        ) {
             Ok(mut manager) => {
                 if let Err(e) = manager.initialize_defaults().await {
-                    warn!("Failed to initialize default security settings: {}, using basic security", e);
+                    warn!(
+                        "Failed to initialize default security settings: {}, using basic security",
+                        e
+                    );
                 }
                 info!("Enterprise security manager initialized successfully");
                 Some(Arc::new(manager))
@@ -320,7 +338,7 @@ impl Mem0Client {
             enterprise_security,
         })
     }
-    
+
     /// Add a new memory
     pub async fn add(
         &self,
@@ -334,9 +352,10 @@ impl Mem0Client {
             agent_id: None,
             run_id: None,
             metadata: metadata.unwrap_or_default(),
-        }).await
+        })
+        .await
     }
-    
+
     /// Add a new memory with full options
     pub async fn add_with_options(&self, request: AddMemoryRequest) -> Result<String> {
         validate_user_id(&request.user_id)?;
@@ -373,12 +392,13 @@ impl Mem0Client {
             ChangeType::Created,
             None, // changed_by
             None, // reason
-        ).await?;
+        )
+        .await?;
 
         debug!("Added memory with ID: {}", memory_id);
         Ok(memory_id)
     }
-    
+
     /// Search for memories
     pub async fn search(
         &self,
@@ -391,11 +411,15 @@ impl Mem0Client {
             user_id: user_id.to_string(),
             filters,
             limit: None,
-        }).await
+        })
+        .await
     }
-    
+
     /// Search for memories with full options
-    pub async fn search_with_options(&self, request: SearchMemoryRequest) -> Result<MemorySearchResult> {
+    pub async fn search_with_options(
+        &self,
+        request: SearchMemoryRequest,
+    ) -> Result<MemorySearchResult> {
         validate_user_id(&request.user_id)?;
 
         if request.query.is_empty() {
@@ -404,12 +428,14 @@ impl Mem0Client {
             });
         }
 
-        let limit = request.limit
+        let limit = request
+            .limit
             .or_else(|| request.filters.as_ref().and_then(|f| f.limit))
             .unwrap_or(self.config.memory.default_search_limit);
 
         // Enhanced search with complex filtering and scoring
-        let mut matching_memories: Vec<Memory> = self.memories
+        let mut matching_memories: Vec<Memory> = self
+            .memories
             .iter()
             .filter(|entry| {
                 let memory = entry.value();
@@ -433,7 +459,11 @@ impl Mem0Client {
 
         // Apply enhanced sorting if specified in filters
         if let Some(ref filter) = request.filters {
-            self.sort_memories(&mut matching_memories, &filter.sort_field, &filter.sort_order);
+            self.sort_memories(
+                &mut matching_memories,
+                &filter.sort_field,
+                &filter.sort_order,
+            );
 
             // Apply pagination
             if let Some(offset) = filter.offset {
@@ -446,7 +476,10 @@ impl Mem0Client {
         } else {
             // Default sorting by score (descending)
             matching_memories.sort_by(|a, b| {
-                b.score.unwrap_or(0.0).partial_cmp(&a.score.unwrap_or(0.0)).unwrap_or(std::cmp::Ordering::Equal)
+                b.score
+                    .unwrap_or(0.0)
+                    .partial_cmp(&a.score.unwrap_or(0.0))
+                    .unwrap_or(std::cmp::Ordering::Equal)
             });
         }
 
@@ -462,12 +495,13 @@ impl Mem0Client {
             metadata: std::collections::HashMap::new(),
         })
     }
-    
+
     /// Get a specific memory by ID
     pub async fn get(&self, memory_id: &str, user_id: &str) -> Result<Memory> {
         validate_user_id(user_id)?;
 
-        let memory = self.memories
+        let memory = self
+            .memories
             .get(memory_id)
             .ok_or_else(|| Mem0Error::MemoryNotFound {
                 id: memory_id.to_string(),
@@ -522,28 +556,36 @@ impl Mem0Client {
     }
 
     /// Sort memories based on specified criteria
-    fn sort_memories(&self, memories: &mut Vec<Memory>, sort_field: &SortField, sort_order: &SortOrder) {
+    fn sort_memories(
+        &self,
+        memories: &mut Vec<Memory>,
+        sort_field: &SortField,
+        sort_order: &SortOrder,
+    ) {
         use crate::types::{SortField, SortOrder};
 
         memories.sort_by(|a, b| {
             let comparison = match sort_field {
                 SortField::CreatedAt => a.created_at.cmp(&b.created_at),
-                SortField::UpdatedAt => {
-                    match (a.updated_at, b.updated_at) {
-                        (Some(a_updated), Some(b_updated)) => a_updated.cmp(&b_updated),
-                        (Some(_), None) => std::cmp::Ordering::Greater,
-                        (None, Some(_)) => std::cmp::Ordering::Less,
-                        (None, None) => std::cmp::Ordering::Equal,
-                    }
-                }
-                SortField::Score => a.score.partial_cmp(&b.score).unwrap_or(std::cmp::Ordering::Equal),
+                SortField::UpdatedAt => match (a.updated_at, b.updated_at) {
+                    (Some(a_updated), Some(b_updated)) => a_updated.cmp(&b_updated),
+                    (Some(_), None) => std::cmp::Ordering::Greater,
+                    (None, Some(_)) => std::cmp::Ordering::Less,
+                    (None, None) => std::cmp::Ordering::Equal,
+                },
+                SortField::Score => a
+                    .score
+                    .partial_cmp(&b.score)
+                    .unwrap_or(std::cmp::Ordering::Equal),
                 SortField::ContentLength => a.memory.len().cmp(&b.memory.len()),
                 SortField::Metadata(key) => {
                     match (a.metadata.get(key), b.metadata.get(key)) {
                         (Some(a_val), Some(b_val)) => {
                             // Try to compare as numbers first, then as strings
                             if let (Some(a_num), Some(b_num)) = (a_val.as_f64(), b_val.as_f64()) {
-                                a_num.partial_cmp(&b_num).unwrap_or(std::cmp::Ordering::Equal)
+                                a_num
+                                    .partial_cmp(&b_num)
+                                    .unwrap_or(std::cmp::Ordering::Equal)
                             } else {
                                 a_val.to_string().cmp(&b_val.to_string())
                             }
@@ -628,12 +670,17 @@ impl Mem0Client {
         }
 
         // Get history entries
-        let history = self.history_cache
+        let history = self
+            .history_cache
             .get(memory_id)
             .map(|h| h.clone())
             .unwrap_or_default();
 
-        debug!("Retrieved {} history entries for memory: {}", history.len(), memory_id);
+        debug!(
+            "Retrieved {} history entries for memory: {}",
+            history.len(),
+            memory_id
+        );
         Ok(history)
     }
 
@@ -647,11 +694,12 @@ impl Mem0Client {
         validate_user_id(user_id)?;
 
         // Get existing memory
-        let mut memory = self.memories
-            .get_mut(memory_id)
-            .ok_or_else(|| Mem0Error::MemoryNotFound {
-                id: memory_id.to_string(),
-            })?;
+        let mut memory =
+            self.memories
+                .get_mut(memory_id)
+                .ok_or_else(|| Mem0Error::MemoryNotFound {
+                    id: memory_id.to_string(),
+                })?;
 
         // Check if the memory belongs to the user
         if memory.user_id != user_id {
@@ -703,7 +751,8 @@ impl Mem0Client {
                 change_type,
                 None, // changed_by
                 None, // reason
-            ).await?;
+            )
+            .await?;
         }
 
         let updated_memory = memory.clone();
@@ -741,7 +790,8 @@ impl Mem0Client {
             ChangeType::Deleted,
             None, // changed_by
             None, // reason
-        ).await?;
+        )
+        .await?;
 
         // Remove the memory
         self.memories.remove(memory_id);
@@ -754,15 +804,17 @@ impl Mem0Client {
     }
 
     /// Get all memories for a user
-    pub async fn get_all(&self, user_id: &str, filters: Option<MemoryFilter>) -> Result<Vec<Memory>> {
+    pub async fn get_all(
+        &self,
+        user_id: &str,
+        filters: Option<MemoryFilter>,
+    ) -> Result<Vec<Memory>> {
         validate_user_id(user_id)?;
 
-        let limit = filters
-            .as_ref()
-            .and_then(|f| f.limit)
-            .unwrap_or(1000); // Default large limit for get_all
+        let limit = filters.as_ref().and_then(|f| f.limit).unwrap_or(1000); // Default large limit for get_all
 
-        let mut memories: Vec<Memory> = self.memories
+        let mut memories: Vec<Memory> = self
+            .memories
             .iter()
             .filter(|entry| {
                 let memory = entry.value();
@@ -804,7 +856,11 @@ impl Mem0Client {
         memories.sort_by(|a, b| b.created_at.cmp(&a.created_at));
         memories.truncate(limit);
 
-        debug!("Retrieved {} memories for user: {}", memories.len(), user_id);
+        debug!(
+            "Retrieved {} memories for user: {}",
+            memories.len(),
+            user_id
+        );
         Ok(memories)
     }
 
@@ -819,7 +875,10 @@ impl Mem0Client {
 
         // For now, return empty history as AgentMem doesn't have built-in history tracking
         // In a full implementation, you would integrate with AgentMem's lifecycle events
-        warn!("Memory history not implemented yet for memory: {}", memory_id);
+        warn!(
+            "Memory history not implemented yet for memory: {}",
+            memory_id
+        );
         Ok(Vec::new())
     }
 
@@ -828,7 +887,8 @@ impl Mem0Client {
         validate_user_id(user_id)?;
 
         // Collect memory IDs to delete
-        let memory_ids: Vec<String> = self.memories
+        let memory_ids: Vec<String> = self
+            .memories
             .iter()
             .filter(|entry| entry.value().user_id == user_id)
             .map(|entry| entry.key().clone())
@@ -849,10 +909,14 @@ impl Mem0Client {
     }
 
     /// Get memory statistics for a user
-    pub async fn get_stats(&self, user_id: &str) -> Result<std::collections::HashMap<String, serde_json::Value>> {
+    pub async fn get_stats(
+        &self,
+        user_id: &str,
+    ) -> Result<std::collections::HashMap<String, serde_json::Value>> {
         validate_user_id(user_id)?;
 
-        let user_memories: Vec<Memory> = self.memories
+        let user_memories: Vec<Memory> = self
+            .memories
             .iter()
             .filter(|entry| entry.value().user_id == user_id)
             .map(|entry| entry.value().clone())
@@ -860,7 +924,11 @@ impl Mem0Client {
 
         let total_memories = user_memories.len();
         let avg_importance = if total_memories > 0 {
-            user_memories.iter().map(|m| m.score.unwrap_or(0.0)).sum::<f32>() / total_memories as f32
+            user_memories
+                .iter()
+                .map(|m| m.score.unwrap_or(0.0))
+                .sum::<f32>()
+                / total_memories as f32
         } else {
             0.0
         };
@@ -873,11 +941,20 @@ impl Mem0Client {
         }
 
         let mut stats = std::collections::HashMap::new();
-        stats.insert("total_memories".to_string(), serde_json::Value::Number(total_memories.into()));
-        stats.insert("average_importance".to_string(), serde_json::Value::Number(
-            serde_json::Number::from_f64(avg_importance as f64).unwrap_or_else(|| 0.into())
-        ));
-        stats.insert("agent_counts".to_string(), serde_json::to_value(agent_counts)?);
+        stats.insert(
+            "total_memories".to_string(),
+            serde_json::Value::Number(total_memories.into()),
+        );
+        stats.insert(
+            "average_importance".to_string(),
+            serde_json::Value::Number(
+                serde_json::Number::from_f64(avg_importance as f64).unwrap_or_else(|| 0.into()),
+            ),
+        );
+        stats.insert(
+            "agent_counts".to_string(),
+            serde_json::to_value(agent_counts)?,
+        );
 
         debug!("Generated stats for user: {}", user_id);
         Ok(stats)
@@ -923,12 +1000,16 @@ impl Mem0Client {
 
     /// Enhanced search method with advanced filtering and semantic similarity
     #[instrument(skip(self, request))]
-    pub async fn search_enhanced(&self, request: EnhancedSearchRequest) -> Result<MemorySearchResult> {
+    pub async fn search_enhanced(
+        &self,
+        request: EnhancedSearchRequest,
+    ) -> Result<MemorySearchResult> {
         let user_id = request.user_id.unwrap_or_else(|| "default".to_string());
         validate_user_id(&user_id)?;
 
         // Step 1: Apply basic filters
-        let mut candidate_memories: Vec<Memory> = self.memories
+        let mut candidate_memories: Vec<Memory> = self
+            .memories
             .iter()
             .filter(|entry| {
                 let memory = entry.value();
@@ -958,23 +1039,25 @@ impl Mem0Client {
 
         // Step 2: Calculate semantic similarity scores
         for memory in &mut candidate_memories {
-            let similarity_score = self.calculate_semantic_similarity(&request.query, &memory.memory).await;
+            let similarity_score = self
+                .calculate_semantic_similarity(&request.query, &memory.memory)
+                .await;
             // Store the similarity score in the memory's score field for sorting
             memory.score = Some(similarity_score);
         }
 
         // Step 3: Apply threshold filter if specified
         if let Some(threshold) = request.threshold {
-            candidate_memories.retain(|memory| {
-                memory.score.unwrap_or(0.0) >= threshold
-            });
+            candidate_memories.retain(|memory| memory.score.unwrap_or(0.0) >= threshold);
         }
 
         // Step 4: Sort by relevance (similarity score + importance)
         candidate_memories.sort_by(|a, b| {
             let score_a = a.score.unwrap_or(0.0);
             let score_b = b.score.unwrap_or(0.0);
-            score_b.partial_cmp(&score_a).unwrap_or(std::cmp::Ordering::Equal)
+            score_b
+                .partial_cmp(&score_a)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         // Step 5: Apply limit
@@ -997,20 +1080,26 @@ impl Mem0Client {
             .collect();
 
         let total_results = results.len();
-        debug!("Enhanced search found {} results for query: {}", total_results, request.query);
+        debug!(
+            "Enhanced search found {} results for query: {}",
+            total_results, request.query
+        );
 
         Ok(MemorySearchResult {
-            memories: results.into_iter().map(|item| Memory {
-                id: item.id,
-                memory: item.content,
-                user_id: item.user_id,
-                agent_id: item.agent_id,
-                run_id: item.run_id,
-                metadata: item.metadata,
-                score: item.score,
-                created_at: item.created_at,
-                updated_at: item.updated_at,
-            }).collect(),
+            memories: results
+                .into_iter()
+                .map(|item| Memory {
+                    id: item.id,
+                    memory: item.content,
+                    user_id: item.user_id,
+                    agent_id: item.agent_id,
+                    run_id: item.run_id,
+                    metadata: item.metadata,
+                    score: item.score,
+                    created_at: item.created_at,
+                    updated_at: item.updated_at,
+                })
+                .collect(),
             total: total_results,
             metadata: HashMap::new(),
         })
@@ -1034,12 +1123,14 @@ impl Mem0Client {
         }
 
         // Calculate exact word matches
-        let exact_matches = query_words.iter()
+        let exact_matches = query_words
+            .iter()
             .filter(|&word| content_words.contains(word))
             .count() as f32;
 
         // Calculate partial matches (substring matches)
-        let partial_matches = query_words.iter()
+        let partial_matches = query_words
+            .iter()
             .filter(|&query_word| {
                 content_words.iter().any(|&content_word| {
                     content_word.contains(query_word) || query_word.contains(content_word)
@@ -1073,7 +1164,10 @@ impl Mem0Client {
 
     /// Advanced search with complex filters and sorting
     #[instrument(skip(self, request))]
-    pub async fn search_advanced(&self, request: SearchMemoryRequest) -> Result<MemorySearchResult> {
+    pub async fn search_advanced(
+        &self,
+        request: SearchMemoryRequest,
+    ) -> Result<MemorySearchResult> {
         // Create traditional search request
         let search_request = SearchMemoryRequest {
             query: request.query,
@@ -1130,7 +1224,10 @@ impl Mem0Client {
             }
         }
 
-        debug!("Batch add completed: {} successful, {} failed", successful, failed);
+        debug!(
+            "Batch add completed: {} successful, {} failed",
+            successful, failed
+        );
 
         Ok(BatchAddResult {
             successful,
@@ -1155,19 +1252,28 @@ impl Mem0Client {
                 metadata: update_item.metadata,
             };
 
-            match self.update(&update_item.memory_id, &update_item.user_id, update_request).await {
+            match self
+                .update(&update_item.memory_id, &update_item.user_id, update_request)
+                .await
+            {
                 Ok(_) => {
                     successful += 1;
                     results.push(update_item.memory_id);
                 }
                 Err(e) => {
                     failed += 1;
-                    errors.push(format!("Failed to update memory {}: {}", update_item.memory_id, e));
+                    errors.push(format!(
+                        "Failed to update memory {}: {}",
+                        update_item.memory_id, e
+                    ));
                 }
             }
         }
 
-        debug!("Batch update completed: {} successful, {} failed", successful, failed);
+        debug!(
+            "Batch update completed: {} successful, {} failed",
+            successful, failed
+        );
 
         Ok(BatchUpdateResult {
             successful,
@@ -1187,19 +1293,28 @@ impl Mem0Client {
 
         // Process each delete request
         for delete_item in request.requests {
-            match self.delete(&delete_item.memory_id, &delete_item.user_id).await {
+            match self
+                .delete(&delete_item.memory_id, &delete_item.user_id)
+                .await
+            {
                 Ok(_) => {
                     successful += 1;
                     results.push(delete_item.memory_id);
                 }
                 Err(e) => {
                     failed += 1;
-                    errors.push(format!("Failed to delete memory {}: {}", delete_item.memory_id, e));
+                    errors.push(format!(
+                        "Failed to delete memory {}: {}",
+                        delete_item.memory_id, e
+                    ));
                 }
             }
         }
 
-        debug!("Batch delete completed: {} successful, {} failed", successful, failed);
+        debug!(
+            "Batch delete completed: {} successful, {} failed",
+            successful, failed
+        );
 
         Ok(BatchDeleteResult {
             successful,
@@ -1222,7 +1337,10 @@ impl Mem0Client {
                 metadata: std::collections::HashMap::new(),
             };
 
-            graph_memory.search_graph(query, &session).await.map_err(|e| e.into())
+            graph_memory
+                .search_graph(query, &session)
+                .await
+                .map_err(|e| e.into())
         } else {
             warn!("Graph memory manager not available");
             Ok(Vec::new())
@@ -1230,9 +1348,16 @@ impl Mem0Client {
     }
 
     /// Get entity neighbors from graph
-    pub async fn get_entity_neighbors(&self, entity_id: &str, depth: Option<usize>) -> Result<Vec<Entity>> {
+    pub async fn get_entity_neighbors(
+        &self,
+        entity_id: &str,
+        depth: Option<usize>,
+    ) -> Result<Vec<Entity>> {
         if let Some(ref graph_memory) = self.graph_memory {
-            graph_memory.get_entity_neighbors(entity_id, depth).await.map_err(|e| e.into())
+            graph_memory
+                .get_entity_neighbors(entity_id, depth)
+                .await
+                .map_err(|e| e.into())
         } else {
             warn!("Graph memory manager not available");
             Ok(Vec::new())
@@ -1251,7 +1376,9 @@ impl Mem0Client {
             }
 
             if memory_contents.is_empty() {
-                return Err(Mem0Error::NotFound("No valid memories found for fusion".to_string()));
+                return Err(Mem0Error::NotFound(
+                    "No valid memories found for fusion".to_string(),
+                ));
             }
 
             let session = Session {
@@ -1264,14 +1391,24 @@ impl Mem0Client {
                 metadata: std::collections::HashMap::new(),
             };
 
-            graph_memory.fuse_memories(&memory_contents, &session).await.map_err(|e| e.into())
+            graph_memory
+                .fuse_memories(&memory_contents, &session)
+                .await
+                .map_err(|e| e.into())
         } else {
-            Err(Mem0Error::ServiceUnavailable("Graph memory manager not available".to_string()))
+            Err(Mem0Error::ServiceUnavailable(
+                "Graph memory manager not available".to_string(),
+            ))
         }
     }
 
     /// Add memory with automatic graph extraction
-    pub async fn add_with_graph_extraction(&self, content: &str, user_id: &str, metadata: Option<HashMap<String, serde_json::Value>>) -> Result<String> {
+    pub async fn add_with_graph_extraction(
+        &self,
+        content: &str,
+        user_id: &str,
+        metadata: Option<HashMap<String, serde_json::Value>>,
+    ) -> Result<String> {
         // First add the memory normally
         let memory_id = self.add(content, user_id, metadata).await?;
 
@@ -1288,10 +1425,16 @@ impl Mem0Client {
             };
 
             if let Err(e) = graph_memory.add_memory_to_graph(content, &session).await {
-                warn!("Failed to extract entities/relations for memory {}: {}", memory_id, e);
+                warn!(
+                    "Failed to extract entities/relations for memory {}: {}",
+                    memory_id, e
+                );
                 // Don't fail the entire operation, just log the warning
             } else {
-                info!("Successfully extracted entities/relations for memory {}", memory_id);
+                info!(
+                    "Successfully extracted entities/relations for memory {}",
+                    memory_id
+                );
             }
         }
 
@@ -1303,7 +1446,9 @@ impl Mem0Client {
         if let Some(ref graph_memory) = self.graph_memory {
             graph_memory.reset().await.map_err(|e| e.into())
         } else {
-            Err(Mem0Error::ServiceUnavailable("Graph memory manager not available".to_string()))
+            Err(Mem0Error::ServiceUnavailable(
+                "Graph memory manager not available".to_string(),
+            ))
         }
     }
 
@@ -1324,7 +1469,9 @@ impl Mem0Client {
                 .await
                 .map_err(|e| e.into())
         } else {
-            Err(Mem0Error::ServiceUnavailable("Procedural memory manager not available".to_string()))
+            Err(Mem0Error::ServiceUnavailable(
+                "Procedural memory manager not available".to_string(),
+            ))
         }
     }
 
@@ -1336,7 +1483,9 @@ impl Mem0Client {
                 .await
                 .map_err(|e| e.into())
         } else {
-            Err(Mem0Error::ServiceUnavailable("Procedural memory manager not available".to_string()))
+            Err(Mem0Error::ServiceUnavailable(
+                "Procedural memory manager not available".to_string(),
+            ))
         }
     }
 
@@ -1348,7 +1497,9 @@ impl Mem0Client {
                 .await
                 .map_err(|e| e.into())
         } else {
-            Err(Mem0Error::ServiceUnavailable("Procedural memory manager not available".to_string()))
+            Err(Mem0Error::ServiceUnavailable(
+                "Procedural memory manager not available".to_string(),
+            ))
         }
     }
 
@@ -1366,19 +1517,26 @@ impl Mem0Client {
                 .await
                 .map_err(|e| e.into())
         } else {
-            Err(Mem0Error::ServiceUnavailable("Procedural memory manager not available".to_string()))
+            Err(Mem0Error::ServiceUnavailable(
+                "Procedural memory manager not available".to_string(),
+            ))
         }
     }
 
     /// 获取执行状态
-    pub async fn get_execution_status(&self, execution_id: &str) -> Result<Option<WorkflowExecution>> {
+    pub async fn get_execution_status(
+        &self,
+        execution_id: &str,
+    ) -> Result<Option<WorkflowExecution>> {
         if let Some(ref procedural_memory) = self.procedural_memory {
             procedural_memory
                 .get_execution_status(execution_id)
                 .await
                 .map_err(|e| e.into())
         } else {
-            Err(Mem0Error::ServiceUnavailable("Procedural memory manager not available".to_string()))
+            Err(Mem0Error::ServiceUnavailable(
+                "Procedural memory manager not available".to_string(),
+            ))
         }
     }
 
@@ -1390,7 +1548,9 @@ impl Mem0Client {
                 .await
                 .map_err(|e| e.into())
         } else {
-            Err(Mem0Error::ServiceUnavailable("Procedural memory manager not available".to_string()))
+            Err(Mem0Error::ServiceUnavailable(
+                "Procedural memory manager not available".to_string(),
+            ))
         }
     }
 
@@ -1402,7 +1562,9 @@ impl Mem0Client {
                 .await
                 .map_err(|e| e.into())
         } else {
-            Err(Mem0Error::ServiceUnavailable("Procedural memory manager not available".to_string()))
+            Err(Mem0Error::ServiceUnavailable(
+                "Procedural memory manager not available".to_string(),
+            ))
         }
     }
 
@@ -1414,7 +1576,9 @@ impl Mem0Client {
                 .await
                 .map_err(|e| e.into())
         } else {
-            Err(Mem0Error::ServiceUnavailable("Procedural memory manager not available".to_string()))
+            Err(Mem0Error::ServiceUnavailable(
+                "Procedural memory manager not available".to_string(),
+            ))
         }
     }
 
@@ -1426,7 +1590,9 @@ impl Mem0Client {
                 .await
                 .map_err(|e| e.into())
         } else {
-            Err(Mem0Error::ServiceUnavailable("Procedural memory manager not available".to_string()))
+            Err(Mem0Error::ServiceUnavailable(
+                "Procedural memory manager not available".to_string(),
+            ))
         }
     }
 
@@ -1438,7 +1604,9 @@ impl Mem0Client {
                 .await
                 .map_err(|e| e.into())
         } else {
-            Err(Mem0Error::ServiceUnavailable("Procedural memory manager not available".to_string()))
+            Err(Mem0Error::ServiceUnavailable(
+                "Procedural memory manager not available".to_string(),
+            ))
         }
     }
 
@@ -1450,7 +1618,9 @@ impl Mem0Client {
                 .await
                 .map_err(|e| e.into())
         } else {
-            Err(Mem0Error::ServiceUnavailable("Procedural memory manager not available".to_string()))
+            Err(Mem0Error::ServiceUnavailable(
+                "Procedural memory manager not available".to_string(),
+            ))
         }
     }
 
@@ -1462,57 +1632,74 @@ impl Mem0Client {
                 .await
                 .map_err(|e| e.into())
         } else {
-            Err(Mem0Error::ServiceUnavailable("Procedural memory manager not available".to_string()))
+            Err(Mem0Error::ServiceUnavailable(
+                "Procedural memory manager not available".to_string(),
+            ))
         }
     }
 
     // Context-Aware Memory Methods
 
     /// 从内容中提取上下文信息
-    pub async fn extract_context(&self, content: &str, session: &Session) -> Result<Vec<ContextInfo>> {
+    pub async fn extract_context(
+        &self,
+        content: &str,
+        session: &Session,
+    ) -> Result<Vec<ContextInfo>> {
         if let Some(ref context_aware) = self.context_aware {
             context_aware
                 .extract_context(content, session)
                 .await
                 .map_err(|e| e.into())
         } else {
-            Err(Mem0Error::ServiceUnavailable("Context-aware manager not available".to_string()))
+            Err(Mem0Error::ServiceUnavailable(
+                "Context-aware manager not available".to_string(),
+            ))
         }
     }
 
     /// 执行上下文感知搜索
-    pub async fn search_with_context(&self, request: ContextAwareSearchRequest) -> Result<Vec<ContextAwareSearchResult>> {
+    pub async fn search_with_context(
+        &self,
+        request: ContextAwareSearchRequest,
+    ) -> Result<Vec<ContextAwareSearchResult>> {
         if let Some(ref context_aware) = self.context_aware {
             context_aware
                 .search_with_context(request)
                 .await
                 .map_err(|e| e.into())
         } else {
-            Err(Mem0Error::ServiceUnavailable("Context-aware manager not available".to_string()))
+            Err(Mem0Error::ServiceUnavailable(
+                "Context-aware manager not available".to_string(),
+            ))
         }
     }
 
     /// 从上下文中学习模式
-    pub async fn learn_from_context(&self, contexts: &[ContextInfo]) -> Result<ContextLearningResult> {
+    pub async fn learn_from_context(
+        &self,
+        contexts: &[ContextInfo],
+    ) -> Result<ContextLearningResult> {
         if let Some(ref context_aware) = self.context_aware {
             context_aware
                 .learn_from_context(contexts)
                 .await
                 .map_err(|e| e.into())
         } else {
-            Err(Mem0Error::ServiceUnavailable("Context-aware manager not available".to_string()))
+            Err(Mem0Error::ServiceUnavailable(
+                "Context-aware manager not available".to_string(),
+            ))
         }
     }
 
     /// 获取学习到的上下文模式
     pub async fn get_context_patterns(&self) -> Result<Vec<ContextPattern>> {
         if let Some(ref context_aware) = self.context_aware {
-            context_aware
-                .get_patterns()
-                .await
-                .map_err(|e| e.into())
+            context_aware.get_patterns().await.map_err(|e| e.into())
         } else {
-            Err(Mem0Error::ServiceUnavailable("Context-aware manager not available".to_string()))
+            Err(Mem0Error::ServiceUnavailable(
+                "Context-aware manager not available".to_string(),
+            ))
         }
     }
 
@@ -1524,19 +1711,27 @@ impl Mem0Client {
                 .await
                 .map_err(|e| e.into())
         } else {
-            Err(Mem0Error::ServiceUnavailable("Context-aware manager not available".to_string()))
+            Err(Mem0Error::ServiceUnavailable(
+                "Context-aware manager not available".to_string(),
+            ))
         }
     }
 
     /// 将上下文与记忆关联
-    pub async fn associate_contexts_with_memory(&self, memory_id: &str, contexts: Vec<ContextInfo>) -> Result<()> {
+    pub async fn associate_contexts_with_memory(
+        &self,
+        memory_id: &str,
+        contexts: Vec<ContextInfo>,
+    ) -> Result<()> {
         if let Some(ref context_aware) = self.context_aware {
             context_aware
                 .associate_contexts_with_memory(memory_id, contexts)
                 .await
                 .map_err(|e| e.into())
         } else {
-            Err(Mem0Error::ServiceUnavailable("Context-aware manager not available".to_string()))
+            Err(Mem0Error::ServiceUnavailable(
+                "Context-aware manager not available".to_string(),
+            ))
         }
     }
 
@@ -1548,7 +1743,9 @@ impl Mem0Client {
                 .await
                 .map_err(|e| e.into())
         } else {
-            Err(Mem0Error::ServiceUnavailable("Context-aware manager not available".to_string()))
+            Err(Mem0Error::ServiceUnavailable(
+                "Context-aware manager not available".to_string(),
+            ))
         }
     }
 
@@ -1560,7 +1757,9 @@ impl Mem0Client {
                 .await
                 .map_err(|e| e.into())
         } else {
-            Err(Mem0Error::ServiceUnavailable("Context-aware manager not available".to_string()))
+            Err(Mem0Error::ServiceUnavailable(
+                "Context-aware manager not available".to_string(),
+            ))
         }
     }
 
@@ -1572,7 +1771,9 @@ impl Mem0Client {
                 .await
                 .map_err(|e| e.into())
         } else {
-            Err(Mem0Error::ServiceUnavailable("Context-aware manager not available".to_string()))
+            Err(Mem0Error::ServiceUnavailable(
+                "Context-aware manager not available".to_string(),
+            ))
         }
     }
 
@@ -1586,23 +1787,33 @@ impl Mem0Client {
                 .await
                 .map_err(|e| e.into())
         } else {
-            Err(Mem0Error::ServiceUnavailable("Personalization manager not available".to_string()))
+            Err(Mem0Error::ServiceUnavailable(
+                "Personalization manager not available".to_string(),
+            ))
         }
     }
 
     /// 个性化搜索
-    pub async fn personalized_search(&self, request: PersonalizedSearchRequest) -> Result<Vec<PersonalizedSearchResult>> {
+    pub async fn personalized_search(
+        &self,
+        request: PersonalizedSearchRequest,
+    ) -> Result<Vec<PersonalizedSearchResult>> {
         if let Some(ref personalization) = self.personalization {
             // 首先执行基础搜索
             let base_results = self.search(&request.query, &request.user_id, None).await?;
 
             // 转换为 MemorySearchResult 格式供个性化处理
-            let memory_search_results: Vec<crate::personalization::MemorySearchResult> = base_results.memories.into_iter().map(|memory| {
-                crate::personalization::MemorySearchResult {
-                    memory,
-                    score: 0.8, // 默认基础分数
-                }
-            }).collect();
+            let memory_search_results: Vec<crate::personalization::MemorySearchResult> =
+                base_results
+                    .memories
+                    .into_iter()
+                    .map(|memory| {
+                        crate::personalization::MemorySearchResult {
+                            memory,
+                            score: 0.8, // 默认基础分数
+                        }
+                    })
+                    .collect();
 
             // 执行个性化搜索
             personalization
@@ -1610,19 +1821,27 @@ impl Mem0Client {
                 .await
                 .map_err(|e| e.into())
         } else {
-            Err(Mem0Error::ServiceUnavailable("Personalization manager not available".to_string()))
+            Err(Mem0Error::ServiceUnavailable(
+                "Personalization manager not available".to_string(),
+            ))
         }
     }
 
     /// 生成记忆推荐
-    pub async fn generate_recommendations(&self, user_id: &str, limit: usize) -> Result<Vec<MemoryRecommendation>> {
+    pub async fn generate_recommendations(
+        &self,
+        user_id: &str,
+        limit: usize,
+    ) -> Result<Vec<MemoryRecommendation>> {
         if let Some(ref personalization) = self.personalization {
             personalization
                 .generate_recommendations(user_id, limit)
                 .await
                 .map_err(|e| e.into())
         } else {
-            Err(Mem0Error::ServiceUnavailable("Personalization manager not available".to_string()))
+            Err(Mem0Error::ServiceUnavailable(
+                "Personalization manager not available".to_string(),
+            ))
         }
     }
 
@@ -1634,7 +1853,9 @@ impl Mem0Client {
                 .await
                 .map_err(|e| e.into())
         } else {
-            Err(Mem0Error::ServiceUnavailable("Personalization manager not available".to_string()))
+            Err(Mem0Error::ServiceUnavailable(
+                "Personalization manager not available".to_string(),
+            ))
         }
     }
 
@@ -1646,7 +1867,9 @@ impl Mem0Client {
                 .await
                 .map_err(|e| e.into())
         } else {
-            Err(Mem0Error::ServiceUnavailable("Personalization manager not available".to_string()))
+            Err(Mem0Error::ServiceUnavailable(
+                "Personalization manager not available".to_string(),
+            ))
         }
     }
 
@@ -1658,7 +1881,9 @@ impl Mem0Client {
                 .await
                 .map_err(|e| e.into())
         } else {
-            Err(Mem0Error::ServiceUnavailable("Personalization manager not available".to_string()))
+            Err(Mem0Error::ServiceUnavailable(
+                "Personalization manager not available".to_string(),
+            ))
         }
     }
 
@@ -1670,7 +1895,9 @@ impl Mem0Client {
                 .await
                 .map_err(|e| e.into())
         } else {
-            Err(Mem0Error::ServiceUnavailable("Personalization manager not available".to_string()))
+            Err(Mem0Error::ServiceUnavailable(
+                "Personalization manager not available".to_string(),
+            ))
         }
     }
 
@@ -1682,36 +1909,54 @@ impl Mem0Client {
                 .await
                 .map_err(|e| e.into())
         } else {
-            Err(Mem0Error::ServiceUnavailable("Personalization manager not available".to_string()))
+            Err(Mem0Error::ServiceUnavailable(
+                "Personalization manager not available".to_string(),
+            ))
         }
     }
 
     // ==================== Enterprise Security Methods ====================
 
     /// Authenticate user and create session
-    pub async fn authenticate(&self, username: &str, password: &str, ip_address: &str, user_agent: &str) -> Result<UserSession> {
+    pub async fn authenticate(
+        &self,
+        username: &str,
+        password: &str,
+        ip_address: &str,
+        user_agent: &str,
+    ) -> Result<UserSession> {
         if let Some(security) = &self.enterprise_security {
-            security.authenticate(username, password, ip_address, user_agent).await
+            security
+                .authenticate(username, password, ip_address, user_agent)
+                .await
                 .map_err(|e| Mem0Error::SecurityError(format!("Authentication failed: {}", e)))
         } else {
-            Err(Mem0Error::FeatureNotEnabled("Enterprise security not enabled".to_string()))
+            Err(Mem0Error::FeatureNotEnabled(
+                "Enterprise security not enabled".to_string(),
+            ))
         }
     }
 
     /// Validate JWT token
     pub async fn validate_token(&self, token: &str) -> Result<JwtClaims> {
         if let Some(security) = &self.enterprise_security {
-            security.validate_token(token).await
+            security
+                .validate_token(token)
+                .await
                 .map_err(|e| Mem0Error::SecurityError(format!("Token validation failed: {}", e)))
         } else {
-            Err(Mem0Error::FeatureNotEnabled("Enterprise security not enabled".to_string()))
+            Err(Mem0Error::FeatureNotEnabled(
+                "Enterprise security not enabled".to_string(),
+            ))
         }
     }
 
     /// Check if user has permission
     pub async fn check_permission(&self, user_id: &str, permission: &Permission) -> Result<bool> {
         if let Some(security) = &self.enterprise_security {
-            security.check_permission(user_id, permission).await
+            security
+                .check_permission(user_id, permission)
+                .await
                 .map_err(|e| Mem0Error::SecurityError(format!("Permission check failed: {}", e)))
         } else {
             Ok(true) // If security is disabled, allow all operations
@@ -1721,7 +1966,9 @@ impl Mem0Client {
     /// Encrypt sensitive data
     pub async fn encrypt_data(&self, data: &str) -> Result<String> {
         if let Some(security) = &self.enterprise_security {
-            security.encrypt_data(data).await
+            security
+                .encrypt_data(data)
+                .await
                 .map_err(|e| Mem0Error::SecurityError(format!("Encryption failed: {}", e)))
         } else {
             Ok(data.to_string()) // If security is disabled, return data as-is
@@ -1731,7 +1978,9 @@ impl Mem0Client {
     /// Decrypt sensitive data
     pub async fn decrypt_data(&self, encrypted_data: &str) -> Result<String> {
         if let Some(security) = &self.enterprise_security {
-            security.decrypt_data(encrypted_data).await
+            security
+                .decrypt_data(encrypted_data)
+                .await
                 .map_err(|e| Mem0Error::SecurityError(format!("Decryption failed: {}", e)))
         } else {
             Ok(encrypted_data.to_string()) // If security is disabled, return data as-is
@@ -1741,7 +1990,9 @@ impl Mem0Client {
     /// Mask sensitive data for PII protection
     pub async fn mask_sensitive_data(&self, data: &str) -> Result<String> {
         if let Some(security) = &self.enterprise_security {
-            security.mask_sensitive_data(data).await
+            security
+                .mask_sensitive_data(data)
+                .await
                 .map_err(|e| Mem0Error::SecurityError(format!("Data masking failed: {}", e)))
         } else {
             Ok(data.to_string()) // If security is disabled, return data as-is
@@ -1749,29 +2000,48 @@ impl Mem0Client {
     }
 
     /// Get audit logs
-    pub async fn get_audit_logs(&self, limit: Option<usize>) -> Result<Vec<crate::enterprise_security::AuditLogEntry>> {
+    pub async fn get_audit_logs(
+        &self,
+        limit: Option<usize>,
+    ) -> Result<Vec<crate::enterprise_security::AuditLogEntry>> {
         if let Some(security) = &self.enterprise_security {
-            security.get_audit_logs(limit).await
+            security
+                .get_audit_logs(limit)
+                .await
                 .map_err(|e| Mem0Error::SecurityError(format!("Failed to get audit logs: {}", e)))
         } else {
-            Err(Mem0Error::FeatureNotEnabled("Enterprise security not enabled".to_string()))
+            Err(Mem0Error::FeatureNotEnabled(
+                "Enterprise security not enabled".to_string(),
+            ))
         }
     }
 
     /// Create new user
-    pub async fn create_user(&self, username: &str, email: &str, password: &str, roles: Vec<String>) -> Result<String> {
+    pub async fn create_user(
+        &self,
+        username: &str,
+        email: &str,
+        password: &str,
+        roles: Vec<String>,
+    ) -> Result<String> {
         if let Some(security) = &self.enterprise_security {
-            security.create_user(username, email, password, roles).await
+            security
+                .create_user(username, email, password, roles)
+                .await
                 .map_err(|e| Mem0Error::SecurityError(format!("User creation failed: {}", e)))
         } else {
-            Err(Mem0Error::FeatureNotEnabled("Enterprise security not enabled".to_string()))
+            Err(Mem0Error::FeatureNotEnabled(
+                "Enterprise security not enabled".to_string(),
+            ))
         }
     }
 
     /// Logout user
     pub async fn logout(&self, session_id: &str) -> Result<()> {
         if let Some(security) = &self.enterprise_security {
-            security.logout(session_id).await
+            security
+                .logout(session_id)
+                .await
                 .map_err(|e| Mem0Error::SecurityError(format!("Logout failed: {}", e)))
         } else {
             Ok(()) // If security is disabled, logout is always successful

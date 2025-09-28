@@ -42,13 +42,18 @@ impl MemoryType {
 /// Memory importance level
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, PartialOrd, Eq, Ord)]
 pub enum ImportanceLevel {
+    /// Low importance (score < 0.4)
     Low = 1,
+    /// Medium importance (0.4 <= score < 0.6)
     Medium = 2,
+    /// High importance (0.6 <= score < 0.8)
     High = 3,
+    /// Critical importance (score >= 0.8)
     Critical = 4,
 }
 
 impl ImportanceLevel {
+    /// Convert a numeric score to an importance level
     pub fn from_score(score: f32) -> Self {
         if score >= 0.8 {
             ImportanceLevel::Critical
@@ -61,6 +66,7 @@ impl ImportanceLevel {
         }
     }
 
+    /// Convert importance level to a numeric score
     pub fn to_score(&self) -> f32 {
         match self {
             ImportanceLevel::Low => 0.25,
@@ -224,9 +230,9 @@ impl From<Memory> for MemoryItem {
             last_accessed_at: DateTime::from_timestamp(memory.last_accessed_at, 0)
                 .unwrap_or_else(|| Utc::now()),
             access_count: memory.access_count,
-            expires_at: memory.expires_at.map(|ts|
-                DateTime::from_timestamp(ts, 0).unwrap_or_else(|| Utc::now())
-            ),
+            expires_at: memory
+                .expires_at
+                .map(|ts| DateTime::from_timestamp(ts, 0).unwrap_or_else(|| Utc::now())),
             version: memory.version,
         }
     }
@@ -302,6 +308,7 @@ pub struct MemoryQuery {
 }
 
 impl MemoryQuery {
+    /// Create a new memory query for the specified agent
     pub fn new(agent_id: String) -> Self {
         Self {
             agent_id,
@@ -315,36 +322,43 @@ impl MemoryQuery {
         }
     }
 
+    /// Set the user ID for the query
     pub fn with_user_id(mut self, user_id: String) -> Self {
         self.user_id = Some(user_id);
         self
     }
 
+    /// Set the memory type filter
     pub fn with_memory_type(mut self, memory_type: MemoryType) -> Self {
         self.memory_type = Some(memory_type);
         self
     }
 
+    /// Set the text query for searching
     pub fn with_text_query(mut self, query: String) -> Self {
         self.text_query = Some(query);
         self
     }
 
+    /// Set the vector query for semantic search
     pub fn with_vector_query(mut self, vector: Vector) -> Self {
         self.vector_query = Some(vector);
         self
     }
 
+    /// Set the minimum importance threshold
     pub fn with_min_importance(mut self, importance: f32) -> Self {
         self.min_importance = Some(importance);
         self
     }
 
+    /// Set the maximum age filter in seconds
     pub fn with_max_age_seconds(mut self, seconds: i64) -> Self {
         self.max_age_seconds = Some(seconds);
         self
     }
 
+    /// Set the maximum number of results to return
     pub fn with_limit(mut self, limit: usize) -> Self {
         self.limit = limit;
         self
@@ -354,29 +368,43 @@ impl MemoryQuery {
 /// Memory search result
 #[derive(Debug, Clone)]
 pub struct MemorySearchResult {
+    /// The matched memory
     pub memory: Memory,
+    /// Relevance score (0.0 to 1.0)
     pub score: f32,
+    /// Type of match found
     pub match_type: MatchType,
 }
 
 /// Type of match found
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MatchType {
+    /// Exact text match
     ExactText,
+    /// Partial text match
     PartialText,
+    /// Semantic similarity match
     Semantic,
+    /// Metadata field match
     Metadata,
 }
 
 /// Memory statistics
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MemoryStats {
+    /// Total number of memories
     pub total_memories: usize,
+    /// Count of memories by type
     pub memories_by_type: HashMap<MemoryType, usize>,
+    /// Count of memories by agent
     pub memories_by_agent: HashMap<String, usize>,
+    /// Average importance score across all memories
     pub average_importance: f32,
+    /// Age of the oldest memory in days
     pub oldest_memory_age_days: f32,
+    /// ID of the most frequently accessed memory
     pub most_accessed_memory_id: Option<String>,
+    /// Total number of memory accesses
     pub total_access_count: u64,
 }
 

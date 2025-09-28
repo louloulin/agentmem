@@ -31,7 +31,7 @@ impl MemoryManager {
     async fn search_memories(&self, _query: &MemoryQuery) -> Result<Vec<String>, String> {
         Ok(vec![
             "Demo memory about tennis".to_string(),
-            "Demo memory about weekends".to_string()
+            "Demo memory about weekends".to_string(),
         ])
     }
 
@@ -269,7 +269,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 如果没有API密钥，显示提示信息
     if llm_config.api_key.is_none() {
-        println!("   ⚠️  No API key found. Set OPENAI_API_KEY environment variable for real LLM calls.");
+        println!(
+            "   ⚠️  No API key found. Set OPENAI_API_KEY environment variable for real LLM calls."
+        );
         println!("   📝 Demo will continue with model info display only.");
     }
 

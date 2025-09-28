@@ -2,9 +2,7 @@
 //!
 //! 展示如何使用 DeepSeek 驱动的智能推理引擎进行事实提取和记忆决策
 
-use agent_mem_intelligence::{
-    IntelligentMemoryProcessor, ExistingMemory
-};
+use agent_mem_intelligence::{ExistingMemory, IntelligentMemoryProcessor};
 use agent_mem_traits::{Message, MessageRole};
 use chrono;
 use std::collections::HashMap;
@@ -47,31 +45,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ];
 
     // 准备简化的现有记忆
-    let existing_memories = vec![
-        ExistingMemory {
-            id: "mem1".to_string(),
-            content: "User likes tea".to_string(),
-            importance: 0.5,
-            created_at: "2023-12-01T00:00:00Z".to_string(),
-            updated_at: None,
-            metadata: HashMap::new(),
-        },
-    ];
+    let existing_memories = vec![ExistingMemory {
+        id: "mem1".to_string(),
+        content: "User likes tea".to_string(),
+        importance: 0.5,
+        created_at: "2023-12-01T00:00:00Z".to_string(),
+        updated_at: None,
+        metadata: HashMap::new(),
+    }];
 
     println!("\n📝 处理消息...");
     println!("消息数量: {}", messages.len());
     println!("现有记忆数量: {}", existing_memories.len());
 
     // 处理消息
-    match processor.process_messages(&messages, &existing_memories).await {
+    match processor
+        .process_messages(&messages, &existing_memories)
+        .await
+    {
         Ok(result) => {
             println!("\n🎉 处理完成!");
-            
+
             // 显示提取的事实
             println!("\n📊 提取的事实 ({}):", result.extracted_facts.len());
             for (i, fact) in result.extracted_facts.iter().enumerate() {
-                println!("  {}. [{}] {} (置信度: {:.2})", 
-                    i + 1, 
+                println!(
+                    "  {}. [{}] {} (置信度: {:.2})",
+                    i + 1,
                     format!("{:?}", fact.category),
                     fact.content,
                     fact.confidence
@@ -96,10 +96,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // 显示处理统计
             println!("📈 处理统计:");
             println!("  - 总消息数: {}", result.processing_stats.total_messages);
-            println!("  - 提取事实数: {}", result.processing_stats.facts_extracted);
+            println!(
+                "  - 提取事实数: {}",
+                result.processing_stats.facts_extracted
+            );
             println!("  - 生成决策数: {}", result.processing_stats.decisions_made);
-            println!("  - 高置信度决策: {}", result.processing_stats.high_confidence_decisions);
-            println!("  - 处理时间: {}ms", result.processing_stats.processing_time_ms);
+            println!(
+                "  - 高置信度决策: {}",
+                result.processing_stats.high_confidence_decisions
+            );
+            println!(
+                "  - 处理时间: {}ms",
+                result.processing_stats.processing_time_ms
+            );
 
             // 显示推荐
             if !result.recommendations.is_empty() {
@@ -108,8 +117,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     println!("  {}. {}", i + 1, rec);
                 }
             }
-
-        },
+        }
         Err(e) => {
             eprintln!("❌ 处理失败: {}", e);
             return Err(e.into());
@@ -122,17 +130,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(health_report) => {
             println!("✅ 记忆健康分析完成");
             println!("  - 总记忆数: {}", existing_memories.len());
-            println!("  - 低重要性记忆: {}", health_report.low_importance_memories.len());
+            println!(
+                "  - 低重要性记忆: {}",
+                health_report.low_importance_memories.len()
+            );
             println!("  - 短记忆: {}", health_report.short_memories.len());
             println!("  - 重复记忆对: {}", health_report.duplicate_memories.len());
-            
+
             if !health_report.suggestions.is_empty() {
                 println!("  建议:");
                 for suggestion in &health_report.suggestions {
                     println!("    - {}", suggestion);
                 }
             }
-        },
+        }
         Err(e) => {
             eprintln!("⚠️  记忆健康分析失败: {}", e);
         }

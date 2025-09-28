@@ -1,5 +1,5 @@
 //! Phase 1 集成演示 - 展示核心存储后端的真实实现
-//! 
+//!
 //! 这个演示展示了：
 //! 1. Chroma 向量存储的真实连接和操作
 //! 2. OpenAI 嵌入服务的真实 API 调用
@@ -7,14 +7,14 @@
 //! 4. 各组件之间的集成工作
 
 // 移除未使用的导入
-use agent_mem_storage::backends::ChromaStore;
-use agent_mem_storage::graph::Neo4jStore;
-use agent_mem_embeddings::providers::OpenAIEmbedder;
-use agent_mem_traits::{
-    Entity, Embedder, GraphStore, Relation, Session, VectorData, VectorStore, VectorStoreConfig,
-};
 use agent_mem_config::memory::GraphStoreConfig;
 use agent_mem_embeddings::config::EmbeddingConfig;
+use agent_mem_embeddings::providers::OpenAIEmbedder;
+use agent_mem_storage::backends::ChromaStore;
+use agent_mem_storage::graph::Neo4jStore;
+use agent_mem_traits::{
+    Embedder, Entity, GraphStore, Relation, Session, VectorData, VectorStore, VectorStoreConfig,
+};
 // 移除未使用的导入
 use std::collections::HashMap;
 use tracing::{info, warn};
@@ -88,7 +88,7 @@ async fn run_full_demo() -> Result<(), Box<dyn std::error::Error>> {
     // 2. 测试 Chroma 向量存储
     info!("🗄️ 测试 Chroma 向量存储");
     let chroma_store = create_chroma_store().await?;
-    
+
     let vector_data = VectorData {
         id: Uuid::new_v4().to_string(),
         vector: embedding.clone(),
@@ -104,15 +104,13 @@ async fn run_full_demo() -> Result<(), Box<dyn std::error::Error>> {
     info!("✅ 成功存储向量，ID: {:?}", ids);
 
     // 搜索测试
-    let search_results = chroma_store
-        .search_vectors(embedding, 5, Some(0.7))
-        .await?;
+    let search_results = chroma_store.search_vectors(embedding, 5, Some(0.7)).await?;
     info!("✅ 搜索到 {} 个相似向量", search_results.len());
 
     // 3. 测试 Neo4j 图数据库
     info!("🕸️ 测试 Neo4j 图数据库");
     let neo4j_store = create_neo4j_store().await?;
-    
+
     let session = Session::new()
         .with_agent_id(Some("demo-agent".to_string()))
         .with_user_id(Some("demo-user".to_string()));
@@ -126,7 +124,10 @@ async fn run_full_demo() -> Result<(), Box<dyn std::error::Error>> {
             attributes: {
                 let mut attrs = HashMap::new();
                 attrs.insert("age".to_string(), serde_json::Value::Number(30.into()));
-                attrs.insert("city".to_string(), serde_json::Value::String("北京".to_string()));
+                attrs.insert(
+                    "city".to_string(),
+                    serde_json::Value::String("北京".to_string()),
+                );
                 attrs
             },
         },
@@ -137,7 +138,10 @@ async fn run_full_demo() -> Result<(), Box<dyn std::error::Error>> {
             attributes: {
                 let mut attrs = HashMap::new();
                 attrs.insert("age".to_string(), serde_json::Value::Number(25.into()));
-                attrs.insert("city".to_string(), serde_json::Value::String("上海".to_string()));
+                attrs.insert(
+                    "city".to_string(),
+                    serde_json::Value::String("上海".to_string()),
+                );
                 attrs
             },
         },

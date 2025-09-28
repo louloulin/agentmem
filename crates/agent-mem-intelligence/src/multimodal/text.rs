@@ -1,11 +1,11 @@
 //! 文本内容处理模块
 
-use super::{MultimodalProcessor, MultimodalContent, ContentType};
+use super::{ContentType, MultimodalContent, MultimodalProcessor};
 use agent_mem_traits::{AgentMemError, Result};
 use async_trait::async_trait;
+use base64::{engine::general_purpose, Engine as _};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use base64::{Engine as _, engine::general_purpose};
 
 /// 文本处理器
 #[derive(Debug)]
@@ -69,7 +69,9 @@ impl TextProcessor {
 
         let mut keyword_counts: HashMap<String, usize> = HashMap::new();
         for word in words {
-            let clean_word = word.trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+            let clean_word = word
+                .trim_matches(|c: char| !c.is_alphanumeric())
+                .to_lowercase();
             if !clean_word.is_empty() && !is_stop_word(&clean_word) {
                 *keyword_counts.entry(clean_word).or_insert(0) += 1;
             }
@@ -97,8 +99,29 @@ impl TextProcessor {
         }
 
         // 简化的情感分析
-        let positive_words = ["good", "great", "excellent", "amazing", "wonderful", "fantastic", "love", "like", "happy", "joy"];
-        let negative_words = ["bad", "terrible", "awful", "hate", "dislike", "sad", "angry", "disappointed", "frustrated"];
+        let positive_words = [
+            "good",
+            "great",
+            "excellent",
+            "amazing",
+            "wonderful",
+            "fantastic",
+            "love",
+            "like",
+            "happy",
+            "joy",
+        ];
+        let negative_words = [
+            "bad",
+            "terrible",
+            "awful",
+            "hate",
+            "dislike",
+            "sad",
+            "angry",
+            "disappointed",
+            "frustrated",
+        ];
 
         let text_lower = text.to_lowercase();
         let mut positive_score = 0;
@@ -142,23 +165,24 @@ impl TextProcessor {
         }
 
         // 简化的语言检测
-        let english_indicators = ["the", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by"];
+        let english_indicators = [
+            "the", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by",
+        ];
         let chinese_chars = text.chars().filter(|c| is_chinese_char(*c)).count();
         let total_chars = text.chars().count();
 
         let language = if chinese_chars > total_chars / 4 {
             "zh".to_string()
-        } else if english_indicators.iter().any(|&word| text.to_lowercase().contains(word)) {
+        } else if english_indicators
+            .iter()
+            .any(|&word| text.to_lowercase().contains(word))
+        {
             "en".to_string()
         } else {
             "unknown".to_string()
         };
 
-        let confidence = if language == "unknown" {
-            0.3
-        } else {
-            0.8
-        };
+        let confidence = if language == "unknown" { 0.3 } else { 0.8 };
 
         Ok(LanguageDetection {
             language,
@@ -176,7 +200,8 @@ impl TextProcessor {
 
         // 简化的实体识别
         // 识别邮箱
-        let email_regex = regex::Regex::new(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b").unwrap();
+        let email_regex =
+            regex::Regex::new(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b").unwrap();
         for mat in email_regex.find_iter(text) {
             entities.push(Entity {
                 text: mat.as_str().to_string(),
@@ -236,12 +261,15 @@ impl MultimodalProcessor for TextProcessor {
             extracted_text.clone()
         } else if let Some(data) = &content.data {
             // 假设是 Base64 编码的文本
-            let decoded = general_purpose::STANDARD.decode(data)
-                .map_err(|e| AgentMemError::ProcessingError(format!("Failed to decode text data: {}", e)))?;
+            let decoded = general_purpose::STANDARD.decode(data).map_err(|e| {
+                AgentMemError::ProcessingError(format!("Failed to decode text data: {}", e))
+            })?;
             String::from_utf8(decoded)
                 .map_err(|e| AgentMemError::ProcessingError(format!("Invalid UTF-8 text: {}", e)))?
         } else {
-            return Err(AgentMemError::ProcessingError("No text content found".to_string()));
+            return Err(AgentMemError::ProcessingError(
+                "No text content found".to_string(),
+            ));
         };
 
         // 设置提取的文本
@@ -249,29 +277,33 @@ impl MultimodalProcessor for TextProcessor {
 
         // 提取关键词
         if let Ok(keywords) = self.extract_keywords(&text).await {
-            let keywords_json = serde_json::to_value(keywords)
-                .map_err(|e| AgentMemError::ProcessingError(format!("Failed to serialize keywords: {}", e)))?;
+            let keywords_json = serde_json::to_value(keywords).map_err(|e| {
+                AgentMemError::ProcessingError(format!("Failed to serialize keywords: {}", e))
+            })?;
             content.set_metadata("keywords".to_string(), keywords_json);
         }
 
         // 分析情感
         if let Ok(sentiment) = self.analyze_sentiment(&text).await {
-            let sentiment_json = serde_json::to_value(sentiment)
-                .map_err(|e| AgentMemError::ProcessingError(format!("Failed to serialize sentiment: {}", e)))?;
+            let sentiment_json = serde_json::to_value(sentiment).map_err(|e| {
+                AgentMemError::ProcessingError(format!("Failed to serialize sentiment: {}", e))
+            })?;
             content.set_metadata("sentiment".to_string(), sentiment_json);
         }
 
         // 检测语言
         if let Ok(language) = self.detect_language(&text).await {
-            let language_json = serde_json::to_value(language)
-                .map_err(|e| AgentMemError::ProcessingError(format!("Failed to serialize language: {}", e)))?;
+            let language_json = serde_json::to_value(language).map_err(|e| {
+                AgentMemError::ProcessingError(format!("Failed to serialize language: {}", e))
+            })?;
             content.set_metadata("language".to_string(), language_json);
         }
 
         // 识别实体
         if let Ok(entities) = self.recognize_entities(&text).await {
-            let entities_json = serde_json::to_value(entities)
-                .map_err(|e| AgentMemError::ProcessingError(format!("Failed to serialize entities: {}", e)))?;
+            let entities_json = serde_json::to_value(entities).map_err(|e| {
+                AgentMemError::ProcessingError(format!("Failed to serialize entities: {}", e))
+            })?;
             content.set_metadata("entities".to_string(), entities_json);
         }
 
@@ -396,11 +428,11 @@ pub enum EntityType {
 /// 检查是否为停用词
 fn is_stop_word(word: &str) -> bool {
     let stop_words = [
-        "the", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by",
-        "from", "up", "about", "into", "through", "during", "before", "after", "above",
-        "below", "between", "among", "is", "are", "was", "were", "be", "been", "being",
-        "have", "has", "had", "do", "does", "did", "will", "would", "could", "should",
-        "may", "might", "must", "can", "this", "that", "these", "those", "a", "an",
+        "the", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by", "from", "up",
+        "about", "into", "through", "during", "before", "after", "above", "below", "between",
+        "among", "is", "are", "was", "were", "be", "been", "being", "have", "has", "had", "do",
+        "does", "did", "will", "would", "could", "should", "may", "might", "must", "can", "this",
+        "that", "these", "those", "a", "an",
     ];
     stop_words.contains(&word)
 }
@@ -426,8 +458,11 @@ mod tests {
     #[tokio::test]
     async fn test_keyword_extraction() {
         let processor = TextProcessor::new();
-        let keywords = processor.extract_keywords("This is a great example of keyword extraction technology").await.unwrap();
-        
+        let keywords = processor
+            .extract_keywords("This is a great example of keyword extraction technology")
+            .await
+            .unwrap();
+
         assert!(!keywords.is_empty());
         // 应该包含一些关键词，但不包含停用词
         let keyword_words: Vec<&str> = keywords.iter().map(|k| k.word.as_str()).collect();
@@ -438,22 +473,34 @@ mod tests {
     #[tokio::test]
     async fn test_sentiment_analysis() {
         let processor = TextProcessor::new();
-        
-        let positive_sentiment = processor.analyze_sentiment("This is a great and wonderful day!").await.unwrap();
+
+        let positive_sentiment = processor
+            .analyze_sentiment("This is a great and wonderful day!")
+            .await
+            .unwrap();
         assert_eq!(positive_sentiment.sentiment, Sentiment::Positive);
-        
-        let negative_sentiment = processor.analyze_sentiment("This is terrible and awful").await.unwrap();
+
+        let negative_sentiment = processor
+            .analyze_sentiment("This is terrible and awful")
+            .await
+            .unwrap();
         assert_eq!(negative_sentiment.sentiment, Sentiment::Negative);
     }
 
     #[tokio::test]
     async fn test_language_detection() {
         let processor = TextProcessor::new();
-        
-        let english_detection = processor.detect_language("This is an English sentence with common words").await.unwrap();
+
+        let english_detection = processor
+            .detect_language("This is an English sentence with common words")
+            .await
+            .unwrap();
         assert_eq!(english_detection.language, "en");
-        
-        let chinese_detection = processor.detect_language("这是一个中文句子，包含很多中文字符").await.unwrap();
+
+        let chinese_detection = processor
+            .detect_language("这是一个中文句子，包含很多中文字符")
+            .await
+            .unwrap();
         assert_eq!(chinese_detection.language, "zh");
     }
 

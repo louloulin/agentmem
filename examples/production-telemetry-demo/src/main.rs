@@ -13,15 +13,15 @@ use agent_mem_core::{
     hierarchy::MemoryScope,
     Memory,
 };
+use agent_mem_performance::telemetry::{ProductionTelemetryConfig, ProductionTelemetrySystem};
 use agent_mem_traits::{MemoryType, Session};
 use chrono::Utc;
-use agent_mem_performance::telemetry::{ProductionTelemetrySystem, ProductionTelemetryConfig};
 
 use anyhow::Result;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use tokio::time::sleep;
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 #[tokio::main]
@@ -120,12 +120,9 @@ async fn demonstrate_memory_operations(
         let success = memory_result.is_ok();
 
         // Track the operation
-        telemetry.track_memory_operation(
-            "add_memory",
-            Some(&user_id),
-            duration,
-            success,
-        ).await;
+        telemetry
+            .track_memory_operation("add_memory", Some(&user_id), duration, success)
+            .await;
 
         if let Err(e) = memory_result {
             error!("Failed to add memory: {}", e);
@@ -142,24 +139,28 @@ async fn demonstrate_memory_operations(
         let start = Instant::now();
         let user_id = format!("user_{}", i % 3);
 
-        let search_result = engine.search_memories(
-            &format!("test message {}", i),
-            Some(MemoryScope::Agent(user_id.clone())),
-            Some(10),
-        ).await;
+        let search_result = engine
+            .search_memories(
+                &format!("test message {}", i),
+                Some(MemoryScope::Agent(user_id.clone())),
+                Some(10),
+            )
+            .await;
 
         let duration = start.elapsed();
         let success = search_result.is_ok();
 
-        telemetry.track_memory_operation(
-            "search_memories",
-            Some(&user_id),
-            duration,
-            success,
-        ).await;
+        telemetry
+            .track_memory_operation("search_memories", Some(&user_id), duration, success)
+            .await;
 
         if let Ok(results) = search_result {
-            info!("🔍 Search {} found {} results in {:?}", i, results.len(), duration);
+            info!(
+                "🔍 Search {} found {} results in {:?}",
+                i,
+                results.len(),
+                duration
+            );
         }
 
         sleep(Duration::from_millis(50)).await;
@@ -169,18 +170,19 @@ async fn demonstrate_memory_operations(
 }
 
 /// Demonstrate performance monitoring
-async fn demonstrate_performance_monitoring(
-    telemetry: &ProductionTelemetrySystem,
-) -> Result<()> {
+async fn demonstrate_performance_monitoring(telemetry: &ProductionTelemetrySystem) -> Result<()> {
     info!("📈 Demonstrating performance monitoring");
 
     // Collect system metrics
     let metrics = telemetry.collect_system_metrics().await;
-    
+
     info!("📊 System Metrics:");
     info!("  Total Requests: {}", metrics.total_requests);
     info!("  Error Rate: {:.2}%", metrics.error_rate * 100.0);
-    info!("  Avg Response Time: {:.2}ms", metrics.average_response_time_ms);
+    info!(
+        "  Avg Response Time: {:.2}ms",
+        metrics.average_response_time_ms
+    );
     info!("  Throughput: {:.2} RPS", metrics.throughput_rps);
     info!("  Memory Usage: {} bytes", metrics.memory_usage_bytes);
     info!("  Cache Hit Rate: {:.2}%", metrics.cache_hit_rate * 100.0);
@@ -190,21 +192,22 @@ async fn demonstrate_performance_monitoring(
 }
 
 /// Demonstrate health monitoring
-async fn demonstrate_health_monitoring(
-    telemetry: &ProductionTelemetrySystem,
-) -> Result<()> {
+async fn demonstrate_health_monitoring(telemetry: &ProductionTelemetrySystem) -> Result<()> {
     info!("🏥 Demonstrating health monitoring");
 
     let health_status = telemetry.get_health_status().await;
-    
+
     info!("🩺 Health Status:");
     info!("  Status: {}", health_status.status);
     info!("  Timestamp: {}", health_status.timestamp);
-    
+
     if let Some(metrics) = health_status.metrics {
         info!("  Health Metrics:");
         info!("    Error Rate: {:.2}%", metrics.error_rate * 100.0);
-        info!("    Response Time: {:.2}ms", metrics.average_response_time_ms);
+        info!(
+            "    Response Time: {:.2}ms",
+            metrics.average_response_time_ms
+        );
         info!("    Throughput: {:.2} RPS", metrics.throughput_rps);
     }
 
@@ -212,9 +215,7 @@ async fn demonstrate_health_monitoring(
 }
 
 /// Demonstrate error tracking
-async fn demonstrate_error_tracking(
-    telemetry: &ProductionTelemetrySystem,
-) -> Result<()> {
+async fn demonstrate_error_tracking(telemetry: &ProductionTelemetrySystem) -> Result<()> {
     info!("🚨 Demonstrating error tracking");
 
     // Simulate some errors
@@ -226,12 +227,14 @@ async fn demonstrate_error_tracking(
         let duration = Duration::from_millis(50 + i * 10);
         sleep(duration).await;
 
-        telemetry.track_memory_operation(
-            "simulated_error",
-            Some(&user_id),
-            start.elapsed(),
-            false, // Mark as failed
-        ).await;
+        telemetry
+            .track_memory_operation(
+                "simulated_error",
+                Some(&user_id),
+                start.elapsed(),
+                false, // Mark as failed
+            )
+            .await;
 
         warn!("⚠️ Simulated error {} tracked", i);
     }

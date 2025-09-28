@@ -3,7 +3,9 @@
 //! Google Gemini 是 Google 的下一代多模态 AI 模型，
 //! 支持文本、图像、音频和视频的理解和生成。
 
-use agent_mem_traits::{AgentMemError, LLMConfig, LLMProvider, Message, MessageRole, ModelInfo, Result};
+use agent_mem_traits::{
+    AgentMemError, LLMConfig, LLMProvider, Message, MessageRole, ModelInfo, Result,
+};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -124,13 +126,19 @@ impl GeminiProvider {
     }
 
     pub fn build_api_url(&self, endpoint: &str) -> String {
-        format!("{}/models/{}:{}", self.base_url, self.config.model, endpoint)
+        format!(
+            "{}/models/{}:{}",
+            self.base_url, self.config.model, endpoint
+        )
     }
 
     async fn make_request(&self, request: GeminiRequest) -> Result<GeminiResponse> {
         let url = self.build_api_url("generateContent");
 
-        let api_key = self.config.api_key.as_ref()
+        let api_key = self
+            .config
+            .api_key
+            .as_ref()
             .ok_or_else(|| AgentMemError::config_error("API key is required"))?;
 
         let response = self
@@ -144,10 +152,9 @@ impl GeminiProvider {
             .map_err(|e| AgentMemError::llm_error(&format!("Request failed: {}", e)))?;
 
         if response.status().is_success() {
-            let gemini_response: GeminiResponse = response
-                .json()
-                .await
-                .map_err(|e| AgentMemError::llm_error(&format!("Failed to parse response: {}", e)))?;
+            let gemini_response: GeminiResponse = response.json().await.map_err(|e| {
+                AgentMemError::llm_error(&format!("Failed to parse response: {}", e))
+            })?;
 
             Ok(gemini_response)
         } else {
@@ -159,8 +166,7 @@ impl GeminiProvider {
 
             Err(AgentMemError::llm_error(&format!(
                 "HTTP error {}: {}",
-                status,
-                error_text
+                status, error_text
             )))
         }
     }
@@ -176,13 +182,16 @@ impl GeminiProvider {
         if let Some(finish_reason) = &candidate.finish_reason {
             if finish_reason != "STOP" {
                 return Err(AgentMemError::llm_error(&format!(
-                    "Generation stopped due to: {}", finish_reason
+                    "Generation stopped due to: {}",
+                    finish_reason
                 )));
             }
         }
 
         // 提取文本内容
-        let text_parts: Vec<String> = candidate.content.parts
+        let text_parts: Vec<String> = candidate
+            .content
+            .parts
             .iter()
             .map(|part| part.text.clone())
             .collect();

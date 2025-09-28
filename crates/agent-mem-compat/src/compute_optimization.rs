@@ -1,16 +1,16 @@
 //! 计算优化模块
-//! 
+//!
 //! 提供 SIMD 优化、GPU 计算、模型量化、批处理和预计算等功能
-//! 
+//!
 //! # 主要功能
-//! 
+//!
 //! - **SIMD 优化**: 向量计算 SIMD 加速
 //! - **GPU 计算**: CUDA/OpenCL 并行计算  
 //! - **模型量化**: INT8/FP16 模型量化
 //! - **批处理**: 智能批处理和流水线
 //! - **预计算**: 常用查询结果预计算
 
-use agent_mem_traits::{Result, AgentMemError};
+use agent_mem_traits::{AgentMemError, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -228,7 +228,8 @@ impl ComputeOptimizationManager {
         let gpu_manager = Arc::new(GPUComputeManager::new(config.gpu_config.clone()).await?);
         let quantizer = Arc::new(ModelQuantizer::new(config.quantization_config.clone()).await?);
         let batch_processor = Arc::new(BatchProcessor::new(config.batch_config.clone()).await?);
-        let precompute_manager = Arc::new(PrecomputeManager::new(config.precompute_config.clone()).await?);
+        let precompute_manager =
+            Arc::new(PrecomputeManager::new(config.precompute_config.clone()).await?);
 
         info!("Compute Optimization Manager initialized successfully");
 
@@ -317,7 +318,9 @@ impl ComputeOptimizationManager {
         if self.config.gpu_config.enabled && vectors.len() >= self.config.gpu_config.batch_size {
             // 使用 GPU 计算
             self.gpu_manager.compute_vectors(vectors).await
-        } else if self.config.simd_config.enabled && vectors[0].len() >= self.config.simd_config.vector_length_threshold {
+        } else if self.config.simd_config.enabled
+            && vectors[0].len() >= self.config.simd_config.vector_length_threshold
+        {
             // 使用 SIMD 优化
             self.simd_optimizer.compute_vectors(vectors).await
         } else {
@@ -336,8 +339,14 @@ impl ComputeOptimizationManager {
     }
 
     /// 批处理请求
-    pub async fn batch_process<T: Clone, R>(&self, requests: Vec<T>, processor: impl Fn(Vec<T>) -> Result<Vec<R>>) -> Result<Vec<R>> {
-        self.batch_processor.process_batch(requests, processor).await
+    pub async fn batch_process<T: Clone, R>(
+        &self,
+        requests: Vec<T>,
+        processor: impl Fn(Vec<T>) -> Result<Vec<R>>,
+    ) -> Result<Vec<R>> {
+        self.batch_processor
+            .process_batch(requests, processor)
+            .await
     }
 
     /// 预计算查询
@@ -396,7 +405,11 @@ impl ComputeOptimizationManager {
             weight_sum += 0.15;
         }
 
-        Ok(if weight_sum > 0.0 { total_score / weight_sum } else { 0.0 })
+        Ok(if weight_sum > 0.0 {
+            total_score / weight_sum
+        } else {
+            0.0
+        })
     }
 }
 
@@ -429,7 +442,10 @@ impl SIMDOptimizer {
     }
 
     pub async fn start(&self) -> Result<()> {
-        info!("SIMD optimizer started with instruction sets: {:?}", self.config.instruction_sets);
+        info!(
+            "SIMD optimizer started with instruction sets: {:?}",
+            self.config.instruction_sets
+        );
         Ok(())
     }
 
@@ -442,12 +458,13 @@ impl SIMDOptimizer {
         let start_time = std::time::Instant::now();
 
         // 模拟 SIMD 优化的向量计算
-        let result = if self.config.enabled && vectors[0].len() >= self.config.vector_length_threshold {
-            // 使用 SIMD 指令进行向量计算
-            self.simd_vector_computation(vectors).await?
-        } else {
-            vectors.to_vec()
-        };
+        let result =
+            if self.config.enabled && vectors[0].len() >= self.config.vector_length_threshold {
+                // 使用 SIMD 指令进行向量计算
+                self.simd_vector_computation(vectors).await?
+            } else {
+                vectors.to_vec()
+            };
 
         // 更新统计信息
         let mut stats = self.statistics.write().await;
@@ -485,7 +502,8 @@ impl SIMDOptimizer {
         let mut result = Vec::with_capacity(vector.len());
 
         // 模拟向量化操作
-        for chunk in vector.chunks(8) { // 假设使用 AVX2 (8个 f32)
+        for chunk in vector.chunks(8) {
+            // 假设使用 AVX2 (8个 f32)
             let mut processed_chunk = Vec::new();
             for &value in chunk {
                 // 模拟 SIMD 加速的数学运算
@@ -581,8 +599,10 @@ impl GPUComputeManager {
 
     pub async fn start(&self) -> Result<()> {
         if let Some(ref device_info) = self.device_info {
-            info!("GPU compute manager started with device: {} ({:?})",
-                  device_info.name, device_info.platform);
+            info!(
+                "GPU compute manager started with device: {} ({:?})",
+                device_info.name, device_info.platform
+            );
         }
         Ok(())
     }
@@ -695,7 +715,10 @@ impl ModelQuantizer {
     }
 
     pub async fn start(&self) -> Result<()> {
-        info!("Model quantizer started with precision: {:?}", self.config.precision);
+        info!(
+            "Model quantizer started with precision: {:?}",
+            self.config.precision
+        );
         Ok(())
     }
 
@@ -723,7 +746,10 @@ impl ModelQuantizer {
         stats.total_size_reduction_mb += size_reduction / 1024.0 / 1024.0;
 
         let compression_ratio = model_data.len() as f32 / quantized_data.len() as f32;
-        stats.average_compression_ratio = (stats.average_compression_ratio * (stats.models_quantized - 1) as f32 + compression_ratio) / stats.models_quantized as f32;
+        stats.average_compression_ratio = (stats.average_compression_ratio
+            * (stats.models_quantized - 1) as f32
+            + compression_ratio)
+            / stats.models_quantized as f32;
 
         let precision_key = format!("{:?}", self.config.precision);
         *stats.precision_usage.entry(precision_key).or_insert(0) += 1;
@@ -806,7 +832,10 @@ impl BatchProcessor {
     }
 
     pub async fn start(&self) -> Result<()> {
-        info!("Batch processor started with max batch size: {}", self.config.max_batch_size);
+        info!(
+            "Batch processor started with max batch size: {}",
+            self.config.max_batch_size
+        );
         Ok(())
     }
 
@@ -815,7 +844,11 @@ impl BatchProcessor {
         Ok(())
     }
 
-    pub async fn process_batch<T: Clone, R>(&self, requests: Vec<T>, processor: impl Fn(Vec<T>) -> Result<Vec<R>>) -> Result<Vec<R>> {
+    pub async fn process_batch<T: Clone, R>(
+        &self,
+        requests: Vec<T>,
+        processor: impl Fn(Vec<T>) -> Result<Vec<R>>,
+    ) -> Result<Vec<R>> {
         let start_time = std::time::Instant::now();
         let total_requests = requests.len();
 
@@ -833,7 +866,10 @@ impl BatchProcessor {
         stats.total_requests += total_requests as u64;
 
         let processing_time = start_time.elapsed().as_millis() as f64;
-        stats.average_processing_time_ms = (stats.average_processing_time_ms * (stats.batches_processed - 1) as f64 + processing_time) / stats.batches_processed as f64;
+        stats.average_processing_time_ms = (stats.average_processing_time_ms
+            * (stats.batches_processed - 1) as f64
+            + processing_time)
+            / stats.batches_processed as f64;
 
         stats.average_batch_size = stats.total_requests as f32 / stats.batches_processed as f32;
         stats.throughput_requests_per_second = if processing_time > 0.0 {
@@ -893,7 +929,10 @@ impl PrecomputeManager {
     }
 
     pub async fn start(&self) -> Result<()> {
-        info!("Precompute manager started with cache size: {}", self.config.cache_size);
+        info!(
+            "Precompute manager started with cache size: {}",
+            self.config.cache_size
+        );
 
         // 启动预计算任务
         if self.config.enabled {
@@ -946,7 +985,10 @@ impl PrecomputeManager {
 
         // 更新策略使用统计
         let mut stats = self.statistics.write().await;
-        *stats.strategy_usage.entry("HotQueries".to_string()).or_insert(0) += 1;
+        *stats
+            .strategy_usage
+            .entry("HotQueries".to_string())
+            .or_insert(0) += 1;
 
         Ok(())
     }
@@ -967,7 +1009,10 @@ impl PrecomputeManager {
         }
 
         let mut stats = self.statistics.write().await;
-        *stats.strategy_usage.entry("SimilarQueries".to_string()).or_insert(0) += 1;
+        *stats
+            .strategy_usage
+            .entry("SimilarQueries".to_string())
+            .or_insert(0) += 1;
 
         Ok(())
     }
@@ -986,7 +1031,10 @@ impl PrecomputeManager {
         }
 
         let mut stats = self.statistics.write().await;
-        *stats.strategy_usage.entry("UserPreferences".to_string()).or_insert(0) += 1;
+        *stats
+            .strategy_usage
+            .entry("UserPreferences".to_string())
+            .or_insert(0) += 1;
 
         Ok(())
     }
@@ -1006,7 +1054,10 @@ impl PrecomputeManager {
         }
 
         let mut stats = self.statistics.write().await;
-        *stats.strategy_usage.entry("TimePatterns".to_string()).or_insert(0) += 1;
+        *stats
+            .strategy_usage
+            .entry("TimePatterns".to_string())
+            .or_insert(0) += 1;
 
         Ok(())
     }
@@ -1039,11 +1090,14 @@ impl PrecomputeManager {
             }
         }
 
-        cache.insert(query.to_string(), PrecomputedResult {
-            data: result,
-            timestamp: std::time::SystemTime::now(),
-            access_count: 0,
-        });
+        cache.insert(
+            query.to_string(),
+            PrecomputedResult {
+                data: result,
+                timestamp: std::time::SystemTime::now(),
+                access_count: 0,
+            },
+        );
 
         // 更新统计信息
         let mut stats = self.statistics.write().await;
@@ -1053,8 +1107,12 @@ impl PrecomputeManager {
         Ok(())
     }
 
-    async fn find_oldest_entry(&self, cache: &HashMap<String, PrecomputedResult>) -> Option<String> {
-        cache.iter()
+    async fn find_oldest_entry(
+        &self,
+        cache: &HashMap<String, PrecomputedResult>,
+    ) -> Option<String> {
+        cache
+            .iter()
             .min_by_key(|(_, result)| result.timestamp)
             .map(|(key, _)| key.clone())
     }
@@ -1070,7 +1128,8 @@ impl PrecomputeManager {
                     // 过期，移除缓存
                     cache.remove(query);
                     stats.cache_misses += 1;
-                    stats.cache_hit_rate = stats.cache_hits as f32 / (stats.cache_hits + stats.cache_misses) as f32;
+                    stats.cache_hit_rate =
+                        stats.cache_hits as f32 / (stats.cache_hits + stats.cache_misses) as f32;
                     return Ok(None);
                 }
             }
@@ -1078,12 +1137,14 @@ impl PrecomputeManager {
             // 缓存命中
             result.access_count += 1;
             stats.cache_hits += 1;
-            stats.cache_hit_rate = stats.cache_hits as f32 / (stats.cache_hits + stats.cache_misses) as f32;
+            stats.cache_hit_rate =
+                stats.cache_hits as f32 / (stats.cache_hits + stats.cache_misses) as f32;
             Ok(Some(result.data.clone()))
         } else {
             // 缓存未命中
             stats.cache_misses += 1;
-            stats.cache_hit_rate = stats.cache_hits as f32 / (stats.cache_hits + stats.cache_misses) as f32;
+            stats.cache_hit_rate =
+                stats.cache_hits as f32 / (stats.cache_hits + stats.cache_misses) as f32;
             Ok(None)
         }
     }

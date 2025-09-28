@@ -2,20 +2,20 @@
 //!
 //! 支持图像、音频、视频等多媒体内容的智能处理
 
-pub mod image;
 pub mod audio;
-pub mod video;
+pub mod image;
 pub mod text;
+pub mod video;
 
 // 真实处理器模块
-pub mod real_image;
 pub mod real_audio;
+pub mod real_image;
 
-use serde::{Deserialize, Serialize};
 use agent_mem_traits::{AgentMemError, Result};
-use std::collections::HashMap;
-use base64::{Engine as _, engine::general_purpose};
 use async_trait::async_trait;
+use base64::{engine::general_purpose, Engine as _};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// 多模态内容类型
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -36,7 +36,11 @@ impl ContentType {
             mime if mime.starts_with("image/") => ContentType::Image,
             mime if mime.starts_with("audio/") => ContentType::Audio,
             mime if mime.starts_with("video/") => ContentType::Video,
-            "application/pdf" | "application/msword" | "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => ContentType::Document,
+            "application/pdf"
+            | "application/msword"
+            | "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => {
+                ContentType::Document
+            }
             _ => ContentType::Unknown,
         }
     }
@@ -286,7 +290,7 @@ impl MultimodalProcessorManager {
     pub async fn process_content(&self, content: &mut MultimodalContent) -> Result<()> {
         if let Some(processor) = self.processors.get(&content.content_type) {
             content.set_processing_status(ProcessingStatus::Processing);
-            
+
             match processor.process(content).await {
                 Ok(()) => {
                     content.set_processing_status(ProcessingStatus::Completed);
@@ -298,21 +302,27 @@ impl MultimodalProcessorManager {
                 }
             }
         } else {
-            let error = format!("No processor found for content type: {:?}", content.content_type);
+            let error = format!(
+                "No processor found for content type: {:?}",
+                content.content_type
+            );
             content.set_processing_status(ProcessingStatus::Failed(error.clone()));
             Err(AgentMemError::ParsingError(error))
         }
     }
 
     /// 批量处理内容
-    pub async fn process_batch(&self, contents: &mut [MultimodalContent]) -> Result<Vec<Result<()>>> {
+    pub async fn process_batch(
+        &self,
+        contents: &mut [MultimodalContent],
+    ) -> Result<Vec<Result<()>>> {
         let mut results = Vec::new();
-        
+
         for content in contents.iter_mut() {
             let result = self.process_content(content).await;
             results.push(result);
         }
-        
+
         Ok(results)
     }
 
@@ -335,11 +345,20 @@ mod tests {
     #[test]
     fn test_content_type_from_mime_type() {
         assert_eq!(ContentType::from_mime_type("text/plain"), ContentType::Text);
-        assert_eq!(ContentType::from_mime_type("image/jpeg"), ContentType::Image);
+        assert_eq!(
+            ContentType::from_mime_type("image/jpeg"),
+            ContentType::Image
+        );
         assert_eq!(ContentType::from_mime_type("audio/mp3"), ContentType::Audio);
         assert_eq!(ContentType::from_mime_type("video/mp4"), ContentType::Video);
-        assert_eq!(ContentType::from_mime_type("application/pdf"), ContentType::Document);
-        assert_eq!(ContentType::from_mime_type("unknown/type"), ContentType::Unknown);
+        assert_eq!(
+            ContentType::from_mime_type("application/pdf"),
+            ContentType::Document
+        );
+        assert_eq!(
+            ContentType::from_mime_type("unknown/type"),
+            ContentType::Unknown
+        );
     }
 
     #[test]
@@ -380,7 +399,7 @@ mod tests {
         let image_extensions = ContentType::Image.supported_extensions();
         assert!(image_extensions.contains(&"jpg"));
         assert!(image_extensions.contains(&"png"));
-        
+
         let audio_extensions = ContentType::Audio.supported_extensions();
         assert!(audio_extensions.contains(&"mp3"));
         assert!(audio_extensions.contains(&"wav"));

@@ -7,16 +7,16 @@
 //! - 性能调优和建议系统
 //! - 容量规划和预测系统
 
-use agent_mem_traits::{Result, AgentMemError};
-use chrono::{DateTime, Utc, Duration as ChronoDuration};
+use agent_mem_traits::{AgentMemError, Result};
+use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{RwLock, Mutex};
+use tokio::sync::{Mutex, RwLock};
 use tokio::time::interval;
-use tracing::{info, warn, error, debug};
+use tracing::{debug, error, info, warn};
 
 /// 企业监控管理器
 pub struct EnterpriseMonitoringManager {
@@ -989,8 +989,14 @@ impl BackupManager {
 
         // 确保备份目录存在
         if config.enabled {
-            tokio::fs::create_dir_all(&config.backup_directory).await
-                .map_err(|e| AgentMemError::storage_error(&format!("Failed to create backup directory: {}", e)))?;
+            tokio::fs::create_dir_all(&config.backup_directory)
+                .await
+                .map_err(|e| {
+                    AgentMemError::storage_error(&format!(
+                        "Failed to create backup directory: {}",
+                        e
+                    ))
+                })?;
         }
 
         let backup_state = Arc::new(RwLock::new(BackupState {
@@ -1045,7 +1051,8 @@ impl BackupManager {
         info!("Creating backup: {:?}", backup_name);
 
         let backup_id = format!("backup_{}", Utc::now().timestamp());
-        let backup_name = backup_name.unwrap_or_else(|| format!("auto_backup_{}", Utc::now().format("%Y%m%d_%H%M%S")));
+        let backup_name = backup_name
+            .unwrap_or_else(|| format!("auto_backup_{}", Utc::now().format("%Y%m%d_%H%M%S")));
 
         // 更新备份状态
         {
@@ -1069,7 +1076,9 @@ impl BackupManager {
 
             if let Ok(ref result) = backup_result {
                 state.last_backup_time = Some(result.backup_time);
-                state.next_backup_time = Some(Utc::now() + ChronoDuration::hours(self.config.backup_interval_hours as i64));
+                state.next_backup_time = Some(
+                    Utc::now() + ChronoDuration::hours(self.config.backup_interval_hours as i64),
+                );
 
                 let backup_info = BackupInfo {
                     backup_id: result.backup_id.clone(),
@@ -1099,14 +1108,15 @@ impl BackupManager {
         // 查找备份信息
         let backup_info = {
             let state = self.backup_state.read().await;
-            state.backup_history.iter()
+            state
+                .backup_history
+                .iter()
                 .find(|b| b.backup_id == backup_id)
                 .cloned()
         };
 
-        let backup_info = backup_info.ok_or_else(||
-            AgentMemError::not_found(&format!("Backup not found: {}", backup_id))
-        )?;
+        let backup_info = backup_info
+            .ok_or_else(|| AgentMemError::not_found(&format!("Backup not found: {}", backup_id)))?;
 
         // 执行恢复逻辑
         self.perform_restore(&backup_info).await
@@ -1140,7 +1150,10 @@ impl BackupManager {
 
         let mut details = HashMap::new();
         details.insert("enabled".to_string(), self.config.enabled.to_string());
-        details.insert("backup_count".to_string(), state.backup_history.len().to_string());
+        details.insert(
+            "backup_count".to_string(),
+            state.backup_history.len().to_string(),
+        );
         if let Some(last_backup) = state.last_backup_time {
             details.insert("last_backup".to_string(), last_backup.to_rfc3339());
         }
@@ -1155,7 +1168,10 @@ impl BackupManager {
     }
 
     /// 执行定时备份
-    async fn execute_scheduled_backup(config: &BackupConfig, backup_state: &Arc<RwLock<BackupState>>) -> Result<()> {
+    async fn execute_scheduled_backup(
+        config: &BackupConfig,
+        backup_state: &Arc<RwLock<BackupState>>,
+    ) -> Result<()> {
         // 检查是否需要执行备份
         let should_backup = {
             let state = backup_state.read().await;
@@ -1163,7 +1179,7 @@ impl BackupManager {
                 Some(last_backup) => {
                     let elapsed = Utc::now() - last_backup;
                     elapsed.num_hours() >= config.backup_interval_hours as i64
-                },
+                }
                 None => true, // 首次备份
             }
         };
@@ -1174,7 +1190,8 @@ impl BackupManager {
             // 为了简化，我们只更新状态
             let mut state = backup_state.write().await;
             state.last_backup_time = Some(Utc::now());
-            state.next_backup_time = Some(Utc::now() + ChronoDuration::hours(config.backup_interval_hours as i64));
+            state.next_backup_time =
+                Some(Utc::now() + ChronoDuration::hours(config.backup_interval_hours as i64));
         }
 
         Ok(())
@@ -1237,7 +1254,10 @@ impl BackupManager {
             backup_history.sort_by(|a, b| b.created_at.cmp(&a.created_at));
             backup_history.truncate(self.config.retention_count);
 
-            info!("Cleaned up old backups, retained {} backups", self.config.retention_count);
+            info!(
+                "Cleaned up old backups, retained {} backups",
+                self.config.retention_count
+            );
         }
     }
 }
@@ -1367,7 +1387,10 @@ impl ClusterManager {
         let state = self.cluster_state.read().await;
 
         let nodes: Vec<ClusterNode> = state.nodes.values().cloned().collect();
-        let active_nodes = nodes.iter().filter(|n| n.status == NodeStatus::Healthy).count();
+        let active_nodes = nodes
+            .iter()
+            .filter(|n| n.status == NodeStatus::Healthy)
+            .count();
         let total_nodes = nodes.len();
 
         let cluster_status = if active_nodes == 0 {
@@ -1380,10 +1403,14 @@ impl ClusterManager {
 
         let load_balancing_status = LoadBalancingStatus {
             strategy: state.load_balancer_state.current_strategy.clone(),
-            request_distribution: state.load_balancer_state.request_stats.iter()
+            request_distribution: state
+                .load_balancer_state
+                .request_stats
+                .iter()
                 .map(|(k, v)| (k.clone(), v.total_requests))
                 .collect(),
-            average_response_time_ms: self.calculate_average_response_time(&state.load_balancer_state.request_stats),
+            average_response_time_ms: self
+                .calculate_average_response_time(&state.load_balancer_state.request_stats),
             error_rate_percent: self.calculate_error_rate(&state.load_balancer_state.request_stats),
         };
 
@@ -1402,7 +1429,11 @@ impl ClusterManager {
     pub async fn get_health_status(&self) -> Result<ComponentHealthStatus> {
         let state = self.cluster_state.read().await;
 
-        let active_nodes = state.nodes.values().filter(|n| n.status == NodeStatus::Healthy).count();
+        let active_nodes = state
+            .nodes
+            .values()
+            .filter(|n| n.status == NodeStatus::Healthy)
+            .count();
         let total_nodes = state.nodes.len();
 
         let status = if !self.config.enabled {
@@ -1416,7 +1447,10 @@ impl ClusterManager {
         };
 
         let message = if self.config.enabled {
-            format!("Cluster enabled, {}/{} nodes healthy", active_nodes, total_nodes)
+            format!(
+                "Cluster enabled, {}/{} nodes healthy",
+                active_nodes, total_nodes
+            )
         } else {
             "Cluster disabled".to_string()
         };
@@ -1425,7 +1459,10 @@ impl ClusterManager {
         details.insert("enabled".to_string(), self.config.enabled.to_string());
         details.insert("total_nodes".to_string(), total_nodes.to_string());
         details.insert("active_nodes".to_string(), active_nodes.to_string());
-        details.insert("load_balancing_strategy".to_string(), format!("{:?}", state.load_balancer_state.current_strategy));
+        details.insert(
+            "load_balancing_strategy".to_string(),
+            format!("{:?}", state.load_balancer_state.current_strategy),
+        );
 
         Ok(ComponentHealthStatus {
             component_name: "Cluster Manager".to_string(),
@@ -1437,7 +1474,10 @@ impl ClusterManager {
     }
 
     /// 执行健康检查
-    async fn perform_health_checks(config: &ClusterConfig, cluster_state: &Arc<RwLock<ClusterState>>) -> Result<()> {
+    async fn perform_health_checks(
+        config: &ClusterConfig,
+        cluster_state: &Arc<RwLock<ClusterState>>,
+    ) -> Result<()> {
         let mut state = cluster_state.write().await;
 
         for node in state.nodes.values_mut() {
@@ -1475,15 +1515,20 @@ impl ClusterManager {
     }
 
     /// 计算平均响应时间
-    fn calculate_average_response_time(&self, request_stats: &HashMap<String, RequestStats>) -> f32 {
+    fn calculate_average_response_time(
+        &self,
+        request_stats: &HashMap<String, RequestStats>,
+    ) -> f32 {
         if request_stats.is_empty() {
             return 0.0;
         }
 
-        let total_time: f32 = request_stats.values()
+        let total_time: f32 = request_stats
+            .values()
             .map(|stats| stats.average_response_time_ms * stats.total_requests as f32)
             .sum();
-        let total_requests: u64 = request_stats.values()
+        let total_requests: u64 = request_stats
+            .values()
             .map(|stats| stats.total_requests)
             .sum();
 
@@ -1496,10 +1541,12 @@ impl ClusterManager {
 
     /// 计算错误率
     fn calculate_error_rate(&self, request_stats: &HashMap<String, RequestStats>) -> f32 {
-        let total_requests: u64 = request_stats.values()
+        let total_requests: u64 = request_stats
+            .values()
             .map(|stats| stats.total_requests)
             .sum();
-        let successful_requests: u64 = request_stats.values()
+        let successful_requests: u64 = request_stats
+            .values()
             .map(|stats| stats.successful_requests)
             .sum();
 
@@ -1573,24 +1620,22 @@ impl PerformanceTuner {
     }
 
     pub async fn get_recommendations(&self) -> Result<Vec<PerformanceRecommendation>> {
-        Ok(vec![
-            PerformanceRecommendation {
-                id: "cache_opt_1".to_string(),
-                recommendation_type: RecommendationType::CacheOptimization,
-                title: "Increase Cache Size".to_string(),
-                description: "Consider increasing cache size to improve hit rate".to_string(),
-                priority: RecommendationPriority::Medium,
-                expected_impact: ExpectedImpact {
-                    performance_improvement_percent: 15.0,
-                    resource_savings_percent: 5.0,
-                    response_time_improvement_ms: 2.5,
-                    throughput_improvement_qps: 500.0,
-                },
-                implementation_complexity: ImplementationComplexity::Simple,
-                created_at: Utc::now(),
-                related_metrics: HashMap::new(),
-            }
-        ])
+        Ok(vec![PerformanceRecommendation {
+            id: "cache_opt_1".to_string(),
+            recommendation_type: RecommendationType::CacheOptimization,
+            title: "Increase Cache Size".to_string(),
+            description: "Consider increasing cache size to improve hit rate".to_string(),
+            priority: RecommendationPriority::Medium,
+            expected_impact: ExpectedImpact {
+                performance_improvement_percent: 15.0,
+                resource_savings_percent: 5.0,
+                response_time_improvement_ms: 2.5,
+                throughput_improvement_qps: 500.0,
+            },
+            implementation_complexity: ImplementationComplexity::Simple,
+            created_at: Utc::now(),
+            related_metrics: HashMap::new(),
+        }])
     }
 
     pub async fn apply_optimization(&self, optimization_id: &str) -> Result<OptimizationResult> {
@@ -1678,28 +1723,26 @@ impl CapacityPlanner {
     }
 
     pub async fn get_scaling_recommendations(&self) -> Result<Vec<ScalingRecommendation>> {
-        Ok(vec![
-            ScalingRecommendation {
-                id: "scale_cpu_1".to_string(),
-                scaling_type: ScalingType::ScaleUp,
-                resource_type: ResourceType::CPU,
-                recommended_scaling_amount: 2.0,
-                recommended_execution_time: Utc::now() + ChronoDuration::days(30),
-                urgency: ScalingUrgency::Medium,
-                cost_estimate: CostEstimate {
-                    monthly_cost_increase: 150.0,
-                    annual_cost_increase: 1800.0,
-                    cost_benefit_ratio: 2.5,
-                    payback_period_months: 6,
-                },
-                risk_assessment: RiskAssessment {
-                    risk_level: RiskLevel::Low,
-                    risk_factors: vec!["Minimal downtime required".to_string()],
-                    mitigation_strategies: vec!["Schedule during maintenance window".to_string()],
-                    rollback_plan: "Revert to previous configuration".to_string(),
-                },
-            }
-        ])
+        Ok(vec![ScalingRecommendation {
+            id: "scale_cpu_1".to_string(),
+            scaling_type: ScalingType::ScaleUp,
+            resource_type: ResourceType::CPU,
+            recommended_scaling_amount: 2.0,
+            recommended_execution_time: Utc::now() + ChronoDuration::days(30),
+            urgency: ScalingUrgency::Medium,
+            cost_estimate: CostEstimate {
+                monthly_cost_increase: 150.0,
+                annual_cost_increase: 1800.0,
+                cost_benefit_ratio: 2.5,
+                payback_period_months: 6,
+            },
+            risk_assessment: RiskAssessment {
+                risk_level: RiskLevel::Low,
+                risk_factors: vec!["Minimal downtime required".to_string()],
+                mitigation_strategies: vec!["Schedule during maintenance window".to_string()],
+                rollback_plan: "Revert to previous configuration".to_string(),
+            },
+        }])
     }
 }
 
@@ -1718,10 +1761,12 @@ impl EnterpriseMonitoringManager {
         let failover_manager = Arc::new(FailoverManager::new(config.failover.clone()).await?);
 
         // 创建性能调优管理器
-        let performance_tuner = Arc::new(PerformanceTuner::new(config.performance_tuning.clone()).await?);
+        let performance_tuner =
+            Arc::new(PerformanceTuner::new(config.performance_tuning.clone()).await?);
 
         // 创建容量规划管理器
-        let capacity_planner = Arc::new(CapacityPlanner::new(config.capacity_planning.clone()).await?);
+        let capacity_planner =
+            Arc::new(CapacityPlanner::new(config.capacity_planning.clone()).await?);
 
         // 初始化监控状态
         let monitoring_state = Arc::new(RwLock::new(MonitoringState {
@@ -1771,7 +1816,9 @@ impl EnterpriseMonitoringManager {
 
         // 启动性能调优
         if self.config.performance_tuning.enabled {
-            self.performance_tuner.start_performance_monitoring().await?;
+            self.performance_tuner
+                .start_performance_monitoring()
+                .await?;
             info!("Performance tuning started");
         }
 
@@ -1891,9 +1938,14 @@ impl EnterpriseMonitoringManager {
     }
 
     /// 应用性能优化
-    pub async fn apply_performance_optimization(&self, optimization_id: &str) -> Result<OptimizationResult> {
+    pub async fn apply_performance_optimization(
+        &self,
+        optimization_id: &str,
+    ) -> Result<OptimizationResult> {
         info!("Applying performance optimization: {}", optimization_id);
-        self.performance_tuner.apply_optimization(optimization_id).await
+        self.performance_tuner
+            .apply_optimization(optimization_id)
+            .await
     }
 
     /// 获取容量预测
@@ -1916,7 +1968,10 @@ impl EnterpriseMonitoringManager {
             alert.acknowledged_at = Some(Utc::now());
             info!("Alert {} acknowledged", alert_id);
         } else {
-            return Err(AgentMemError::not_found(&format!("Alert not found: {}", alert_id)));
+            return Err(AgentMemError::not_found(&format!(
+                "Alert not found: {}",
+                alert_id
+            )));
         }
 
         Ok(())
@@ -1971,7 +2026,7 @@ impl EnterpriseMonitoringManager {
             match status {
                 HealthStatus::Error => has_error = true,
                 HealthStatus::Warning => has_warning = true,
-                HealthStatus::Healthy => {},
+                HealthStatus::Healthy => {}
             }
         }
 

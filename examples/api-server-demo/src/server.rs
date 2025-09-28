@@ -1,9 +1,9 @@
 //! AgentMem API Server Demo
-//! 
+//!
 //! This demo shows how to start the AgentMem REST API server.
 
 use agent_mem_server::{MemoryServer, ServerConfig};
-use tracing::{info, error};
+use tracing::{error, info};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -33,7 +33,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             info!("📚 API Documentation: http://localhost:8080/swagger-ui/");
             info!("❤️  Health Check: http://localhost:8080/health");
             info!("📊 Metrics: http://localhost:8080/metrics");
-            
+
             // Start the server (this will block)
             if let Err(e) = server.start().await {
                 error!("❌ Failed to start server: {}", e);

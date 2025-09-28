@@ -2,10 +2,10 @@
 //!
 //! DeepSeek API 集成，提供高质量的中英文语言模型服务
 
+use agent_mem_traits::{AgentMemError, Result};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
-use agent_mem_traits::{AgentMemError, Result};
 
 /// DeepSeek API 配置
 #[derive(Debug, Clone)]
@@ -100,7 +100,10 @@ impl DeepSeekProvider {
     }
 
     /// 发送聊天完成请求（带重试机制）
-    pub async fn chat_completion(&self, messages: Vec<DeepSeekMessage>) -> Result<DeepSeekResponse> {
+    pub async fn chat_completion(
+        &self,
+        messages: Vec<DeepSeekMessage>,
+    ) -> Result<DeepSeekResponse> {
         let request = DeepSeekRequest {
             model: self.config.model.clone(),
             messages,
@@ -120,7 +123,8 @@ impl DeepSeekProvider {
                     last_error = Some(e);
                     if attempt < max_retries - 1 {
                         // 指数退避
-                        let delay = std::time::Duration::from_millis(1000 * (2_u64.pow(attempt as u32)));
+                        let delay =
+                            std::time::Duration::from_millis(1000 * (2_u64.pow(attempt as u32)));
                         tokio::time::sleep(delay).await;
                         println!("DeepSeek API 请求失败，第 {} 次重试...", attempt + 1);
                     }
@@ -143,7 +147,11 @@ impl DeepSeekProvider {
             .await
             .map_err(|e| {
                 if e.is_timeout() {
-                    AgentMemError::LLMError(format!("Request timeout after {}s: {}", self.config.timeout.as_secs(), e))
+                    AgentMemError::LLMError(format!(
+                        "Request timeout after {}s: {}",
+                        self.config.timeout.as_secs(),
+                        e
+                    ))
                 } else if e.is_connect() {
                     AgentMemError::LLMError(format!("Connection failed: {}", e))
                 } else {

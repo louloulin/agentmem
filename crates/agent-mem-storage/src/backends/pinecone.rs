@@ -433,7 +433,8 @@ impl VectorStore for PineconeStore {
         threshold: Option<f32>,
     ) -> Result<Vec<VectorSearchResult>> {
         use crate::utils::VectorStoreDefaults;
-        self.default_search_with_filters(query_vector, limit, filters, threshold).await
+        self.default_search_with_filters(query_vector, limit, filters, threshold)
+            .await
     }
 
     async fn health_check(&self) -> Result<agent_mem_traits::HealthStatus> {

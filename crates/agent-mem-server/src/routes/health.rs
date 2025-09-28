@@ -1,7 +1,7 @@
 //! Health check routes
 
-use crate::{error::ServerResult, models::HealthResponse};
 use crate::routes::memory::MemoryManager;
+use crate::{error::ServerResult, models::HealthResponse};
 use axum::{extract::Extension, response::Json};
 use chrono::Utc;
 use std::sync::Arc;

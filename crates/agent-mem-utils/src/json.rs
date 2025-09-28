@@ -70,8 +70,7 @@ where
 
 /// Pretty print JSON
 pub fn pretty_print_json(value: &Value) -> Result<String> {
-    serde_json::to_string_pretty(value)
-        .map_err(agent_mem_traits::AgentMemError::SerializationError)
+    serde_json::to_string_pretty(value).map_err(agent_mem_traits::AgentMemError::SerializationError)
 }
 
 /// Validate JSON string
@@ -82,7 +81,6 @@ pub fn validate_json(json_str: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-
 
     #[test]
     fn test_extract_json_from_code_block() {

@@ -4,11 +4,11 @@
 
 use agent_mem_storage::StorageFactory;
 use agent_mem_traits::{VectorData, VectorStoreConfig};
-use agent_mem_utils::{DataMigrator, MigrationConfig, MigrationTools, MigrationStatus};
+use agent_mem_utils::{DataMigrator, MigrationConfig, MigrationStatus, MigrationTools};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::time::{sleep, Duration};
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -60,7 +60,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 验证存储兼容性
     info!("验证存储兼容性...");
-    let is_compatible = MigrationTools::validate_compatibility(source.clone(), target.clone()).await?;
+    let is_compatible =
+        MigrationTools::validate_compatibility(source.clone(), target.clone()).await?;
     if !is_compatible {
         error!("存储后端不兼容，无法进行迁移");
         return Ok(());
@@ -76,7 +77,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ..Default::default()
     };
 
-    let estimated_time = MigrationTools::estimate_migration_time(source.clone(), &migration_config).await?;
+    let estimated_time =
+        MigrationTools::estimate_migration_time(source.clone(), &migration_config).await?;
     info!("预计迁移时间: {:.2} 秒", estimated_time.as_secs_f64());
 
     // 创建迁移器
@@ -90,16 +92,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let migrator_for_task = migrator_clone.clone();
 
     // 在后台运行迁移
-    let migration_task = tokio::spawn(async move {
-        migrator_for_task.migrate(source_clone, target_clone).await
-    });
+    let migration_task =
+        tokio::spawn(async move { migrator_for_task.migrate(source_clone, target_clone).await });
 
     // 监控迁移进度
     let migrator_for_monitor = migrator_clone.clone();
     let monitor_task = tokio::spawn(async move {
         loop {
             let progress = migrator_for_monitor.get_progress().await;
-            
+
             match progress.status {
                 MigrationStatus::Running => {
                     let percentage = if progress.total_records > 0 {
@@ -107,7 +108,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     } else {
                         0.0
                     };
-                    
+
                     info!(
                         "迁移进度: {:.1}% ({}/{}) - 批次 {}/{}",
                         percentage,
@@ -116,7 +117,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         progress.current_batch,
                         progress.total_batches
                     );
-                    
+
                     if let Some(eta) = progress.estimated_completion {
                         let remaining = eta.signed_duration_since(chrono::Utc::now());
                         if remaining.num_seconds() > 0 {
@@ -141,7 +142,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 _ => {}
             }
-            
+
             sleep(Duration::from_millis(500)).await;
         }
     });
@@ -173,7 +174,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if target_count == source_count {
         info!("✅ 迁移验证成功：记录数量匹配");
     } else {
-        warn!("⚠️  迁移验证警告：记录数量不匹配 (源: {}, 目标: {})", source_count, target_count);
+        warn!(
+            "⚠️  迁移验证警告：记录数量不匹配 (源: {}, 目标: {})",
+            source_count, target_count
+        );
     }
 
     // 随机验证几条记录的内容

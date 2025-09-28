@@ -1,9 +1,6 @@
 //! 存储工厂模式实现
 
-use crate::backends::{
-    AzureAISearchStore, ChromaStore, ElasticsearchStore, FaissStore, LanceDBStore, MemoryVectorStore,
-    MilvusStore, MongoDBStore, PineconeStore, QdrantStore, RedisStore, SupabaseStore, WeaviateStore
-};
+use crate::backends::{ChromaStore, MemoryVectorStore};
 use agent_mem_traits::{AgentMemError, Result, VectorStore, VectorStoreConfig};
 use async_trait::async_trait;
 use std::sync::Arc;
@@ -280,30 +277,82 @@ impl VectorStore for VectorStoreEnum {
         threshold: Option<f32>,
     ) -> Result<Vec<agent_mem_traits::VectorSearchResult>> {
         match self {
-            VectorStoreEnum::Memory(store) => store.search_with_filters(query_vector, limit, filters, threshold).await,
-            VectorStoreEnum::Chroma(store) => store.search_with_filters(query_vector, limit, filters, threshold).await,
+            VectorStoreEnum::Memory(store) => {
+                store
+                    .search_with_filters(query_vector, limit, filters, threshold)
+                    .await
+            }
+            VectorStoreEnum::Chroma(store) => {
+                store
+                    .search_with_filters(query_vector, limit, filters, threshold)
+                    .await
+            }
             #[cfg(feature = "azure-ai-search")]
-            VectorStoreEnum::AzureAISearch(store) => store.search_with_filters(query_vector, limit, filters, threshold).await,
+            VectorStoreEnum::AzureAISearch(store) => {
+                store
+                    .search_with_filters(query_vector, limit, filters, threshold)
+                    .await
+            }
             #[cfg(feature = "faiss")]
-            VectorStoreEnum::Faiss(store) => store.search_with_filters(query_vector, limit, filters, threshold).await,
+            VectorStoreEnum::Faiss(store) => {
+                store
+                    .search_with_filters(query_vector, limit, filters, threshold)
+                    .await
+            }
             #[cfg(feature = "mongodb")]
-            VectorStoreEnum::MongoDB(store) => store.search_with_filters(query_vector, limit, filters, threshold).await,
+            VectorStoreEnum::MongoDB(store) => {
+                store
+                    .search_with_filters(query_vector, limit, filters, threshold)
+                    .await
+            }
             #[cfg(feature = "qdrant")]
-            VectorStoreEnum::Qdrant(store) => store.search_with_filters(query_vector, limit, filters, threshold).await,
+            VectorStoreEnum::Qdrant(store) => {
+                store
+                    .search_with_filters(query_vector, limit, filters, threshold)
+                    .await
+            }
             #[cfg(feature = "pinecone")]
-            VectorStoreEnum::Pinecone(store) => store.search_with_filters(query_vector, limit, filters, threshold).await,
+            VectorStoreEnum::Pinecone(store) => {
+                store
+                    .search_with_filters(query_vector, limit, filters, threshold)
+                    .await
+            }
             #[cfg(feature = "elasticsearch")]
-            VectorStoreEnum::Elasticsearch(store) => store.search_with_filters(query_vector, limit, filters, threshold).await,
+            VectorStoreEnum::Elasticsearch(store) => {
+                store
+                    .search_with_filters(query_vector, limit, filters, threshold)
+                    .await
+            }
             #[cfg(feature = "lancedb")]
-            VectorStoreEnum::LanceDB(store) => store.search_with_filters(query_vector, limit, filters, threshold).await,
+            VectorStoreEnum::LanceDB(store) => {
+                store
+                    .search_with_filters(query_vector, limit, filters, threshold)
+                    .await
+            }
             #[cfg(feature = "milvus")]
-            VectorStoreEnum::Milvus(store) => store.search_with_filters(query_vector, limit, filters, threshold).await,
+            VectorStoreEnum::Milvus(store) => {
+                store
+                    .search_with_filters(query_vector, limit, filters, threshold)
+                    .await
+            }
             #[cfg(feature = "redis")]
-            VectorStoreEnum::Redis(store) => store.search_with_filters(query_vector, limit, filters, threshold).await,
+            VectorStoreEnum::Redis(store) => {
+                store
+                    .search_with_filters(query_vector, limit, filters, threshold)
+                    .await
+            }
             #[cfg(feature = "supabase")]
-            VectorStoreEnum::Supabase(store) => store.search_with_filters(query_vector, limit, filters, threshold).await,
+            VectorStoreEnum::Supabase(store) => {
+                store
+                    .search_with_filters(query_vector, limit, filters, threshold)
+                    .await
+            }
             #[cfg(feature = "weaviate")]
-            VectorStoreEnum::Weaviate(store) => store.search_with_filters(query_vector, limit, filters, threshold).await,
+            VectorStoreEnum::Weaviate(store) => {
+                store
+                    .search_with_filters(query_vector, limit, filters, threshold)
+                    .await
+            }
         }
     }
 
@@ -365,7 +414,10 @@ impl VectorStore for VectorStoreEnum {
         }
     }
 
-    async fn add_vectors_batch(&self, batches: Vec<Vec<agent_mem_traits::VectorData>>) -> Result<Vec<Vec<String>>> {
+    async fn add_vectors_batch(
+        &self,
+        batches: Vec<Vec<agent_mem_traits::VectorData>>,
+    ) -> Result<Vec<Vec<String>>> {
         match self {
             VectorStoreEnum::Memory(store) => store.add_vectors_batch(batches).await,
             VectorStoreEnum::Chroma(store) => store.add_vectors_batch(batches).await,
@@ -446,9 +498,18 @@ impl StorageFactory {
                 {
                     use crate::backends::azure_ai_search::AzureAISearchConfig;
                     let azure_config = AzureAISearchConfig {
-                        service_name: config.url.clone().unwrap_or_else(|| "your-search-service".to_string()),
-                        api_key: config.api_key.clone().unwrap_or_else(|| "your-api-key".to_string()),
-                        index_name: config.index_name.clone().unwrap_or_else(|| "agentmem-vectors".to_string()),
+                        service_name: config
+                            .url
+                            .clone()
+                            .unwrap_or_else(|| "your-search-service".to_string()),
+                        api_key: config
+                            .api_key
+                            .clone()
+                            .unwrap_or_else(|| "your-api-key".to_string()),
+                        index_name: config
+                            .index_name
+                            .clone()
+                            .unwrap_or_else(|| "agentmem-vectors".to_string()),
                         vector_dimension: config.dimension.unwrap_or(1536),
                         ..Default::default()
                     };
@@ -485,9 +546,15 @@ impl StorageFactory {
                 {
                     use crate::backends::mongodb::MongoDBConfig;
                     let mongodb_config = MongoDBConfig {
-                        connection_string: config.url.clone().unwrap_or_else(|| "mongodb://localhost:27017".to_string()),
+                        connection_string: config
+                            .url
+                            .clone()
+                            .unwrap_or_else(|| "mongodb://localhost:27017".to_string()),
                         database_name: config.table_name.clone(),
-                        collection_name: config.collection_name.clone().unwrap_or_else(|| "vectors".to_string()),
+                        collection_name: config
+                            .collection_name
+                            .clone()
+                            .unwrap_or_else(|| "vectors".to_string()),
                         ..Default::default()
                     };
                     let store = MongoDBStore::new(mongodb_config).await?;
@@ -570,8 +637,14 @@ impl StorageFactory {
                 {
                     use crate::backends::redis::RedisConfig;
                     let redis_config = RedisConfig {
-                        connection_url: config.url.clone().unwrap_or_else(|| "redis://localhost:6379".to_string()),
-                        key_prefix: config.index_name.clone().unwrap_or_else(|| "agentmem".to_string()),
+                        connection_url: config
+                            .url
+                            .clone()
+                            .unwrap_or_else(|| "redis://localhost:6379".to_string()),
+                        key_prefix: config
+                            .index_name
+                            .clone()
+                            .unwrap_or_else(|| "agentmem".to_string()),
                         vector_dimension: config.dimension.unwrap_or(1536),
                         ..Default::default()
                     };
@@ -590,9 +663,18 @@ impl StorageFactory {
                 {
                     use crate::backends::supabase::SupabaseConfig;
                     let supabase_config = SupabaseConfig {
-                        project_url: config.url.clone().unwrap_or_else(|| "https://your-project.supabase.co".to_string()),
-                        api_key: config.api_key.clone().unwrap_or_else(|| "your-anon-key".to_string()),
-                        table_name: config.index_name.clone().unwrap_or_else(|| "agentmem_vectors".to_string()),
+                        project_url: config
+                            .url
+                            .clone()
+                            .unwrap_or_else(|| "https://your-project.supabase.co".to_string()),
+                        api_key: config
+                            .api_key
+                            .clone()
+                            .unwrap_or_else(|| "your-anon-key".to_string()),
+                        table_name: config
+                            .index_name
+                            .clone()
+                            .unwrap_or_else(|| "agentmem_vectors".to_string()),
                         vector_dimension: config.dimension.unwrap_or(1536),
                         ..Default::default()
                     };

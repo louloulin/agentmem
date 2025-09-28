@@ -1,6 +1,5 @@
 //! Context analysis and management
 
-
 use serde::{Deserialize, Serialize};
 
 /// Context analyzer
@@ -26,10 +25,10 @@ impl Default for ContextAnalyzer {
 pub struct MemoryContext {
     /// Context type
     pub context_type: String,
-    
+
     /// Context data
     pub data: std::collections::HashMap<String, String>,
-    
+
     /// Relevance score
     pub relevance: f64,
 }

@@ -6,11 +6,13 @@
 //! - 批量添加、更新、删除操作
 //! - 历史记录追踪
 
+use agent_mem_compat::client::{
+    BatchAddRequest, EnhancedAddRequest, EnhancedSearchRequest, Messages,
+};
 use agent_mem_compat::{
     BatchAddResult, BatchDeleteItem, BatchDeleteRequest, BatchUpdateItem, BatchUpdateRequest,
     Mem0Client, MemoryFilter,
 };
-use agent_mem_compat::client::{BatchAddRequest, EnhancedAddRequest, EnhancedSearchRequest, Messages};
 use anyhow::Result;
 use serde_json::json;
 use std::collections::HashMap;
@@ -61,14 +63,38 @@ async fn main() -> Result<()> {
 /// 演示批量添加记忆
 async fn demo_batch_add(client: &Mem0Client, user_id: &str) -> Result<()> {
     let memories = vec![
-        ("我喜欢吃意大利面", json!({"category": "food", "preference": "like", "cuisine": "italian"})),
-        ("我不喜欢吃辣的食物", json!({"category": "food", "preference": "dislike", "spice_level": "hot"})),
-        ("我的生日是3月15日", json!({"category": "personal", "type": "birthday", "month": 3, "day": 15})),
-        ("我住在北京", json!({"category": "personal", "type": "location", "city": "Beijing", "country": "China"})),
-        ("我是一名软件工程师", json!({"category": "work", "profession": "software_engineer", "industry": "tech"})),
-        ("我喜欢看科幻电影", json!({"category": "entertainment", "type": "movies", "genre": "sci-fi"})),
-        ("我每天早上7点起床", json!({"category": "routine", "time": "07:00", "activity": "wake_up"})),
-        ("我的宠物是一只猫", json!({"category": "personal", "type": "pet", "animal": "cat"})),
+        (
+            "我喜欢吃意大利面",
+            json!({"category": "food", "preference": "like", "cuisine": "italian"}),
+        ),
+        (
+            "我不喜欢吃辣的食物",
+            json!({"category": "food", "preference": "dislike", "spice_level": "hot"}),
+        ),
+        (
+            "我的生日是3月15日",
+            json!({"category": "personal", "type": "birthday", "month": 3, "day": 15}),
+        ),
+        (
+            "我住在北京",
+            json!({"category": "personal", "type": "location", "city": "Beijing", "country": "China"}),
+        ),
+        (
+            "我是一名软件工程师",
+            json!({"category": "work", "profession": "software_engineer", "industry": "tech"}),
+        ),
+        (
+            "我喜欢看科幻电影",
+            json!({"category": "entertainment", "type": "movies", "genre": "sci-fi"}),
+        ),
+        (
+            "我每天早上7点起床",
+            json!({"category": "routine", "time": "07:00", "activity": "wake_up"}),
+        ),
+        (
+            "我的宠物是一只猫",
+            json!({"category": "personal", "type": "pet", "animal": "cat"}),
+        ),
     ];
 
     // 使用新的批量添加 API
@@ -80,7 +106,14 @@ async fn demo_batch_add(client: &Mem0Client, user_id: &str) -> Result<()> {
                 user_id: Some(user_id.to_string()),
                 agent_id: Some("demo_agent".to_string()),
                 run_id: Some(Uuid::new_v4().to_string()),
-                metadata: Some(metadata.as_object().unwrap().iter().map(|(k, v)| (k.clone(), v.clone())).collect()),
+                metadata: Some(
+                    metadata
+                        .as_object()
+                        .unwrap()
+                        .iter()
+                        .map(|(k, v)| (k.clone(), v.clone()))
+                        .collect(),
+                ),
                 infer: true,
                 memory_type: Some("episodic".to_string()),
                 prompt: None,
@@ -89,8 +122,11 @@ async fn demo_batch_add(client: &Mem0Client, user_id: &str) -> Result<()> {
     };
 
     let result = client.add_batch(batch_request).await?;
-    info!("批量添加结果: 成功 {}, 失败 {}", result.successful, result.failed);
-    
+    info!(
+        "批量添加结果: 成功 {}, 失败 {}",
+        result.successful, result.failed
+    );
+
     if !result.errors.is_empty() {
         warn!("错误信息: {:?}", result.errors);
     }
@@ -101,13 +137,7 @@ async fn demo_batch_add(client: &Mem0Client, user_id: &str) -> Result<()> {
 /// 演示高级搜索功能
 async fn demo_advanced_search(client: &Mem0Client, user_id: &str) -> Result<()> {
     // 语义搜索测试
-    let search_queries = vec![
-        "食物偏好",
-        "个人信息",
-        "工作相关",
-        "娱乐活动",
-        "日常习惯",
-    ];
+    let search_queries = vec!["食物偏好", "个人信息", "工作相关", "娱乐活动", "日常习惯"];
 
     for query in search_queries {
         let enhanced_request = EnhancedSearchRequest {
@@ -122,11 +152,12 @@ async fn demo_advanced_search(client: &Mem0Client, user_id: &str) -> Result<()> 
 
         let results = client.search_enhanced(enhanced_request).await?;
         info!("搜索 '{}' 找到 {} 条结果:", query, results.memories.len());
-        
+
         for (i, memory) in results.memories.iter().enumerate() {
-            info!("  {}. {} (相似度: {:.3})", 
-                i + 1, 
-                memory.memory, 
+            info!(
+                "  {}. {} (相似度: {:.3})",
+                i + 1,
+                memory.memory,
                 memory.score.unwrap_or(0.0)
             );
         }
@@ -141,7 +172,7 @@ async fn demo_complex_filtering(client: &Mem0Client, user_id: &str) -> Result<()
     let mut metadata_filters = HashMap::new();
     metadata_filters.insert(
         "category".to_string(),
-        agent_mem_compat::FilterOperation::Eq(json!("food"))
+        agent_mem_compat::FilterOperation::Eq(json!("food")),
     );
 
     let filter = MemoryFilter {
@@ -170,7 +201,7 @@ async fn demo_complex_filtering(client: &Mem0Client, user_id: &str) -> Result<()
 
     let results = client.search("食物", user_id, Some(filter)).await?;
     info!("复杂过滤搜索结果 ({} 条):", results.memories.len());
-    
+
     for (i, memory) in results.memories.iter().enumerate() {
         info!("  {}. {}", i + 1, memory.memory);
         info!("     元数据: {:?}", memory.metadata);
@@ -219,7 +250,10 @@ async fn demo_batch_update(client: &Mem0Client, user_id: &str) -> Result<()> {
     };
 
     let result = client.update_batch(batch_request).await?;
-    info!("批量更新结果: 成功 {}, 失败 {}", result.successful, result.failed);
+    info!(
+        "批量更新结果: 成功 {}, 失败 {}",
+        result.successful, result.failed
+    );
 
     if !result.errors.is_empty() {
         warn!("更新错误: {:?}", result.errors);
@@ -240,17 +274,22 @@ async fn demo_history_tracking(client: &Mem0Client, user_id: &str) -> Result<()>
     // 查看第一个记忆的历史
     let memory_id = &all_memories[0].id;
     let history = client.history(memory_id, user_id).await?;
-    
-    info!("记忆 '{}' 的历史记录 ({} 条):", all_memories[0].memory, history.len());
-    
+
+    info!(
+        "记忆 '{}' 的历史记录 ({} 条):",
+        all_memories[0].memory,
+        history.len()
+    );
+
     for (i, entry) in history.iter().enumerate() {
-        info!("  {}. 版本 {} - {} ({})", 
-            i + 1, 
+        info!(
+            "  {}. 版本 {} - {} ({})",
+            i + 1,
             entry.version,
             entry.change_type.to_string(),
             entry.timestamp.format("%Y-%m-%d %H:%M:%S")
         );
-        
+
         if let Some(ref new_memory) = entry.new_memory {
             info!("     内容: {}", new_memory);
         }
@@ -285,7 +324,10 @@ async fn demo_batch_delete(client: &Mem0Client, user_id: &str) -> Result<()> {
     };
 
     let result = client.delete_batch(batch_request).await?;
-    info!("批量删除结果: 成功 {}, 失败 {}", result.successful, result.failed);
+    info!(
+        "批量删除结果: 成功 {}, 失败 {}",
+        result.successful, result.failed
+    );
 
     if !result.errors.is_empty() {
         warn!("删除错误: {:?}", result.errors);

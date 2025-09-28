@@ -1,9 +1,9 @@
 //! 智能记忆压缩引擎
-//! 
+//!
 //! 实现基于学术研究的智能压缩算法，包括重要性驱动压缩、语义保持压缩、
 //! 时间感知压缩和自适应压缩策略。
 
-use agent_mem_traits::{AgentMemError, Result, MemoryItem};
+use agent_mem_traits::{AgentMemError, MemoryItem, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -74,11 +74,17 @@ impl ImportanceEvaluator {
     }
 
     /// 评估记忆的重要性分数
-    pub async fn evaluate_importance(&self, memory: &MemoryItem, context: &CompressionContext) -> Result<f32> {
+    pub async fn evaluate_importance(
+        &self,
+        memory: &MemoryItem,
+        context: &CompressionContext,
+    ) -> Result<f32> {
         let mut score = 0.0;
 
         // 访问频率评分
-        let access_score = self.calculate_access_frequency_score(memory, context).await?;
+        let access_score = self
+            .calculate_access_frequency_score(memory, context)
+            .await?;
         score += access_score * self.access_frequency_weight;
 
         // 最近访问评分
@@ -96,7 +102,11 @@ impl ImportanceEvaluator {
         Ok(score.clamp(0.0, 1.0))
     }
 
-    async fn calculate_access_frequency_score(&self, memory: &MemoryItem, context: &CompressionContext) -> Result<f32> {
+    async fn calculate_access_frequency_score(
+        &self,
+        memory: &MemoryItem,
+        context: &CompressionContext,
+    ) -> Result<f32> {
         let access_count = context.access_stats.get(&memory.id).unwrap_or(&0);
         let max_access = context.max_access_count.max(1);
         Ok(*access_count as f32 / max_access as f32)
@@ -115,7 +125,7 @@ impl ImportanceEvaluator {
         // 基于内容长度、结构化程度等评估质量
         let content_length = memory.content.len() as f32;
         let length_score = (content_length / 1000.0).min(1.0); // 标准化到1000字符
-        
+
         // 检查是否包含结构化信息
         let structure_score = if memory.content.contains('\n') || memory.content.contains(':') {
             0.2
@@ -126,7 +136,11 @@ impl ImportanceEvaluator {
         Ok((length_score * 0.8 + structure_score).min(1.0))
     }
 
-    async fn calculate_relationship_score(&self, memory: &MemoryItem, context: &CompressionContext) -> Result<f32> {
+    async fn calculate_relationship_score(
+        &self,
+        memory: &MemoryItem,
+        context: &CompressionContext,
+    ) -> Result<f32> {
         // 基于与其他记忆的关联度评估
         let relationship_count = context.relationship_counts.get(&memory.id).unwrap_or(&0);
         let max_relationships = context.max_relationship_count.max(1);
@@ -153,7 +167,11 @@ impl SemanticAnalyzer {
     }
 
     /// 分析记忆的语义相似度
-    pub async fn analyze_semantic_similarity(&self, memory1: &MemoryItem, memory2: &MemoryItem) -> Result<f32> {
+    pub async fn analyze_semantic_similarity(
+        &self,
+        memory1: &MemoryItem,
+        memory2: &MemoryItem,
+    ) -> Result<f32> {
         // 计算嵌入向量的余弦相似度
         if let (Some(emb1), Some(emb2)) = (&memory1.embedding, &memory2.embedding) {
             let similarity = self.cosine_similarity(emb1, emb2)?;
@@ -165,7 +183,10 @@ impl SemanticAnalyzer {
     }
 
     /// 使用 PCA 进行语义压缩
-    pub async fn compress_semantics(&self, memories: &[MemoryItem]) -> Result<Vec<CompressedMemory>> {
+    pub async fn compress_semantics(
+        &self,
+        memories: &[MemoryItem],
+    ) -> Result<Vec<CompressedMemory>> {
         let mut compressed_memories = Vec::new();
 
         // 提取嵌入向量
@@ -194,11 +215,16 @@ impl SemanticAnalyzer {
         // 创建压缩记忆
         for (i, memory) in memories.iter().enumerate() {
             if i < compressed_embeddings.len() {
-                let compressed_content = self.compress_content_by_semantics(&memory.content, &compressed_embeddings[i]).await?;
+                let compressed_content = self
+                    .compress_content_by_semantics(&memory.content, &compressed_embeddings[i])
+                    .await?;
                 compressed_memories.push(CompressedMemory {
                     original_id: memory.id.clone(),
                     compressed_content,
-                    compression_ratio: self.calculate_compression_ratio(&memory.content, &compressed_memories.last().unwrap().compressed_content),
+                    compression_ratio: self.calculate_compression_ratio(
+                        &memory.content,
+                        &compressed_memories.last().unwrap().compressed_content,
+                    ),
                     semantic_hash: self.calculate_semantic_hash(&memory.content),
                     importance_score: 0.5, // 将由重要性评估器更新
                 });
@@ -210,7 +236,9 @@ impl SemanticAnalyzer {
 
     fn cosine_similarity(&self, vec1: &[f32], vec2: &[f32]) -> Result<f32> {
         if vec1.len() != vec2.len() {
-            return Err(AgentMemError::validation_error("Vector dimensions don't match"));
+            return Err(AgentMemError::validation_error(
+                "Vector dimensions don't match",
+            ));
         }
 
         let dot_product: f32 = vec1.iter().zip(vec2.iter()).map(|(a, b)| a * b).sum();
@@ -228,10 +256,10 @@ impl SemanticAnalyzer {
         // 简单的文本相似度计算（基于共同词汇）
         let words1: std::collections::HashSet<&str> = text1.split_whitespace().collect();
         let words2: std::collections::HashSet<&str> = text2.split_whitespace().collect();
-        
+
         let intersection = words1.intersection(&words2).count();
         let union = words1.union(&words2).count();
-        
+
         if union == 0 {
             0.0
         } else {
@@ -283,7 +311,11 @@ impl SemanticAnalyzer {
         Ok(compressed)
     }
 
-    async fn compress_content_by_semantics(&self, content: &str, _compressed_embedding: &[f32]) -> Result<String> {
+    async fn compress_content_by_semantics(
+        &self,
+        content: &str,
+        _compressed_embedding: &[f32],
+    ) -> Result<String> {
         // 基于语义的内容压缩（简化实现）
         let sentences: Vec<&str> = content.split('.').collect();
         if sentences.len() <= 2 {
@@ -293,7 +325,7 @@ impl SemanticAnalyzer {
         // 保留最重要的句子（前半部分和最后一句）
         let keep_count = (sentences.len() / 2).max(1);
         let mut compressed_sentences = Vec::new();
-        
+
         for (i, sentence) in sentences.iter().enumerate() {
             if i < keep_count || i == sentences.len() - 1 {
                 compressed_sentences.push(sentence.trim());
@@ -314,7 +346,7 @@ impl SemanticAnalyzer {
         // 简单的语义哈希（基于内容的哈希）
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher = DefaultHasher::new();
         content.hash(&mut hasher);
         format!("{:x}", hasher.finish())
@@ -356,7 +388,8 @@ impl CompressionContext {
 
     /// 更新关联度统计
     pub fn update_relationship_stats(&mut self, memory_id: String, relationship_count: usize) {
-        self.relationship_counts.insert(memory_id, relationship_count);
+        self.relationship_counts
+            .insert(memory_id, relationship_count);
         self.max_relationship_count = self.max_relationship_count.max(relationship_count);
     }
 }
@@ -383,10 +416,18 @@ pub trait CompressionStrategy: Send + Sync {
     fn name(&self) -> &str;
 
     /// 应用压缩策略
-    async fn compress(&self, memories: &[MemoryItem], context: &CompressionContext) -> Result<Vec<CompressedMemory>>;
+    async fn compress(
+        &self,
+        memories: &[MemoryItem],
+        context: &CompressionContext,
+    ) -> Result<Vec<CompressedMemory>>;
 
     /// 评估压缩效果
-    async fn evaluate_compression(&self, original: &[MemoryItem], compressed: &[CompressedMemory]) -> Result<CompressionMetrics>;
+    async fn evaluate_compression(
+        &self,
+        original: &[MemoryItem],
+        compressed: &[CompressedMemory],
+    ) -> Result<CompressionMetrics>;
 }
 
 /// 重要性驱动压缩策略
@@ -412,16 +453,26 @@ impl CompressionStrategy for ImportanceDrivenCompression {
         "importance_driven"
     }
 
-    async fn compress(&self, memories: &[MemoryItem], context: &CompressionContext) -> Result<Vec<CompressedMemory>> {
+    async fn compress(
+        &self,
+        memories: &[MemoryItem],
+        context: &CompressionContext,
+    ) -> Result<Vec<CompressedMemory>> {
         let mut compressed_memories = Vec::new();
 
         for memory in memories {
-            let importance_score = self.importance_evaluator.evaluate_importance(memory, context).await?;
+            let importance_score = self
+                .importance_evaluator
+                .evaluate_importance(memory, context)
+                .await?;
 
             if importance_score >= self.min_importance_threshold {
                 // 高重要性记忆：轻度压缩
-                let compression_ratio = 0.8 + (importance_score - self.min_importance_threshold) * 0.2;
-                let compressed_content = self.light_compress(&memory.content, compression_ratio).await?;
+                let compression_ratio =
+                    0.8 + (importance_score - self.min_importance_threshold) * 0.2;
+                let compressed_content = self
+                    .light_compress(&memory.content, compression_ratio)
+                    .await?;
 
                 compressed_memories.push(CompressedMemory {
                     original_id: memory.id.clone(),
@@ -434,7 +485,9 @@ impl CompressionStrategy for ImportanceDrivenCompression {
                 // 低重要性记忆：重度压缩或丢弃
                 if importance_score > 0.1 {
                     let compression_ratio = 0.3;
-                    let compressed_content = self.heavy_compress(&memory.content, compression_ratio).await?;
+                    let compressed_content = self
+                        .heavy_compress(&memory.content, compression_ratio)
+                        .await?;
 
                     compressed_memories.push(CompressedMemory {
                         original_id: memory.id.clone(),
@@ -451,7 +504,11 @@ impl CompressionStrategy for ImportanceDrivenCompression {
         Ok(compressed_memories)
     }
 
-    async fn evaluate_compression(&self, original: &[MemoryItem], compressed: &[CompressedMemory]) -> Result<CompressionMetrics> {
+    async fn evaluate_compression(
+        &self,
+        original: &[MemoryItem],
+        compressed: &[CompressedMemory],
+    ) -> Result<CompressionMetrics> {
         let original_size: usize = original.iter().map(|m| m.content.len()).sum();
         let compressed_size: usize = compressed.iter().map(|m| m.compressed_content.len()).sum();
 
@@ -467,7 +524,8 @@ impl CompressionStrategy for ImportanceDrivenCompression {
             compression_ratio,
             information_retention,
             memory_count_reduction: original.len() - compressed.len(),
-            average_importance: compressed.iter().map(|m| m.importance_score).sum::<f32>() / compressed.len() as f32,
+            average_importance: compressed.iter().map(|m| m.importance_score).sum::<f32>()
+                / compressed.len() as f32,
         })
     }
 }
@@ -490,7 +548,11 @@ impl ImportanceDrivenCompression {
         let words: Vec<&str> = content.split_whitespace().collect();
         let keep_count = (words.len() / 3).max(5); // 保留1/3的词汇，最少5个
 
-        let compressed = words.into_iter().take(keep_count).collect::<Vec<_>>().join(" ");
+        let compressed = words
+            .into_iter()
+            .take(keep_count)
+            .collect::<Vec<_>>()
+            .join(" ");
         Ok(compressed + "...")
     }
 
@@ -541,7 +603,11 @@ impl CompressionStrategy for TemporalAwareCompression {
         "temporal_aware"
     }
 
-    async fn compress(&self, memories: &[MemoryItem], _context: &CompressionContext) -> Result<Vec<CompressedMemory>> {
+    async fn compress(
+        &self,
+        memories: &[MemoryItem],
+        _context: &CompressionContext,
+    ) -> Result<Vec<CompressedMemory>> {
         let mut compressed_memories = Vec::new();
 
         for memory in memories {
@@ -571,7 +637,11 @@ impl CompressionStrategy for TemporalAwareCompression {
         Ok(compressed_memories)
     }
 
-    async fn evaluate_compression(&self, original: &[MemoryItem], compressed: &[CompressedMemory]) -> Result<CompressionMetrics> {
+    async fn evaluate_compression(
+        &self,
+        original: &[MemoryItem],
+        compressed: &[CompressedMemory],
+    ) -> Result<CompressionMetrics> {
         let original_size: usize = original.iter().map(|m| m.content.len()).sum();
         let compressed_size: usize = compressed.iter().map(|m| m.compressed_content.len()).sum();
 
@@ -585,7 +655,8 @@ impl CompressionStrategy for TemporalAwareCompression {
             compression_ratio,
             information_retention: 1.0, // 时间感知压缩保留所有记忆
             memory_count_reduction: 0,
-            average_importance: compressed.iter().map(|m| m.importance_score).sum::<f32>() / compressed.len() as f32,
+            average_importance: compressed.iter().map(|m| m.importance_score).sum::<f32>()
+                / compressed.len() as f32,
         })
     }
 }
@@ -596,7 +667,11 @@ impl TemporalAwareCompression {
         let sentences: Vec<&str> = content.split('.').collect();
         let keep_count = (sentences.len() * 2 / 3).max(1);
 
-        let compressed = sentences.into_iter().take(keep_count).collect::<Vec<_>>().join(". ");
+        let compressed = sentences
+            .into_iter()
+            .take(keep_count)
+            .collect::<Vec<_>>()
+            .join(". ");
         Ok(compressed)
     }
 
@@ -605,7 +680,11 @@ impl TemporalAwareCompression {
         let words: Vec<&str> = content.split_whitespace().collect();
         let keep_count = (words.len() / 4).max(3);
 
-        let compressed = words.into_iter().take(keep_count).collect::<Vec<_>>().join(" ");
+        let compressed = words
+            .into_iter()
+            .take(keep_count)
+            .collect::<Vec<_>>()
+            .join(" ");
         Ok(compressed + "...")
     }
 
@@ -657,7 +736,11 @@ impl AdaptiveController {
     }
 
     /// 更新策略权重
-    pub async fn update_weights(&self, strategy_name: String, metrics: CompressionMetrics) -> Result<()> {
+    pub async fn update_weights(
+        &self,
+        strategy_name: String,
+        metrics: CompressionMetrics,
+    ) -> Result<()> {
         let mut weights = self.strategy_weights.write().await;
         let mut history = self.performance_history.write().await;
 
@@ -709,9 +792,12 @@ impl AdaptiveController {
 
     fn calculate_performance_score(&self, metrics: &CompressionMetrics) -> f32 {
         // 综合评分：平衡压缩率和信息保留率
-        let compression_score = (self.target_metrics.compression_ratio - metrics.compression_ratio).abs();
-        let retention_score = (self.target_metrics.information_retention - metrics.information_retention).abs();
-        let importance_score = (self.target_metrics.average_importance - metrics.average_importance).abs();
+        let compression_score =
+            (self.target_metrics.compression_ratio - metrics.compression_ratio).abs();
+        let retention_score =
+            (self.target_metrics.information_retention - metrics.information_retention).abs();
+        let importance_score =
+            (self.target_metrics.average_importance - metrics.average_importance).abs();
 
         // 分数越低越好，转换为0-1的性能分数
         let total_error = compression_score + retention_score + importance_score;
@@ -753,14 +839,19 @@ impl IntelligentCompressionEngine {
         if config.enable_importance_compression {
             strategies.insert(
                 "importance_driven".to_string(),
-                Box::new(ImportanceDrivenCompression::new(config.min_importance_threshold)),
+                Box::new(ImportanceDrivenCompression::new(
+                    config.min_importance_threshold,
+                )),
             );
         }
 
         if config.enable_temporal_compression {
             strategies.insert(
                 "temporal_aware".to_string(),
-                Box::new(TemporalAwareCompression::new(config.temporal_decay_factor, 30)),
+                Box::new(TemporalAwareCompression::new(
+                    config.temporal_decay_factor,
+                    30,
+                )),
             );
         }
 
@@ -774,7 +865,11 @@ impl IntelligentCompressionEngine {
     }
 
     /// 压缩记忆集合
-    pub async fn compress_memories(&self, memories: &[MemoryItem], context: &CompressionContext) -> Result<Vec<CompressedMemory>> {
+    pub async fn compress_memories(
+        &self,
+        memories: &[MemoryItem],
+        context: &CompressionContext,
+    ) -> Result<Vec<CompressedMemory>> {
         if memories.is_empty() {
             return Ok(Vec::new());
         }
@@ -783,24 +878,30 @@ impl IntelligentCompressionEngine {
         let strategy_name = self.adaptive_controller.recommend_strategy(context).await?;
 
         // 应用压缩策略
-        let compressed_memories = if let Some(strategy) = self.compression_strategies.get(&strategy_name) {
-            strategy.compress(memories, context).await?
-        } else {
-            // 回退到默认策略
-            self.default_compress(memories, context).await?
-        };
+        let compressed_memories =
+            if let Some(strategy) = self.compression_strategies.get(&strategy_name) {
+                strategy.compress(memories, context).await?
+            } else {
+                // 回退到默认策略
+                self.default_compress(memories, context).await?
+            };
 
         // 如果启用语义压缩，进一步优化
         let final_compressed = if self.config.enable_semantic_compression {
-            self.apply_semantic_compression(&compressed_memories).await?
+            self.apply_semantic_compression(&compressed_memories)
+                .await?
         } else {
             compressed_memories
         };
 
         // 评估压缩效果并更新自适应控制器
         if let Some(strategy) = self.compression_strategies.get(&strategy_name) {
-            let metrics = strategy.evaluate_compression(memories, &final_compressed).await?;
-            self.adaptive_controller.update_weights(strategy_name, metrics).await?;
+            let metrics = strategy
+                .evaluate_compression(memories, &final_compressed)
+                .await?;
+            self.adaptive_controller
+                .update_weights(strategy_name, metrics)
+                .await?;
         }
 
         Ok(final_compressed)
@@ -861,11 +962,18 @@ impl IntelligentCompressionEngine {
         })
     }
 
-    async fn default_compress(&self, memories: &[MemoryItem], context: &CompressionContext) -> Result<Vec<CompressedMemory>> {
+    async fn default_compress(
+        &self,
+        memories: &[MemoryItem],
+        context: &CompressionContext,
+    ) -> Result<Vec<CompressedMemory>> {
         let mut compressed_memories = Vec::new();
 
         for memory in memories {
-            let importance_score = self.importance_evaluator.evaluate_importance(memory, context).await?;
+            let importance_score = self
+                .importance_evaluator
+                .evaluate_importance(memory, context)
+                .await?;
 
             compressed_memories.push(CompressedMemory {
                 original_id: memory.id.clone(),
@@ -879,7 +987,10 @@ impl IntelligentCompressionEngine {
         Ok(compressed_memories)
     }
 
-    async fn apply_semantic_compression(&self, compressed_memories: &[CompressedMemory]) -> Result<Vec<CompressedMemory>> {
+    async fn apply_semantic_compression(
+        &self,
+        compressed_memories: &[CompressedMemory],
+    ) -> Result<Vec<CompressedMemory>> {
         // 基于语义相似度进一步压缩
         let mut final_compressed = Vec::new();
         let mut processed = std::collections::HashSet::new();
@@ -894,7 +1005,10 @@ impl IntelligentCompressionEngine {
             // 查找语义相似的记忆
             for (j, other_memory) in compressed_memories.iter().enumerate() {
                 if i != j && !processed.contains(&j) {
-                    let similarity = self.calculate_text_similarity(&memory.compressed_content, &other_memory.compressed_content);
+                    let similarity = self.calculate_text_similarity(
+                        &memory.compressed_content,
+                        &other_memory.compressed_content,
+                    );
                     if similarity > self.config.semantic_similarity_threshold {
                         similar_memories.push(other_memory.clone());
                         processed.insert(j);
@@ -916,7 +1030,10 @@ impl IntelligentCompressionEngine {
         Ok(final_compressed)
     }
 
-    async fn merge_similar_memories(&self, memories: &[CompressedMemory]) -> Result<CompressedMemory> {
+    async fn merge_similar_memories(
+        &self,
+        memories: &[CompressedMemory],
+    ) -> Result<CompressedMemory> {
         // 合并相似记忆的内容
         let merged_content = memories
             .iter()
@@ -924,8 +1041,10 @@ impl IntelligentCompressionEngine {
             .collect::<Vec<_>>()
             .join(" | ");
 
-        let average_importance = memories.iter().map(|m| m.importance_score).sum::<f32>() / memories.len() as f32;
-        let average_compression_ratio = memories.iter().map(|m| m.compression_ratio).sum::<f32>() / memories.len() as f32;
+        let average_importance =
+            memories.iter().map(|m| m.importance_score).sum::<f32>() / memories.len() as f32;
+        let average_compression_ratio =
+            memories.iter().map(|m| m.compression_ratio).sum::<f32>() / memories.len() as f32;
 
         Ok(CompressedMemory {
             original_id: format!("merged_{}", Uuid::new_v4()),

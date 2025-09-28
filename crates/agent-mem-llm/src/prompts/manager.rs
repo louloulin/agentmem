@@ -220,7 +220,7 @@ impl PromptManager {
                     // 检查是否是json块
                     let mut next_chars = String::new();
                     for _ in 0..4 {
-                        if let Some(&next_ch) = chars.peek() {
+                        if let Some(&_next_ch) = chars.peek() {
                             next_chars.push(chars.next().unwrap());
                         }
                     }

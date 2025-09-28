@@ -208,8 +208,7 @@ impl MemoryPool {
         let buffer = BytesMut::with_capacity(size);
         let capacity = buffer.capacity();
 
-        self.total_allocated
-            .fetch_add(capacity, Ordering::Relaxed);
+        self.total_allocated.fetch_add(capacity, Ordering::Relaxed);
 
         let mut stats = self.stats.write();
         stats.allocation_count += 1;

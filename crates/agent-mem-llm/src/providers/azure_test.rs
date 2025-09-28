@@ -2,7 +2,9 @@
 
 #[cfg(test)]
 mod tests {
-    use super::super::azure::{AzureProvider, AzureRequest, AzureResponse, AzureChoice, AzureMessage, AzureUsage};
+    use super::super::azure::{
+        AzureChoice, AzureMessage, AzureProvider, AzureRequest, AzureResponse, AzureUsage,
+    };
     use agent_mem_traits::{LLMConfig, LLMProvider, Message};
 
     fn create_test_config() -> LLMConfig {
@@ -38,37 +40,46 @@ mod tests {
     fn test_azure_provider_creation_missing_api_key() {
         let mut config = create_test_config();
         config.api_key = None;
-        
+
         let provider = AzureProvider::new(config);
         assert!(provider.is_err());
-        assert!(provider.unwrap_err().to_string().contains("API key is required"));
+        assert!(provider
+            .unwrap_err()
+            .to_string()
+            .contains("API key is required"));
     }
 
     #[test]
     fn test_azure_provider_creation_missing_base_url() {
         let mut config = create_test_config();
         config.base_url = None;
-        
+
         let provider = AzureProvider::new(config);
         assert!(provider.is_err());
-        assert!(provider.unwrap_err().to_string().contains("endpoint URL is required"));
+        assert!(provider
+            .unwrap_err()
+            .to_string()
+            .contains("endpoint URL is required"));
     }
 
     #[test]
     fn test_azure_provider_creation_empty_model() {
         let mut config = create_test_config();
         config.model = "".to_string();
-        
+
         let provider = AzureProvider::new(config);
         assert!(provider.is_err());
-        assert!(provider.unwrap_err().to_string().contains("Deployment name"));
+        assert!(provider
+            .unwrap_err()
+            .to_string()
+            .contains("Deployment name"));
     }
 
     #[test]
     fn test_build_api_url() {
         let config = create_test_config();
         let provider = AzureProvider::new(config).unwrap();
-        
+
         let url = provider.build_api_url();
         assert_eq!(
             url,
@@ -81,7 +92,7 @@ mod tests {
         let mut config = create_test_config();
         config.base_url = Some("https://test-resource.openai.azure.com/".to_string());
         let provider = AzureProvider::new(config).unwrap();
-        
+
         let url = provider.build_api_url();
         assert_eq!(
             url,
@@ -94,15 +105,15 @@ mod tests {
         let config = create_test_config();
         let provider = AzureProvider::new(config).unwrap();
         let messages = create_test_messages();
-        
+
         let azure_messages = provider.convert_messages(&messages);
-        
+
         assert_eq!(azure_messages.len(), 2);
-        
+
         // 第一条消息（System）
         assert_eq!(azure_messages[0].role, "system");
         assert_eq!(azure_messages[0].content, "You are a helpful assistant.");
-        
+
         // 第二条消息（User）
         assert_eq!(azure_messages[1].role, "user");
         assert_eq!(azure_messages[1].content, "Hello, how are you?");
@@ -112,15 +123,15 @@ mod tests {
     fn test_convert_messages_all_roles() {
         let config = create_test_config();
         let provider = AzureProvider::new(config).unwrap();
-        
+
         let messages = vec![
             Message::system("System message"),
             Message::user("User message"),
             Message::assistant("Assistant message"),
         ];
-        
+
         let azure_messages = provider.convert_messages(&messages);
-        
+
         assert_eq!(azure_messages.len(), 3);
         assert_eq!(azure_messages[0].role, "system");
         assert_eq!(azure_messages[1].role, "user");
@@ -131,40 +142,41 @@ mod tests {
     fn test_extract_response_text() {
         let config = create_test_config();
         let provider = AzureProvider::new(config).unwrap();
-        
+
         // 创建真实响应结构用于测试
         let response = AzureResponse {
             id: "chatcmpl-test".to_string(),
             object: "chat.completion".to_string(),
             created: 1234567890,
             model: "gpt-4".to_string(),
-            choices: vec![
-                AzureChoice {
-                    index: 0,
-                    message: AzureMessage {
-                        role: "assistant".to_string(),
-                        content: "Hello! I'm doing well, thank you for asking.".to_string(),
-                    },
-                    finish_reason: Some("stop".to_string()),
-                }
-            ],
+            choices: vec![AzureChoice {
+                index: 0,
+                message: AzureMessage {
+                    role: "assistant".to_string(),
+                    content: "Hello! I'm doing well, thank you for asking.".to_string(),
+                },
+                finish_reason: Some("stop".to_string()),
+            }],
             usage: Some(AzureUsage {
                 prompt_tokens: 20,
                 completion_tokens: 15,
                 total_tokens: 35,
             }),
         };
-        
+
         let result = provider.extract_response_text(&response);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "Hello! I'm doing well, thank you for asking.");
+        assert_eq!(
+            result.unwrap(),
+            "Hello! I'm doing well, thank you for asking."
+        );
     }
 
     #[test]
     fn test_extract_response_text_empty_choices() {
         let config = create_test_config();
         let provider = AzureProvider::new(config).unwrap();
-        
+
         let response = AzureResponse {
             id: "chatcmpl-test".to_string(),
             object: "chat.completion".to_string(),
@@ -173,63 +185,65 @@ mod tests {
             choices: vec![],
             usage: None,
         };
-        
+
         let result = provider.extract_response_text(&response);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("No choices in response"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("No choices in response"));
     }
 
     #[test]
     fn test_extract_response_text_content_filter() {
         let config = create_test_config();
         let provider = AzureProvider::new(config).unwrap();
-        
+
         let response = AzureResponse {
             id: "chatcmpl-test".to_string(),
             object: "chat.completion".to_string(),
             created: 1234567890,
             model: "gpt-4".to_string(),
-            choices: vec![
-                AzureChoice {
-                    index: 0,
-                    message: AzureMessage {
-                        role: "assistant".to_string(),
-                        content: "".to_string(),
-                    },
-                    finish_reason: Some("content_filter".to_string()),
-                }
-            ],
+            choices: vec![AzureChoice {
+                index: 0,
+                message: AzureMessage {
+                    role: "assistant".to_string(),
+                    content: "".to_string(),
+                },
+                finish_reason: Some("content_filter".to_string()),
+            }],
             usage: None,
         };
-        
+
         let result = provider.extract_response_text(&response);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Content was filtered"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Content was filtered"));
     }
 
     #[test]
     fn test_extract_response_text_length_finish() {
         let config = create_test_config();
         let provider = AzureProvider::new(config).unwrap();
-        
+
         let response = AzureResponse {
             id: "chatcmpl-test".to_string(),
             object: "chat.completion".to_string(),
             created: 1234567890,
             model: "gpt-4".to_string(),
-            choices: vec![
-                AzureChoice {
-                    index: 0,
-                    message: AzureMessage {
-                        role: "assistant".to_string(),
-                        content: "This is a truncated response...".to_string(),
-                    },
-                    finish_reason: Some("length".to_string()),
-                }
-            ],
+            choices: vec![AzureChoice {
+                index: 0,
+                message: AzureMessage {
+                    role: "assistant".to_string(),
+                    content: "This is a truncated response...".to_string(),
+                },
+                finish_reason: Some("length".to_string()),
+            }],
             usage: None,
         };
-        
+
         let result = provider.extract_response_text(&response);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "This is a truncated response...");
@@ -238,12 +252,10 @@ mod tests {
     #[test]
     fn test_azure_request_serialization() {
         let request = AzureRequest {
-            messages: vec![
-                AzureMessage {
-                    role: "user".to_string(),
-                    content: "Hello".to_string(),
-                }
-            ],
+            messages: vec![AzureMessage {
+                role: "user".to_string(),
+                content: "Hello".to_string(),
+            }],
             max_tokens: Some(1000),
             temperature: Some(0.7),
             top_p: Some(0.9),
@@ -252,7 +264,7 @@ mod tests {
             stop: None,
             stream: Some(false),
         };
-        
+
         let json = serde_json::to_string(&request).unwrap();
         assert!(json.contains("\"messages\""));
         assert!(json.contains("\"max_tokens\""));
@@ -267,7 +279,7 @@ mod tests {
     fn test_model_info() {
         let config = create_test_config();
         let provider = AzureProvider::new(config).unwrap();
-        
+
         let model_info = provider.get_model_info();
         assert_eq!(model_info.model, "gpt-4");
         assert_eq!(model_info.provider, "azure");
@@ -280,7 +292,7 @@ mod tests {
     fn test_validate_config_success() {
         let config = create_test_config();
         let provider = AzureProvider::new(config).unwrap();
-        
+
         let result = provider.validate_config();
         assert!(result.is_ok());
     }
@@ -288,9 +300,10 @@ mod tests {
     #[test]
     fn test_with_api_version() {
         let config = create_test_config();
-        let provider = AzureProvider::new(config).unwrap()
+        let provider = AzureProvider::new(config)
+            .unwrap()
             .with_api_version("2023-05-15");
-        
+
         let url = provider.build_api_url();
         assert!(url.contains("api-version=2023-05-15"));
     }
@@ -299,10 +312,10 @@ mod tests {
     fn test_empty_messages() {
         let config = create_test_config();
         let provider = AzureProvider::new(config).unwrap();
-        
+
         let messages = vec![];
         let azure_messages = provider.convert_messages(&messages);
-        
+
         assert_eq!(azure_messages.len(), 0);
     }
 
@@ -310,14 +323,12 @@ mod tests {
     fn test_long_message() {
         let config = create_test_config();
         let provider = AzureProvider::new(config).unwrap();
-        
+
         let long_content = "A".repeat(10000); // 10K 字符的长消息
-        let messages = vec![
-            Message::user(&long_content),
-        ];
-        
+        let messages = vec![Message::user(&long_content)];
+
         let azure_messages = provider.convert_messages(&messages);
-        
+
         assert_eq!(azure_messages.len(), 1);
         assert_eq!(azure_messages[0].content, long_content);
     }
@@ -326,14 +337,12 @@ mod tests {
     fn test_special_characters() {
         let config = create_test_config();
         let provider = AzureProvider::new(config).unwrap();
-        
+
         let special_content = "Hello! 你好 🌟 \n\t Special chars: @#$%^&*()";
-        let messages = vec![
-            Message::user(special_content),
-        ];
-        
+        let messages = vec![Message::user(special_content)];
+
         let azure_messages = provider.convert_messages(&messages);
-        
+
         assert_eq!(azure_messages.len(), 1);
         assert_eq!(azure_messages[0].content, special_content);
     }
@@ -341,14 +350,14 @@ mod tests {
     #[test]
     fn test_different_deployment_names() {
         let deployment_names = vec!["gpt-4", "gpt-35-turbo", "my-custom-deployment"];
-        
+
         for deployment_name in deployment_names {
             let mut config = create_test_config();
             config.model = deployment_name.to_string();
-            
+
             let provider = AzureProvider::new(config).unwrap();
             let url = provider.build_api_url();
-            
+
             assert!(url.contains(&format!("/deployments/{}/", deployment_name)));
         }
     }
@@ -360,14 +369,14 @@ mod tests {
             "https://westus2.api.cognitive.microsoft.com",
             "https://northeurope.api.cognitive.microsoft.com",
         ];
-        
+
         for base_url in base_urls {
             let mut config = create_test_config();
             config.base_url = Some(base_url.to_string());
-            
+
             let provider = AzureProvider::new(config).unwrap();
             let url = provider.build_api_url();
-            
+
             assert!(url.starts_with(base_url));
         }
     }
@@ -456,7 +465,9 @@ mod tests {
             assert!(result.is_err(), "Invalid API key should cause error");
 
             let error = result.unwrap_err();
-            assert!(error.to_string().contains("401") || error.to_string().contains("unauthorized"));
+            assert!(
+                error.to_string().contains("401") || error.to_string().contains("unauthorized")
+            );
             println!("Expected error for invalid API key: {}", error);
         }
     }

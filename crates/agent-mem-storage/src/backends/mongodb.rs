@@ -1,23 +1,21 @@
 //! MongoDB 文档存储后端实现
-//! 
+//!
 //! MongoDB 是一个高性能的 NoSQL 文档数据库，特别适合存储结构化的记忆数据。
 //! 支持复杂查询、聚合操作和水平扩展。
 
-use agent_mem_traits::{AgentMemError, Result, VectorData, VectorStore, VectorSearchResult};
+use agent_mem_traits::{Result, VectorData, VectorSearchResult, VectorStore};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-
-#[cfg(feature = "mongodb")]
-use mongodb::{Client, Collection, Database};
 #[cfg(feature = "mongodb")]
 use bson::{doc, Document};
 #[cfg(feature = "mongodb")]
 use futures::stream::StreamExt;
+#[cfg(feature = "mongodb")]
+use mongodb::{Client, Collection, Database};
 
-#[cfg(not(feature = "mongodb"))]
-use std::sync::{Arc, Mutex};
+
 
 /// MongoDB 存储配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -130,7 +128,12 @@ impl MongoDBStore {
             // 使用真正的 MongoDB 客户端
             let client = Client::with_uri_str(&config.connection_string)
                 .await
-                .map_err(|e| agent_mem_traits::AgentMemError::storage_error(&format!("Failed to connect to MongoDB: {}", e)))?;
+                .map_err(|e| {
+                    agent_mem_traits::AgentMemError::storage_error(&format!(
+                        "Failed to connect to MongoDB: {}",
+                        e
+                    ))
+                })?;
 
             let database = client.database(&config.database_name);
             let collection = database.collection::<MongoVectorDocument>(&config.collection_name);
@@ -170,7 +173,12 @@ impl MongoDBStore {
                 .database("admin")
                 .run_command(doc! {"ping": 1}, None)
                 .await
-                .map_err(|e| agent_mem_traits::AgentMemError::storage_error(&format!("MongoDB ping failed: {}", e)))?;
+                .map_err(|e| {
+                    agent_mem_traits::AgentMemError::storage_error(&format!(
+                        "MongoDB ping failed: {}",
+                        e
+                    ))
+                })?;
         }
 
         #[cfg(not(feature = "mongodb"))]
@@ -220,7 +228,10 @@ impl MongoDBStore {
     }
 
     /// 执行聚合查询（在实际实现中）
-    async fn _aggregate_search(&self, _pipeline: Vec<serde_json::Value>) -> Result<Vec<MongoSearchResult>> {
+    async fn _aggregate_search(
+        &self,
+        _pipeline: Vec<serde_json::Value>,
+    ) -> Result<Vec<MongoSearchResult>> {
         // 在实际实现中，这里应该执行 MongoDB 聚合管道
         // 用于复杂的向量搜索和过滤
         Ok(vec![])
@@ -256,7 +267,12 @@ impl VectorStore for MongoDBStore {
                 self.collection
                     .insert_many(documents, None)
                     .await
-                    .map_err(|e| agent_mem_traits::AgentMemError::storage_error(&format!("Failed to insert vectors: {}", e)))?;
+                    .map_err(|e| {
+                        agent_mem_traits::AgentMemError::storage_error(&format!(
+                            "Failed to insert vectors: {}",
+                            e
+                        ))
+                    })?;
             }
         }
 
@@ -295,20 +311,25 @@ impl VectorStore for MongoDBStore {
         {
             // 使用 MongoDB 查询所有文档，然后在内存中计算相似度
             // 在生产环境中，可以使用 MongoDB Atlas Vector Search 或其他向量搜索解决方案
-            let cursor = self.collection
-                .find(None, None)
-                .await
-                .map_err(|e| agent_mem_traits::AgentMemError::storage_error(&format!("Failed to query vectors: {}", e)))?;
+            let cursor = self.collection.find(None, None).await.map_err(|e| {
+                agent_mem_traits::AgentMemError::storage_error(&format!(
+                    "Failed to query vectors: {}",
+                    e
+                ))
+            })?;
 
-            let cursor_results = cursor
-                .collect::<Vec<_>>()
-                .await;
+            let cursor_results = cursor.collect::<Vec<_>>().await;
 
             let mut documents = Vec::new();
             for result in cursor_results {
                 match result {
                     Ok(doc) => documents.push(doc),
-                    Err(e) => return Err(agent_mem_traits::AgentMemError::storage_error(&format!("Failed to collect results: {}", e))),
+                    Err(e) => {
+                        return Err(agent_mem_traits::AgentMemError::storage_error(&format!(
+                            "Failed to collect results: {}",
+                            e
+                        )))
+                    }
                 }
             }
 
@@ -360,7 +381,11 @@ impl VectorStore for MongoDBStore {
         }
 
         // 按相似度排序并限制结果数量
-        results.sort_by(|a, b| b.similarity.partial_cmp(&a.similarity).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.similarity
+                .partial_cmp(&a.similarity)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         results.truncate(limit);
 
         Ok(results)
@@ -374,7 +399,12 @@ impl VectorStore for MongoDBStore {
                 self.collection
                     .delete_one(doc! {"_id": &id}, None)
                     .await
-                    .map_err(|e| agent_mem_traits::AgentMemError::storage_error(&format!("Failed to delete vector {}: {}", id, e)))?;
+                    .map_err(|e| {
+                        agent_mem_traits::AgentMemError::storage_error(&format!(
+                            "Failed to delete vector {}: {}",
+                            id, e
+                        ))
+                    })?;
             }
         }
 
@@ -398,7 +428,9 @@ impl VectorStore for MongoDBStore {
                 let id = vector_data.id.clone();
 
                 // 先查找现有文档以保持创建时间
-                if let Ok(Some(existing_doc)) = self.collection.find_one(doc! {"_id": &id}, None).await {
+                if let Ok(Some(existing_doc)) =
+                    self.collection.find_one(doc! {"_id": &id}, None).await
+                {
                     let mut updated_doc = MongoVectorDocument::from(vector_data);
                     updated_doc.id = id.clone();
                     updated_doc.created_at = existing_doc.created_at; // 保持原创建时间
@@ -407,7 +439,12 @@ impl VectorStore for MongoDBStore {
                     self.collection
                         .replace_one(doc! {"_id": &id}, &updated_doc, None)
                         .await
-                        .map_err(|e| agent_mem_traits::AgentMemError::storage_error(&format!("Failed to update vector {}: {}", id, e)))?;
+                        .map_err(|e| {
+                            agent_mem_traits::AgentMemError::storage_error(&format!(
+                                "Failed to update vector {}: {}",
+                                id, e
+                            ))
+                        })?;
                 }
             }
         }
@@ -438,10 +475,16 @@ impl VectorStore for MongoDBStore {
         #[cfg(feature = "mongodb")]
         {
             // 使用真正的 MongoDB 查询
-            let doc = self.collection
+            let doc = self
+                .collection
                 .find_one(doc! {"_id": id}, None)
                 .await
-                .map_err(|e| agent_mem_traits::AgentMemError::storage_error(&format!("Failed to get vector {}: {}", id, e)))?;
+                .map_err(|e| {
+                    agent_mem_traits::AgentMemError::storage_error(&format!(
+                        "Failed to get vector {}: {}",
+                        id, e
+                    ))
+                })?;
 
             Ok(doc.map(|d| VectorData::from(d)))
         }
@@ -458,10 +501,16 @@ impl VectorStore for MongoDBStore {
         #[cfg(feature = "mongodb")]
         {
             // 使用真正的 MongoDB count_documents
-            let count = self.collection
+            let count = self
+                .collection
                 .count_documents(doc! {}, None)
                 .await
-                .map_err(|e| agent_mem_traits::AgentMemError::storage_error(&format!("Failed to count vectors: {}", e)))?;
+                .map_err(|e| {
+                    agent_mem_traits::AgentMemError::storage_error(&format!(
+                        "Failed to count vectors: {}",
+                        e
+                    ))
+                })?;
 
             Ok(count as usize)
         }
@@ -481,7 +530,12 @@ impl VectorStore for MongoDBStore {
             self.collection
                 .delete_many(doc! {}, None)
                 .await
-                .map_err(|e| agent_mem_traits::AgentMemError::storage_error(&format!("Failed to clear vectors: {}", e)))?;
+                .map_err(|e| {
+                    agent_mem_traits::AgentMemError::storage_error(&format!(
+                        "Failed to clear vectors: {}",
+                        e
+                    ))
+                })?;
         }
 
         #[cfg(not(feature = "mongodb"))]
@@ -502,7 +556,8 @@ impl VectorStore for MongoDBStore {
         threshold: Option<f32>,
     ) -> Result<Vec<VectorSearchResult>> {
         use crate::utils::VectorStoreDefaults;
-        self.default_search_with_filters(query_vector, limit, filters, threshold).await
+        self.default_search_with_filters(query_vector, limit, filters, threshold)
+            .await
     }
 
     async fn health_check(&self) -> Result<agent_mem_traits::HealthStatus> {

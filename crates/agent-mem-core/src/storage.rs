@@ -3,22 +3,21 @@
 use crate::Memory;
 use async_trait::async_trait;
 
-
 /// Storage backend trait
 #[async_trait]
 pub trait StorageBackend: Send + Sync {
     /// Store a memory
     async fn store(&self, memory: &Memory) -> crate::CoreResult<()>;
-    
+
     /// Retrieve a memory by ID
     async fn retrieve(&self, id: &str) -> crate::CoreResult<Option<Memory>>;
-    
+
     /// Update a memory
     async fn update(&self, memory: &Memory) -> crate::CoreResult<()>;
-    
+
     /// Delete a memory
     async fn delete(&self, id: &str) -> crate::CoreResult<bool>;
-    
+
     /// List all memory IDs
     async fn list_ids(&self) -> crate::CoreResult<Vec<String>>;
 }
@@ -47,22 +46,22 @@ impl StorageBackend for MemoryStore {
         // TODO: Implement storage
         Ok(())
     }
-    
+
     async fn retrieve(&self, _id: &str) -> crate::CoreResult<Option<Memory>> {
         // TODO: Implement retrieval
         Ok(None)
     }
-    
+
     async fn update(&self, _memory: &Memory) -> crate::CoreResult<()> {
         // TODO: Implement update
         Ok(())
     }
-    
+
     async fn delete(&self, _id: &str) -> crate::CoreResult<bool> {
         // TODO: Implement deletion
         Ok(false)
     }
-    
+
     async fn list_ids(&self) -> crate::CoreResult<Vec<String>> {
         // TODO: Implement listing
         Ok(Vec::new())

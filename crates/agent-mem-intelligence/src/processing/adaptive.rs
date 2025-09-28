@@ -192,7 +192,8 @@ impl AdaptiveMemoryManager {
 
     /// Get access count from memory metadata
     fn get_access_count(&self, memory: &Memory) -> u32 {
-        memory.metadata
+        memory
+            .metadata
             .get("access_count")
             .and_then(|v| v.as_u64())
             .unwrap_or(0) as u32
@@ -200,7 +201,8 @@ impl AdaptiveMemoryManager {
 
     /// Get last accessed timestamp from memory metadata
     fn get_last_accessed(&self, memory: &Memory) -> i64 {
-        memory.metadata
+        memory
+            .metadata
             .get("last_accessed_at")
             .and_then(|v| v.as_i64())
             .unwrap_or(memory.created_at.timestamp())
@@ -231,7 +233,8 @@ impl AdaptiveMemoryManager {
         current_time: i64,
     ) -> Result<LifecycleAction> {
         let age = current_time - memory.created_at.timestamp();
-        let time_since_access = current_time - memory.updated_at.unwrap_or(memory.created_at).timestamp();
+        let time_since_access =
+            current_time - memory.updated_at.unwrap_or(memory.created_at).timestamp();
 
         // Check for deletion conditions
         if age > self.thresholds.delete_age_threshold
@@ -345,9 +348,10 @@ impl AdaptiveMemoryManager {
             memory
                 .metadata
                 .insert("compressed".to_string(), serde_json::Value::Bool(true));
-            memory
-                .metadata
-                .insert("original_size".to_string(), serde_json::Value::Number(serde_json::Number::from(original_size)));
+            memory.metadata.insert(
+                "original_size".to_string(),
+                serde_json::Value::Number(serde_json::Number::from(original_size)),
+            );
             memory.updated_at = Some(chrono::Utc::now());
 
             debug!(
@@ -390,7 +394,8 @@ impl AdaptiveMemoryManager {
                     AdaptiveStrategy::ImportanceBased => -memory.score.unwrap_or(0.5),
                     AdaptiveStrategy::Hybrid => {
                         let current_time = chrono::Utc::now().timestamp();
-                        let recency = -(current_time - self.get_last_accessed(memory)) as f32 / 86400.0; // Days
+                        let recency =
+                            -(current_time - self.get_last_accessed(memory)) as f32 / 86400.0; // Days
                         let frequency = -(self.get_access_count(memory) as f32);
                         let importance = -memory.score.unwrap_or(0.5);
                         recency * 0.3 + frequency * 0.3 + importance * 0.4
@@ -503,7 +508,10 @@ mod tests {
 
         manager.archive_memory(&mut memory).await.unwrap();
 
-        assert_eq!(memory.metadata.get("archived"), Some(&serde_json::Value::Bool(true)));
+        assert_eq!(
+            memory.metadata.get("archived"),
+            Some(&serde_json::Value::Bool(true))
+        );
         assert!(memory.importance < 0.5); // Should be reduced
     }
 
@@ -517,7 +525,10 @@ mod tests {
         manager.compress_memory(&mut memory).await.unwrap();
 
         assert!(memory.content.len() < original_size);
-        assert_eq!(memory.metadata.get("compressed"), Some(&serde_json::Value::Bool(true)));
+        assert_eq!(
+            memory.metadata.get("compressed"),
+            Some(&serde_json::Value::Bool(true))
+        );
     }
 
     #[tokio::test]

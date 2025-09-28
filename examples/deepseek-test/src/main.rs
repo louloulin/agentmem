@@ -1,6 +1,6 @@
 use agent_mem_llm::providers::deepseek::DeepSeekProvider;
 use anyhow::Result;
-use tracing::{info, error};
+use tracing::{error, info};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -11,7 +11,7 @@ async fn main() -> Result<()> {
 
     // 使用提供的 API 密钥
     let api_key = "sk-498fd5f3041f4466a43fa2b9bbbec250";
-    
+
     match DeepSeekProvider::with_api_key(api_key.to_string()) {
         Ok(provider) => {
             info!("✅ DeepSeek 提供商创建成功");
@@ -30,10 +30,13 @@ async fn main() -> Result<()> {
 
             // 测试系统提示
             info!("🎯 测试系统提示...");
-            match provider.generate_with_system(
-                "你是一个专业的 AI 助手，专门帮助用户理解和使用 AgentMem 记忆系统。",
-                "请解释什么是向量数据库，以及它在 AI 记忆系统中的作用。"
-            ).await {
+            match provider
+                .generate_with_system(
+                    "你是一个专业的 AI 助手，专门帮助用户理解和使用 AgentMem 记忆系统。",
+                    "请解释什么是向量数据库，以及它在 AI 记忆系统中的作用。",
+                )
+                .await
+            {
                 Ok(response) => {
                     info!("✅ 系统提示测试成功:");
                     println!("Response: {}", response);

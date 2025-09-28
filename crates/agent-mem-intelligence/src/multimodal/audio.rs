@@ -1,6 +1,6 @@
 //! 音频内容处理模块
 
-use super::{MultimodalProcessor, MultimodalContent, ContentType};
+use super::{ContentType, MultimodalContent, MultimodalProcessor};
 use agent_mem_traits::{AgentMemError, Result};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -43,12 +43,18 @@ impl AudioProcessor {
 
         // 真实的语音转文本处理
         // 基于文件名和元数据进行智能文本提取
-        if content.mime_type.as_ref().map_or(false, |m| m.starts_with("audio/")) {
+        if content
+            .mime_type
+            .as_ref()
+            .map_or(false, |m| m.starts_with("audio/"))
+        {
             // 从文件名提取可能的文本信息
             let filename_text = self.extract_text_from_filename(&content.id);
 
             // 从元数据提取文本信息
-            let metadata_text = self.extract_text_from_metadata(&serde_json::to_value(&content.metadata).unwrap_or(serde_json::Value::Null));
+            let metadata_text = self.extract_text_from_metadata(
+                &serde_json::to_value(&content.metadata).unwrap_or(serde_json::Value::Null),
+            );
 
             // 组合提取的文本
             let mut transcribed_parts = Vec::new();
@@ -85,10 +91,12 @@ impl AudioProcessor {
         let has_music = self.detect_music_from_filename(filename);
 
         // 从元数据获取技术参数
-        let sample_rate = metadata.get("sample_rate")
+        let sample_rate = metadata
+            .get("sample_rate")
             .and_then(|v| v.as_u64())
             .unwrap_or(44100) as u32;
-        let channels = metadata.get("channels")
+        let channels = metadata
+            .get("channels")
             .and_then(|v| v.as_u64())
             .unwrap_or(2) as u32;
 
@@ -189,16 +197,27 @@ impl AudioProcessor {
 
     /// 从文件名检测是否包含语音
     fn detect_speech_from_filename(&self, filename: &str) -> bool {
-        let speech_keywords = ["speech", "talk", "voice", "conversation", "interview", "podcast"];
+        let speech_keywords = [
+            "speech",
+            "talk",
+            "voice",
+            "conversation",
+            "interview",
+            "podcast",
+        ];
         let filename_lower = filename.to_lowercase();
-        speech_keywords.iter().any(|&keyword| filename_lower.contains(keyword))
+        speech_keywords
+            .iter()
+            .any(|&keyword| filename_lower.contains(keyword))
     }
 
     /// 从文件名检测是否包含音乐
     fn detect_music_from_filename(&self, filename: &str) -> bool {
         let music_keywords = ["music", "song", "melody", "instrumental", "beat", "rhythm"];
         let filename_lower = filename.to_lowercase();
-        music_keywords.iter().any(|&keyword| filename_lower.contains(keyword))
+        music_keywords
+            .iter()
+            .any(|&keyword| filename_lower.contains(keyword))
     }
 }
 
@@ -225,8 +244,9 @@ impl MultimodalProcessor for AudioProcessor {
 
         // 分析音频特征
         if let Ok(analysis) = self.analyze_audio(content).await {
-            let analysis_json = serde_json::to_value(analysis)
-                .map_err(|e| AgentMemError::ProcessingError(format!("Failed to serialize audio analysis: {}", e)))?;
+            let analysis_json = serde_json::to_value(analysis).map_err(|e| {
+                AgentMemError::ProcessingError(format!("Failed to serialize audio analysis: {}", e))
+            })?;
             content.set_metadata("audio_analysis".to_string(), analysis_json);
         }
 

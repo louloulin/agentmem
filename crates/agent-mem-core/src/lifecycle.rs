@@ -39,6 +39,7 @@ pub enum LifecycleEventType {
     Deprecated,
     Deleted,
     ImportanceChanged,
+    /// Memory expiration time has been set
     ExpirationSet,
 }
 
@@ -300,7 +301,10 @@ impl MemoryLifecycle {
     }
 
     /// Apply automatic lifecycle policies
-    pub fn apply_auto_policies(&mut self, memories: &[agent_mem_traits::MemoryItem]) -> Result<Vec<String>> {
+    pub fn apply_auto_policies(
+        &mut self,
+        memories: &[agent_mem_traits::MemoryItem],
+    ) -> Result<Vec<String>> {
         let current_time = chrono::Utc::now().timestamp();
         let mut affected_memories = Vec::new();
 

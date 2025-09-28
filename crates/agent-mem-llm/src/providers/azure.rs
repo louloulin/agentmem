@@ -3,12 +3,13 @@
 //! Azure OpenAI 是微软云平台上的 OpenAI 服务，
 //! 提供企业级的 GPT 模型访问和管理。
 
-use agent_mem_traits::{AgentMemError, LLMConfig, LLMProvider, Message, MessageRole, ModelInfo, Result};
+use agent_mem_traits::{
+    AgentMemError, LLMConfig, LLMProvider, Message, MessageRole, ModelInfo, Result,
+};
 use async_trait::async_trait;
 use futures::Stream;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-
 
 use std::time::Duration;
 
@@ -88,17 +89,23 @@ impl AzureProvider {
     /// 创建新的Azure OpenAI提供商实例
     pub fn new(config: LLMConfig) -> Result<Self> {
         // 验证必需的配置
-        let _api_key = config.api_key.as_ref()
+        let _api_key = config
+            .api_key
+            .as_ref()
             .ok_or_else(|| AgentMemError::config_error("Azure OpenAI API key is required"))?;
 
-        let base_url = config.base_url.as_ref()
+        let base_url = config
+            .base_url
+            .as_ref()
             .ok_or_else(|| AgentMemError::config_error("Azure OpenAI endpoint URL is required"))?
             .clone();
 
         // 从模型名称中提取部署名称
         // Azure 模型格式通常是 "deployment-name" 或 "gpt-4"
         let deployment_name = if config.model.is_empty() {
-            return Err(AgentMemError::config_error("Deployment name (model) is required"));
+            return Err(AgentMemError::config_error(
+                "Deployment name (model) is required",
+            ));
         } else {
             config.model.clone()
         };
@@ -106,7 +113,9 @@ impl AzureProvider {
         let client = Client::builder()
             .timeout(Duration::from_secs(60)) // Azure 可能需要更长时间
             .build()
-            .map_err(|e| AgentMemError::llm_error(&format!("Failed to create HTTP client: {}", e)))?;
+            .map_err(|e| {
+                AgentMemError::llm_error(&format!("Failed to create HTTP client: {}", e))
+            })?;
 
         let api_version = "2024-02-01".to_string(); // 使用最新的稳定版本
 
@@ -174,10 +183,9 @@ impl AzureProvider {
                 .map_err(|e| AgentMemError::llm_error(&format!("Request failed: {}", e)))?;
 
             if response.status().is_success() {
-                let azure_response: AzureResponse = response
-                    .json()
-                    .await
-                    .map_err(|e| AgentMemError::llm_error(&format!("Failed to parse response: {}", e)))?;
+                let azure_response: AzureResponse = response.json().await.map_err(|e| {
+                    AgentMemError::llm_error(&format!("Failed to parse response: {}", e))
+                })?;
 
                 return Ok(azure_response);
             } else if response.status().is_server_error() && retries < max_retries {
@@ -195,14 +203,12 @@ impl AzureProvider {
                 if let Ok(azure_error) = serde_json::from_str::<AzureError>(&error_text) {
                     return Err(AgentMemError::llm_error(&format!(
                         "Azure OpenAI API error: {} ({})",
-                        azure_error.error.message,
-                        azure_error.error.code
+                        azure_error.error.message, azure_error.error.code
                     )));
                 } else {
                     return Err(AgentMemError::llm_error(&format!(
                         "HTTP error {}: {}",
-                        status,
-                        error_text
+                        status, error_text
                     )));
                 }
             }
@@ -220,10 +226,13 @@ impl AzureProvider {
         // 检查完成原因
         if let Some(finish_reason) = &choice.finish_reason {
             if finish_reason == "content_filter" {
-                return Err(AgentMemError::llm_error("Content was filtered by Azure content policy"));
+                return Err(AgentMemError::llm_error(
+                    "Content was filtered by Azure content policy",
+                ));
             } else if finish_reason != "stop" && finish_reason != "length" {
                 return Err(AgentMemError::llm_error(&format!(
-                    "Generation stopped due to: {}", finish_reason
+                    "Generation stopped due to: {}",
+                    finish_reason
                 )));
             }
         }

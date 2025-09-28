@@ -3,12 +3,10 @@
 //! This demo showcases the context-aware memory management capabilities of AgentMem,
 //! including intelligent context extraction, context-based search, and adaptive learning.
 
-use agent_mem_compat::{
-    Mem0Client, ContextAwareSearchRequest, ContextInfo, ContextPattern,
-};
+use agent_mem_compat::{ContextAwareSearchRequest, ContextInfo, ContextPattern, Mem0Client};
 use agent_mem_traits::Session;
 use std::collections::HashMap;
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -69,7 +67,7 @@ async fn demo_context_extraction(
 
     for (i, content) in test_contents.iter().enumerate() {
         println!("  📝 内容 {}: {}", i + 1, content);
-        
+
         match client.extract_context(content, session).await {
             Ok(contexts) => {
                 if contexts.is_empty() {
@@ -173,9 +171,7 @@ async fn demo_context_aware_search(
     Ok(())
 }
 
-async fn demo_context_learning(
-    client: &Mem0Client,
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn demo_context_learning(client: &Mem0Client) -> Result<(), Box<dyn std::error::Error>> {
     // Create learning contexts
     let learning_contexts = vec![
         ContextInfo {
@@ -218,7 +214,7 @@ async fn demo_context_learning(
     match client.learn_from_context(&learning_contexts).await {
         Ok(result) => {
             println!("  ✅ 学习完成 (置信度: {:.2})", result.confidence);
-            
+
             if !result.new_patterns.is_empty() {
                 println!("    🆕 新发现的模式:");
                 for pattern in &result.new_patterns {
@@ -248,20 +244,21 @@ async fn demo_context_learning(
     Ok(())
 }
 
-async fn demo_context_patterns(
-    client: &Mem0Client,
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn demo_context_patterns(client: &Mem0Client) -> Result<(), Box<dyn std::error::Error>> {
     match client.get_context_patterns().await {
         Ok(patterns) => {
             println!("  📊 发现的上下文模式 ({} 个):", patterns.len());
-            
+
             if patterns.is_empty() {
                 println!("    ❌ 暂无学习到的模式");
             } else {
                 for (i, pattern) in patterns.iter().enumerate() {
                     println!(
                         "    {}. {} (频率: {}, 置信度: {:.2})",
-                        i + 1, pattern.name, pattern.frequency, pattern.confidence
+                        i + 1,
+                        pattern.name,
+                        pattern.frequency,
+                        pattern.confidence
                     );
                     println!("       上下文类型: {:?}", pattern.context_types);
                     if !pattern.triggers.is_empty() {
@@ -278,13 +275,11 @@ async fn demo_context_patterns(
     Ok(())
 }
 
-async fn demo_context_statistics(
-    client: &Mem0Client,
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn demo_context_statistics(client: &Mem0Client) -> Result<(), Box<dyn std::error::Error>> {
     match client.get_context_statistics().await {
         Ok(stats) => {
             println!("  📈 上下文统计信息:");
-            
+
             if stats.is_empty() {
                 println!("    ❌ 暂无统计数据");
             } else {

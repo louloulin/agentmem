@@ -595,8 +595,9 @@ impl EmbeddingVectorStore for MilvusStore {
 
         if response.status().is_success() {
             // Parse response and extract embedding
-            let query_response: MilvusQueryResponse = response.json().await
-                .map_err(|e| AgentMemError::parsing_error(&format!("Failed to parse query response: {}", e)))?;
+            let query_response: MilvusQueryResponse = response.json().await.map_err(|e| {
+                AgentMemError::parsing_error(&format!("Failed to parse query response: {}", e))
+            })?;
 
             if query_response.status.error_code != 0 {
                 return Err(AgentMemError::storage_error(&format!(
@@ -661,8 +662,9 @@ impl EmbeddingVectorStore for MilvusStore {
 
         if response.status().is_success() {
             // Parse response and extract memory IDs
-            let query_response: MilvusQueryResponse = response.json().await
-                .map_err(|e| AgentMemError::parsing_error(&format!("Failed to parse list response: {}", e)))?;
+            let query_response: MilvusQueryResponse = response.json().await.map_err(|e| {
+                AgentMemError::parsing_error(&format!("Failed to parse list response: {}", e))
+            })?;
 
             if query_response.status.error_code != 0 {
                 return Err(AgentMemError::storage_error(&format!(

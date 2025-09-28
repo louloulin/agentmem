@@ -1,35 +1,48 @@
+use anyhow::{anyhow, Result};
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use anyhow::{Result, anyhow};
 
 use crate::types::Memory;
 
 // 类型别名
+/// 内存节点ID类型
 pub type MemoryId = String;
+/// 用户ID类型
 pub type UserId = String;
 
 /// 图记忆节点
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GraphNode {
+    /// 节点唯一标识符
     pub id: MemoryId,
+    /// 关联的内存对象
     pub memory: Memory,
+    /// 节点类型
     pub node_type: NodeType,
+    /// 节点属性
     pub properties: HashMap<String, serde_json::Value>,
+    /// 创建时间
     pub created_at: chrono::DateTime<chrono::Utc>,
+    /// 更新时间
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
 /// 节点类型
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum NodeType {
-    Entity,      // 实体节点
-    Concept,     // 概念节点
-    Event,       // 事件节点
-    Relation,    // 关系节点
-    Context,     // 上下文节点
+    /// 实体节点
+    Entity,
+    /// 概念节点
+    Concept,
+    /// 事件节点
+    Event,
+    /// 关系节点
+    Relation,
+    /// 上下文节点
+    Context,
 }
 
 /// 图记忆边
@@ -47,16 +60,16 @@ pub struct GraphEdge {
 /// 关系类型
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum RelationType {
-    IsA,           // 是一个
-    PartOf,        // 是...的一部分
-    RelatedTo,     // 相关于
-    CausedBy,      // 由...引起
-    Leads,         // 导致
-    SimilarTo,     // 类似于
-    OppositeOf,    // 相反于
-    TemporalNext,  // 时间上的下一个
-    TemporalPrev,  // 时间上的上一个
-    Spatial,       // 空间关系
+    IsA,            // 是一个
+    PartOf,         // 是...的一部分
+    RelatedTo,      // 相关于
+    CausedBy,       // 由...引起
+    Leads,          // 导致
+    SimilarTo,      // 类似于
+    OppositeOf,     // 相反于
+    TemporalNext,   // 时间上的下一个
+    TemporalPrev,   // 时间上的上一个
+    Spatial,        // 空间关系
     Custom(String), // 自定义关系
 }
 
@@ -72,11 +85,11 @@ pub struct ReasoningPath {
 /// 推理类型
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ReasoningType {
-    Deductive,    // 演绎推理
-    Inductive,    // 归纳推理
-    Abductive,    // 溯因推理
-    Analogical,   // 类比推理
-    Causal,       // 因果推理
+    Deductive,  // 演绎推理
+    Inductive,  // 归纳推理
+    Abductive,  // 溯因推理
+    Analogical, // 类比推理
+    Causal,     // 因果推理
 }
 
 /// 图记忆和关系推理引擎
@@ -105,7 +118,7 @@ impl GraphMemoryEngine {
     pub async fn add_node(&self, memory: Memory, node_type: NodeType) -> Result<MemoryId> {
         let node_id = memory.id.clone();
         let now = chrono::Utc::now();
-        
+
         let node = GraphNode {
             id: node_id.clone(),
             memory,
@@ -117,14 +130,22 @@ impl GraphMemoryEngine {
 
         // 添加到节点集合
         self.nodes.write().await.insert(node_id.clone(), node);
-        
+
         // 初始化邻接表
-        self.adjacency_list.write().await.insert(node_id.clone(), Vec::new());
-        self.reverse_adjacency.write().await.insert(node_id.clone(), Vec::new());
+        self.adjacency_list
+            .write()
+            .await
+            .insert(node_id.clone(), Vec::new());
+        self.reverse_adjacency
+            .write()
+            .await
+            .insert(node_id.clone(), Vec::new());
 
         // 更新索引
         let type_key = format!("type:{:?}", node_type);
-        self.node_index.write().await
+        self.node_index
+            .write()
+            .await
             .entry(type_key)
             .or_insert_with(HashSet::new)
             .insert(node_id.clone());
@@ -162,12 +183,16 @@ impl GraphMemoryEngine {
         self.edges.write().await.insert(edge_id, edge);
 
         // 更新邻接表
-        self.adjacency_list.write().await
+        self.adjacency_list
+            .write()
+            .await
             .entry(from_node)
             .or_insert_with(Vec::new)
             .push(edge_id);
 
-        self.reverse_adjacency.write().await
+        self.reverse_adjacency
+            .write()
+            .await
             .entry(to_node)
             .or_insert_with(Vec::new)
             .push(edge_id);
@@ -199,7 +224,8 @@ impl GraphMemoryEngine {
             }
 
             if let Some(node) = nodes.get(&current_id) {
-                if depth > 0 { // 不包括起始节点
+                if depth > 0 {
+                    // 不包括起始节点
                     result.push(node.clone());
                 }
             }
@@ -269,7 +295,8 @@ impl GraphMemoryEngine {
         target_node: &MemoryId,
     ) -> Result<Vec<ReasoningPath>> {
         // 反向推理，从结果推原因
-        self.find_reverse_causal_paths(start_node, target_node).await
+        self.find_reverse_causal_paths(start_node, target_node)
+            .await
     }
 
     /// 类比推理
@@ -279,7 +306,8 @@ impl GraphMemoryEngine {
         target_node: &MemoryId,
     ) -> Result<Vec<ReasoningPath>> {
         // 基于相似性的类比推理
-        self.find_similarity_based_paths(start_node, target_node).await
+        self.find_similarity_based_paths(start_node, target_node)
+            .await
     }
 
     /// 因果推理
@@ -301,7 +329,7 @@ impl GraphMemoryEngine {
     ) -> Result<Vec<ReasoningPath>> {
         // 简化的 Dijkstra 实现
         let mut paths = Vec::new();
-        
+
         // 这里实现具体的路径查找算法
         // 为了简化，返回一个示例路径
         if start != target {
@@ -338,8 +366,13 @@ impl GraphMemoryEngine {
                 if start_node.node_type == target_node.node_type {
                     // 找到相似的节点类型，构建归纳推理路径
                     let path = ReasoningPath {
-                        nodes: vec![start.clone(), start_node.id.clone(), target_node.id.clone(), target.clone()],
-                        edges: vec![], // 简化实现，实际应该包含具体的边ID
+                        nodes: vec![
+                            start.clone(),
+                            start_node.id.clone(),
+                            target_node.id.clone(),
+                            target.clone(),
+                        ],
+                        edges: vec![],   // 简化实现，实际应该包含具体的边ID
                         confidence: 0.7, // 基于模式相似性的置信度
                         reasoning_type: ReasoningType::Inductive,
                     };
@@ -370,7 +403,8 @@ impl GraphMemoryEngine {
         let reverse_adjacency = self.reverse_adjacency.read().await;
 
         while let Some((current_id, path, depth)) = queue.pop_front() {
-            if depth > 3 { // 限制搜索深度
+            if depth > 3 {
+                // 限制搜索深度
                 continue;
             }
 
@@ -381,7 +415,7 @@ impl GraphMemoryEngine {
 
                 let reasoning_path = ReasoningPath {
                     nodes: reverse_path,
-                    edges: vec![], // 简化实现
+                    edges: vec![],                          // 简化实现
                     confidence: 0.6 - (depth as f32 * 0.1), // 深度越大置信度越低
                     reasoning_type: ReasoningType::Abductive,
                 };
@@ -393,7 +427,10 @@ impl GraphMemoryEngine {
             if let Some(incoming_edges) = reverse_adjacency.get(&current_id) {
                 for edge_id in incoming_edges {
                     if let Some(edge) = edges.get(edge_id) {
-                        if matches!(edge.relation_type, RelationType::CausedBy | RelationType::Leads) {
+                        if matches!(
+                            edge.relation_type,
+                            RelationType::CausedBy | RelationType::Leads
+                        ) {
                             let from_node = &edge.from_node;
                             if !visited.contains(from_node) {
                                 visited.insert(from_node.clone());
@@ -419,15 +456,20 @@ impl GraphMemoryEngine {
         let mut paths = Vec::new();
 
         let nodes = self.nodes.read().await;
-        let start_node = nodes.get(start).ok_or_else(|| anyhow!("Start node not found"))?;
-        let _target_node = nodes.get(target).ok_or_else(|| anyhow!("Target node not found"))?;
+        let start_node = nodes
+            .get(start)
+            .ok_or_else(|| anyhow!("Start node not found"))?;
+        let _target_node = nodes
+            .get(target)
+            .ok_or_else(|| anyhow!("Target node not found"))?;
 
         // 查找与起始节点相似的节点
         let mut similar_nodes = Vec::new();
         for (node_id, node) in nodes.iter() {
             if node_id != start && node_id != target {
                 let similarity = self.calculate_node_similarity(start_node, node);
-                if similarity > 0.5 { // 相似度阈值
+                if similarity > 0.5 {
+                    // 相似度阈值
                     similar_nodes.push((node_id.clone(), similarity));
                 }
             }
@@ -437,7 +479,8 @@ impl GraphMemoryEngine {
         similar_nodes.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
         // 为每个相似节点构建类比推理路径
-        for (similar_id, similarity) in similar_nodes.into_iter().take(3) { // 取前3个最相似的
+        for (similar_id, similarity) in similar_nodes.into_iter().take(3) {
+            // 取前3个最相似的
             // 查找相似节点到目标节点的路径
             if let Ok(related) = self.find_related_nodes(&similar_id, 2, None).await {
                 for related_node in related {
@@ -500,7 +543,8 @@ impl GraphMemoryEngine {
         let adjacency = self.adjacency_list.read().await;
 
         while let Some((current_id, node_path, edge_path, depth)) = queue.pop_front() {
-            if depth > 4 { // 限制因果链长度
+            if depth > 4 {
+                // 限制因果链长度
                 continue;
             }
 
@@ -521,7 +565,10 @@ impl GraphMemoryEngine {
                 for edge_id in outgoing_edges {
                     if let Some(edge) = edges.get(edge_id) {
                         // 只考虑因果关系
-                        if matches!(edge.relation_type, RelationType::CausedBy | RelationType::Leads) {
+                        if matches!(
+                            edge.relation_type,
+                            RelationType::CausedBy | RelationType::Leads
+                        ) {
                             let next_node = &edge.to_node;
                             if !visited.contains(next_node) {
                                 visited.insert(next_node.clone());
@@ -529,7 +576,12 @@ impl GraphMemoryEngine {
                                 new_node_path.push(next_node.clone());
                                 let mut new_edge_path = edge_path.clone();
                                 new_edge_path.push(*edge_id);
-                                queue.push_back((next_node.clone(), new_node_path, new_edge_path, depth + 1));
+                                queue.push_back((
+                                    next_node.clone(),
+                                    new_node_path,
+                                    new_edge_path,
+                                    depth + 1,
+                                ));
                             }
                         }
                     }
@@ -553,7 +605,10 @@ impl GraphMemoryEngine {
         })
     }
 
-    async fn count_node_types(&self, nodes: &HashMap<MemoryId, GraphNode>) -> HashMap<NodeType, usize> {
+    async fn count_node_types(
+        &self,
+        nodes: &HashMap<MemoryId, GraphNode>,
+    ) -> HashMap<NodeType, usize> {
         let mut counts = HashMap::new();
         for node in nodes.values() {
             *counts.entry(node.node_type.clone()).or_insert(0) += 1;
@@ -561,7 +616,10 @@ impl GraphMemoryEngine {
         counts
     }
 
-    async fn count_relation_types(&self, edges: &HashMap<Uuid, GraphEdge>) -> HashMap<RelationType, usize> {
+    async fn count_relation_types(
+        &self,
+        edges: &HashMap<Uuid, GraphEdge>,
+    ) -> HashMap<RelationType, usize> {
         let mut counts = HashMap::new();
         for edge in edges.values() {
             *counts.entry(edge.relation_type.clone()).or_insert(0) += 1;
@@ -576,6 +634,7 @@ pub struct GraphStats {
     pub total_nodes: usize,
     pub total_edges: usize,
     pub node_types: HashMap<NodeType, usize>,
+    /// Count of each relation type in the graph
     pub relation_types: HashMap<RelationType, usize>,
 }
 
@@ -629,12 +688,10 @@ mod tests {
         let node2_id = engine.add_node(memory2, NodeType::Concept).await.unwrap();
 
         // 添加边
-        let edge_id = engine.add_edge(
-            node1_id.clone(),
-            node2_id.clone(),
-            RelationType::IsA,
-            1.0,
-        ).await.unwrap();
+        let _edge_id = engine
+            .add_edge(node1_id.clone(), node2_id.clone(), RelationType::IsA, 1.0)
+            .await
+            .unwrap();
 
         // 查找相关节点
         let related = engine.find_related_nodes(&node1_id, 2, None).await.unwrap();

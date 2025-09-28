@@ -1,6 +1,6 @@
 //! Search module - Advanced memory search capabilities
 
-use crate::{Memory, hierarchy::MemoryScope};
+use crate::{hierarchy::MemoryScope, Memory};
 use serde::{Deserialize, Serialize};
 
 /// Search engine for memories
@@ -26,13 +26,13 @@ impl Default for SearchEngine {
 pub struct SearchQuery {
     /// Query text
     pub query: String,
-    
+
     /// Memory scope filter
     pub scope: Option<MemoryScope>,
-    
+
     /// Maximum results
     pub limit: Option<usize>,
-    
+
     /// Minimum importance threshold
     pub min_importance: Option<f64>,
 }
@@ -42,10 +42,10 @@ pub struct SearchQuery {
 pub struct SearchResult {
     /// Found memory
     pub memory: Memory,
-    
+
     /// Relevance score
     pub score: f64,
-    
+
     /// Matching highlights
     pub highlights: Vec<String>,
 }

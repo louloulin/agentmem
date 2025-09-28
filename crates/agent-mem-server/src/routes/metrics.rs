@@ -1,7 +1,7 @@
 //! Metrics and monitoring routes
 
-use crate::{error::ServerResult, models::MetricsResponse};
 use crate::routes::memory::MemoryManager;
+use crate::{error::ServerResult, models::MetricsResponse};
 use axum::{extract::Extension, response::Json};
 use chrono::Utc;
 use std::sync::Arc;
@@ -29,20 +29,24 @@ pub async fn get_metrics(
     let mut metrics = std::collections::HashMap::new();
 
     // Memory metrics - extract from JSON response
-    let total_memories = stats.get("total_memories")
+    let total_memories = stats
+        .get("total_memories")
         .and_then(|v| v.as_u64())
         .unwrap_or(0) as f64;
     metrics.insert("total_memories".to_string(), total_memories);
 
     // Extract memory counts by type from nested object
     if let Some(memory_types) = stats.get("memory_types").and_then(|v| v.as_object()) {
-        let episodic_count = memory_types.get("episodic")
+        let episodic_count = memory_types
+            .get("episodic")
             .and_then(|v| v.as_u64())
             .unwrap_or(0) as f64;
-        let semantic_count = memory_types.get("semantic")
+        let semantic_count = memory_types
+            .get("semantic")
             .and_then(|v| v.as_u64())
             .unwrap_or(0) as f64;
-        let procedural_count = memory_types.get("procedural")
+        let procedural_count = memory_types
+            .get("procedural")
             .and_then(|v| v.as_u64())
             .unwrap_or(0) as f64;
 
@@ -51,7 +55,8 @@ pub async fn get_metrics(
         metrics.insert("procedural_memories".to_string(), procedural_count);
     }
 
-    let average_importance = stats.get("average_importance")
+    let average_importance = stats
+        .get("average_importance")
         .and_then(|v| v.as_f64())
         .unwrap_or(0.0);
     metrics.insert("average_importance".to_string(), average_importance);

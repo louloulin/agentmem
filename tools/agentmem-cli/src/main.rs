@@ -28,7 +28,11 @@ struct Cli {
     api_key: Option<String>,
 
     /// API base URL
-    #[arg(long, env = "AGENTMEM_BASE_URL", default_value = "https://api.agentmem.dev")]
+    #[arg(
+        long,
+        env = "AGENTMEM_BASE_URL",
+        default_value = "https://api.agentmem.dev"
+    )]
     base_url: String,
 
     /// API version
@@ -85,29 +89,35 @@ async fn main() -> Result<()> {
 
     // Load configuration
     let config = CliConfig::load(cli.config.as_deref())?;
-    
+
     // Merge CLI args with config
     let merged_config = config.merge_with_cli(&cli)?;
 
     // Validate API key
     if merged_config.api_key.is_none() {
         eprintln!("{}", "Error: API key is required. Set AGENTMEM_API_KEY environment variable or use --api-key flag.".red());
-        eprintln!("Get your API key at: {}", "https://agentmem.dev/dashboard/api-keys".blue());
+        eprintln!(
+            "Get your API key at: {}",
+            "https://agentmem.dev/dashboard/api-keys".blue()
+        );
         std::process::exit(1);
     }
 
     // Execute command
     let result: Result<(), anyhow::Error> = match cli.command {
         Commands::Init { name, template } => {
-            println!("{}", format!("🚀 Initializing new AgentMem project: {}", name).green());
+            println!(
+                "{}",
+                format!("🚀 Initializing new AgentMem project: {}", name).green()
+            );
             println!("Template: {}", template);
             println!("✅ Project initialized successfully!");
             Ok(())
-        },
+        }
         Commands::Version => {
             print_version_info();
             Ok(())
-        },
+        }
         Commands::Config => {
             println!("{}", "📋 Current Configuration:".blue());
             println!("API Base URL: {}", merged_config.base_url);
@@ -117,14 +127,14 @@ async fn main() -> Result<()> {
             println!("Output Format: {}", merged_config.format);
             println!("Verbose: {}", merged_config.verbose);
             Ok(())
-        },
+        }
         Commands::Status => {
             println!("{}", "🔍 AgentMem Status Check".blue());
             println!("API Endpoint: {}", merged_config.api_base_url());
             println!("✅ CLI is ready to use!");
             println!("Note: Add your API key to connect to AgentMem service");
             Ok(())
-        },
+        }
     };
 
     match result {
@@ -163,7 +173,11 @@ fn print_welcome() {
 
 /// Print version information
 fn print_version_info() {
-    println!("{} {}", "AgentMem CLI".bright_blue().bold(), "v6.0.0".green());
+    println!(
+        "{} {}",
+        "AgentMem CLI".bright_blue().bold(),
+        "v6.0.0".green()
+    );
     println!("Enterprise-grade memory management for AI agents");
     println!();
     println!("Build info:");
@@ -175,7 +189,6 @@ fn print_version_info() {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use assert_cmd::Command;
     use predicates::prelude::*;
 

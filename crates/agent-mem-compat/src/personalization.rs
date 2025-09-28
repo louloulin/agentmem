@@ -1,5 +1,5 @@
 //! 个性化记忆管理模块
-//! 
+//!
 //! 提供用户个性化记忆策略，包括：
 //! - 个性化搜索和推荐
 //! - 用户偏好学习和适应
@@ -8,13 +8,13 @@
 
 use crate::types::Memory;
 use agent_mem_traits::{Result, Session};
+use chrono::{DateTime, Timelike, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use chrono::{DateTime, Utc, Timelike};
-use uuid::Uuid;
 use tracing::{debug, info};
+use uuid::Uuid;
 
 /// 简单的记忆搜索结果（用于个性化处理）
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -266,8 +266,11 @@ pub struct PersonalizationManager {
 impl PersonalizationManager {
     /// 创建新的个性化管理器
     pub fn new(config: PersonalizationConfig) -> Self {
-        info!("Initializing PersonalizationManager with config: {:?}", config);
-        
+        info!(
+            "Initializing PersonalizationManager with config: {:?}",
+            config
+        );
+
         Self {
             config,
             user_profiles: Arc::new(RwLock::new(HashMap::new())),
@@ -280,68 +283,81 @@ impl PersonalizationManager {
     /// 记录用户行为
     pub async fn record_behavior(&self, behavior: UserBehavior) -> Result<()> {
         debug!("Recording user behavior: {:?}", behavior);
-        
+
         let mut history = self.behavior_history.write().await;
-        let user_history = history.entry(behavior.user_id.clone()).or_insert_with(VecDeque::new);
-        
+        let user_history = history
+            .entry(behavior.user_id.clone())
+            .or_insert_with(VecDeque::new);
+
         // 添加新行为
         user_history.push_back(behavior.clone());
-        
+
         // 限制历史记录长度
         let max_history = (self.config.behavior_history_days * 24 * 10) as usize; // 假设每小时10个行为
         while user_history.len() > max_history {
             user_history.pop_front();
         }
-        
+
         // 异步学习用户偏好
         self.learn_from_behavior(&behavior).await?;
-        
+
         Ok(())
     }
 
     /// 从行为中学习用户偏好
     async fn learn_from_behavior(&self, behavior: &UserBehavior) -> Result<()> {
         debug!("Learning from behavior: {:?}", behavior.behavior_type);
-        
+
         let mut preferences = self.user_preferences.write().await;
-        let user_prefs = preferences.entry(behavior.user_id.clone()).or_insert_with(Vec::new);
-        
+        let user_prefs = preferences
+            .entry(behavior.user_id.clone())
+            .or_insert_with(Vec::new);
+
         // 根据行为类型学习偏好
         match behavior.behavior_type {
             BehaviorType::Search => {
                 if let Some(query) = &behavior.search_query {
-                    self.learn_search_preference(user_prefs, query, &behavior.user_id).await?;
+                    self.learn_search_preference(user_prefs, query, &behavior.user_id)
+                        .await?;
                 }
-            },
+            }
             BehaviorType::Access => {
                 if let Some(memory_id) = &behavior.memory_id {
-                    self.learn_access_preference(user_prefs, memory_id, &behavior.user_id).await?;
+                    self.learn_access_preference(user_prefs, memory_id, &behavior.user_id)
+                        .await?;
                 }
-            },
+            }
             BehaviorType::Favorite => {
                 if let Some(memory_id) = &behavior.memory_id {
-                    self.learn_favorite_preference(user_prefs, memory_id, &behavior.user_id).await?;
+                    self.learn_favorite_preference(user_prefs, memory_id, &behavior.user_id)
+                        .await?;
                 }
-            },
+            }
             _ => {
                 // 其他行为类型的学习逻辑
                 debug!("Learning from behavior type: {:?}", behavior.behavior_type);
             }
         }
-        
+
         Ok(())
     }
 
     /// 学习搜索偏好
-    async fn learn_search_preference(&self, user_prefs: &mut Vec<UserPreference>, query: &str, user_id: &str) -> Result<()> {
+    async fn learn_search_preference(
+        &self,
+        user_prefs: &mut Vec<UserPreference>,
+        query: &str,
+        user_id: &str,
+    ) -> Result<()> {
         // 提取搜索关键词
         let keywords = self.extract_keywords(query);
-        
+
         for keyword in keywords {
             // 查找现有偏好或创建新偏好
-            if let Some(pref) = user_prefs.iter_mut().find(|p| 
-                p.preference_type == PreferenceType::SearchPattern && p.value == keyword
-            ) {
+            if let Some(pref) = user_prefs
+                .iter_mut()
+                .find(|p| p.preference_type == PreferenceType::SearchPattern && p.value == keyword)
+            {
                 // 更新现有偏好
                 pref.weight = (pref.weight + self.config.learning_rate).min(1.0);
                 pref.usage_frequency += 1;
@@ -364,58 +380,87 @@ impl PersonalizationManager {
                 user_prefs.push(new_pref);
             }
         }
-        
+
         // 限制偏好数量
         if user_prefs.len() > self.config.max_user_preferences {
             user_prefs.sort_by(|a, b| b.weight.partial_cmp(&a.weight).unwrap());
             user_prefs.truncate(self.config.max_user_preferences);
         }
-        
+
         Ok(())
     }
 
     /// 学习访问偏好
-    async fn learn_access_preference(&self, _user_prefs: &mut Vec<UserPreference>, _memory_id: &str, _user_id: &str) -> Result<()> {
+    async fn learn_access_preference(
+        &self,
+        _user_prefs: &mut Vec<UserPreference>,
+        _memory_id: &str,
+        _user_id: &str,
+    ) -> Result<()> {
         // TODO: 实现访问偏好学习
         // 分析访问的记忆内容，学习用户对内容类型、主题等的偏好
         Ok(())
     }
 
     /// 学习收藏偏好
-    async fn learn_favorite_preference(&self, _user_prefs: &mut Vec<UserPreference>, _memory_id: &str, _user_id: &str) -> Result<()> {
+    async fn learn_favorite_preference(
+        &self,
+        _user_prefs: &mut Vec<UserPreference>,
+        _memory_id: &str,
+        _user_id: &str,
+    ) -> Result<()> {
         // TODO: 实现收藏偏好学习
         // 收藏行为表明强烈偏好，应该给予更高权重
         Ok(())
     }
 
     /// 个性化搜索
-    pub async fn personalized_search(&self, request: PersonalizedSearchRequest, base_results: Vec<MemorySearchResult>) -> Result<Vec<PersonalizedSearchResult>> {
-        debug!("Performing personalized search for user: {}", request.user_id);
+    pub async fn personalized_search(
+        &self,
+        request: PersonalizedSearchRequest,
+        base_results: Vec<MemorySearchResult>,
+    ) -> Result<Vec<PersonalizedSearchResult>> {
+        debug!(
+            "Performing personalized search for user: {}",
+            request.user_id
+        );
 
         if !request.enable_personalization || !self.config.enable_personalized_search {
             // 如果未启用个性化，返回基础结果
-            return Ok(base_results.into_iter().map(|result| PersonalizedSearchResult {
-                memory: result.memory,
-                base_score: result.score,
-                personalization_score: 0.0,
-                final_score: result.score,
-                matched_preferences: Vec::new(),
-                recommendation_reasons: Vec::new(),
-            }).collect());
+            return Ok(base_results
+                .into_iter()
+                .map(|result| PersonalizedSearchResult {
+                    memory: result.memory,
+                    base_score: result.score,
+                    personalization_score: 0.0,
+                    final_score: result.score,
+                    matched_preferences: Vec::new(),
+                    recommendation_reasons: Vec::new(),
+                })
+                .collect());
         }
 
         let preferences = self.user_preferences.read().await;
-        let user_prefs = preferences.get(&request.user_id).cloned().unwrap_or_default();
+        let user_prefs = preferences
+            .get(&request.user_id)
+            .cloned()
+            .unwrap_or_default();
 
         let mut personalized_results = Vec::new();
 
         for result in base_results {
-            let personalization_score = self.calculate_personalization_score(&result.memory, &user_prefs, &request.query).await?;
-            let final_score = result.score * (1.0 - request.personalization_weight) +
-                             personalization_score * request.personalization_weight;
+            let personalization_score = self
+                .calculate_personalization_score(&result.memory, &user_prefs, &request.query)
+                .await?;
+            let final_score = result.score * (1.0 - request.personalization_weight)
+                + personalization_score * request.personalization_weight;
 
-            let matched_preferences = self.find_matched_preferences(&result.memory, &user_prefs, &request.query).await?;
-            let recommendation_reasons = self.generate_recommendation_reasons(&matched_preferences).await?;
+            let matched_preferences = self
+                .find_matched_preferences(&result.memory, &user_prefs, &request.query)
+                .await?;
+            let recommendation_reasons = self
+                .generate_recommendation_reasons(&matched_preferences)
+                .await?;
 
             personalized_results.push(PersonalizedSearchResult {
                 memory: result.memory,
@@ -434,13 +479,21 @@ impl PersonalizationManager {
     }
 
     /// 计算个性化分数
-    async fn calculate_personalization_score(&self, memory: &Memory, user_prefs: &[UserPreference], query: &str) -> Result<f32> {
+    async fn calculate_personalization_score(
+        &self,
+        memory: &Memory,
+        user_prefs: &[UserPreference],
+        query: &str,
+    ) -> Result<f32> {
         let mut score = 0.0;
         let mut total_weight = 0.0;
 
         // 基于搜索模式偏好
         let query_keywords = self.extract_keywords(query);
-        for pref in user_prefs.iter().filter(|p| p.preference_type == PreferenceType::SearchPattern) {
+        for pref in user_prefs
+            .iter()
+            .filter(|p| p.preference_type == PreferenceType::SearchPattern)
+        {
             if query_keywords.contains(&pref.value) {
                 score += pref.weight * pref.confidence;
                 total_weight += pref.weight;
@@ -449,7 +502,10 @@ impl PersonalizationManager {
 
         // 基于内容匹配偏好
         let content_keywords = self.extract_keywords(&memory.memory);
-        for pref in user_prefs.iter().filter(|p| p.preference_type == PreferenceType::Topic) {
+        for pref in user_prefs
+            .iter()
+            .filter(|p| p.preference_type == PreferenceType::Topic)
+        {
             if content_keywords.contains(&pref.value) {
                 score += pref.weight * pref.confidence * 0.8; // 内容匹配权重稍低
                 total_weight += pref.weight * 0.8;
@@ -465,7 +521,12 @@ impl PersonalizationManager {
     }
 
     /// 查找匹配的偏好
-    async fn find_matched_preferences(&self, memory: &Memory, user_prefs: &[UserPreference], query: &str) -> Result<Vec<UserPreference>> {
+    async fn find_matched_preferences(
+        &self,
+        memory: &Memory,
+        user_prefs: &[UserPreference],
+        query: &str,
+    ) -> Result<Vec<UserPreference>> {
         let mut matched = Vec::new();
 
         let query_keywords = self.extract_keywords(query);
@@ -477,8 +538,11 @@ impl PersonalizationManager {
                 PreferenceType::Topic => content_keywords.contains(&pref.value),
                 PreferenceType::ContentType => {
                     // 基于记忆元数据匹配内容类型
-                    memory.metadata.get("content_type").map_or(false, |ct| ct == &pref.value)
-                },
+                    memory
+                        .metadata
+                        .get("content_type")
+                        .map_or(false, |ct| ct == &pref.value)
+                }
                 _ => false,
             };
 
@@ -491,7 +555,10 @@ impl PersonalizationManager {
     }
 
     /// 生成推荐原因
-    async fn generate_recommendation_reasons(&self, matched_preferences: &[UserPreference]) -> Result<Vec<String>> {
+    async fn generate_recommendation_reasons(
+        &self,
+        matched_preferences: &[UserPreference],
+    ) -> Result<Vec<String>> {
         let mut reasons = Vec::new();
 
         for pref in matched_preferences {
@@ -510,7 +577,11 @@ impl PersonalizationManager {
     }
 
     /// 生成记忆推荐
-    pub async fn generate_recommendations(&self, user_id: &str, limit: usize) -> Result<Vec<MemoryRecommendation>> {
+    pub async fn generate_recommendations(
+        &self,
+        user_id: &str,
+        limit: usize,
+    ) -> Result<Vec<MemoryRecommendation>> {
         debug!("Generating recommendations for user: {}", user_id);
 
         if !self.config.enable_recommendations {
@@ -552,7 +623,9 @@ impl PersonalizationManager {
     /// 更新用户偏好
     pub async fn update_user_preference(&self, preference: UserPreference) -> Result<()> {
         let mut preferences = self.user_preferences.write().await;
-        let user_prefs = preferences.entry(preference.user_id.clone()).or_insert_with(Vec::new);
+        let user_prefs = preferences
+            .entry(preference.user_id.clone())
+            .or_insert_with(Vec::new);
 
         // 查找现有偏好并更新，或添加新偏好
         if let Some(existing) = user_prefs.iter_mut().find(|p| p.id == preference.id) {
@@ -611,17 +684,31 @@ impl PersonalizationManager {
     }
 
     /// 计算用户统计信息
-    async fn calculate_user_stats(&self, behaviors: &VecDeque<UserBehavior>) -> Result<UserProfileStats> {
-        let total_searches = behaviors.iter().filter(|b| b.behavior_type == BehaviorType::Search).count() as u32;
-        let total_accesses = behaviors.iter().filter(|b| b.behavior_type == BehaviorType::Access).count() as u32;
+    async fn calculate_user_stats(
+        &self,
+        behaviors: &VecDeque<UserBehavior>,
+    ) -> Result<UserProfileStats> {
+        let total_searches = behaviors
+            .iter()
+            .filter(|b| b.behavior_type == BehaviorType::Search)
+            .count() as u32;
+        let total_accesses = behaviors
+            .iter()
+            .filter(|b| b.behavior_type == BehaviorType::Access)
+            .count() as u32;
 
-        let avg_session_duration = behaviors.iter()
+        let avg_session_duration = behaviors
+            .iter()
             .filter_map(|b| b.duration)
             .map(|d| d as f32)
-            .sum::<f32>() / behaviors.len().max(1) as f32;
+            .sum::<f32>()
+            / behaviors.len().max(1) as f32;
 
         let mut search_terms = HashMap::new();
-        for behavior in behaviors.iter().filter(|b| b.behavior_type == BehaviorType::Search) {
+        for behavior in behaviors
+            .iter()
+            .filter(|b| b.behavior_type == BehaviorType::Search)
+        {
             if let Some(query) = &behavior.search_query {
                 let keywords = self.extract_keywords(query);
                 for keyword in keywords {
@@ -632,7 +719,11 @@ impl PersonalizationManager {
 
         let mut top_search_terms: Vec<_> = search_terms.into_iter().collect();
         top_search_terms.sort_by(|a, b| b.1.cmp(&a.1));
-        let top_search_terms = top_search_terms.into_iter().take(10).map(|(term, _)| term).collect();
+        let top_search_terms = top_search_terms
+            .into_iter()
+            .take(10)
+            .map(|(term, _)| term)
+            .collect();
 
         // 计算最活跃时间段
         let mut hour_counts = vec![0u32; 24];
@@ -640,7 +731,8 @@ impl PersonalizationManager {
             let hour = behavior.timestamp.hour() as usize;
             hour_counts[hour] += 1;
         }
-        let most_active_hour = hour_counts.iter()
+        let most_active_hour = hour_counts
+            .iter()
             .enumerate()
             .max_by_key(|(_, count)| *count)
             .map(|(hour, _)| hour as u8)
@@ -683,7 +775,8 @@ impl PersonalizationManager {
 
         // 找出活跃度超过平均值的时间段
         let avg_activity = hour_counts.iter().sum::<u32>() as f32 / 24.0;
-        let active_hours = hour_counts.iter()
+        let active_hours = hour_counts
+            .iter()
             .enumerate()
             .filter(|(_, count)| **count as f32 > avg_activity)
             .map(|(hour, _)| hour as u8)
@@ -699,7 +792,10 @@ impl PersonalizationManager {
 
         let mut patterns = HashMap::new();
 
-        for behavior in user_behaviors.iter().filter(|b| b.behavior_type == BehaviorType::Search) {
+        for behavior in user_behaviors
+            .iter()
+            .filter(|b| b.behavior_type == BehaviorType::Search)
+        {
             if let Some(query) = &behavior.search_query {
                 let keywords = self.extract_keywords(query);
                 for keyword in keywords {
@@ -716,7 +812,11 @@ impl PersonalizationManager {
         // 简单的关键词提取
         text.split_whitespace()
             .filter(|word| word.len() > 2)
-            .map(|word| word.to_lowercase().trim_matches(|c: char| !c.is_alphanumeric()).to_string())
+            .map(|word| {
+                word.to_lowercase()
+                    .trim_matches(|c: char| !c.is_alphanumeric())
+                    .to_string()
+            })
             .filter(|word| !word.is_empty())
             .collect()
     }
@@ -803,7 +903,10 @@ mod tests {
         assert_eq!(preferences[0].value, "rust");
 
         // 删除偏好
-        let deleted = manager.delete_user_preference("test_user", &preference.id).await.unwrap();
+        let deleted = manager
+            .delete_user_preference("test_user", &preference.id)
+            .await
+            .unwrap();
         assert!(deleted);
 
         // 验证删除

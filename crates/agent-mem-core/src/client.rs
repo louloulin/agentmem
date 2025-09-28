@@ -1,17 +1,17 @@
 //! Mem0 Compatible Client Interface
-//! 
+//!
 //! This module provides a Mem0-compatible API interface for AgentMem,
 //! enabling seamless migration from Mem0 to AgentMem.
 
 use crate::{MemoryEngine, MemoryEngineConfig};
 use agent_mem_traits::{AgentMemError, Result};
+use chrono::{DateTime, Utc};
+use futures::future;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
-use futures::future;
 
 /// Memory type for client API
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -95,7 +95,7 @@ impl Message {
             metadata: HashMap::new(),
         }
     }
-    
+
     /// Create an assistant message
     pub fn assistant(content: String) -> Self {
         Self {
@@ -104,7 +104,7 @@ impl Message {
             metadata: HashMap::new(),
         }
     }
-    
+
     /// Create a system message
     pub fn system(content: String) -> Self {
         Self {
@@ -113,17 +113,19 @@ impl Message {
             metadata: HashMap::new(),
         }
     }
-    
+
     /// Validate message
     pub fn validate(&self) -> Result<()> {
         if self.content.trim().is_empty() {
-            return Err(AgentMemError::validation_error("Message content cannot be empty"));
+            return Err(AgentMemError::validation_error(
+                "Message content cannot be empty",
+            ));
         }
-        
+
         if !["user", "assistant", "system"].contains(&self.role.as_str()) {
             return Err(AgentMemError::validation_error("Invalid message role"));
         }
-        
+
         Ok(())
     }
 }
@@ -149,7 +151,7 @@ impl Messages {
         }
         Ok(())
     }
-    
+
     /// Convert to message list
     pub fn to_message_list(&self) -> Vec<Message> {
         match self {
@@ -259,46 +261,59 @@ impl FilterBuilder {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     /// Add user ID filter
     pub fn user_id(mut self, user_id: String) -> Self {
-        self.filters.insert("user_id".to_string(), serde_json::Value::String(user_id));
+        self.filters
+            .insert("user_id".to_string(), serde_json::Value::String(user_id));
         self
     }
-    
+
     /// Add agent ID filter
     pub fn agent_id(mut self, agent_id: String) -> Self {
-        self.filters.insert("agent_id".to_string(), serde_json::Value::String(agent_id));
+        self.filters
+            .insert("agent_id".to_string(), serde_json::Value::String(agent_id));
         self
     }
-    
+
     /// Add run ID filter
     pub fn run_id(mut self, run_id: String) -> Self {
-        self.filters.insert("run_id".to_string(), serde_json::Value::String(run_id));
+        self.filters
+            .insert("run_id".to_string(), serde_json::Value::String(run_id));
         self
     }
-    
+
     /// Add date range filter
     pub fn date_range(mut self, start: DateTime<Utc>, end: DateTime<Utc>) -> Self {
-        self.filters.insert("created_at_gte".to_string(), serde_json::Value::String(start.to_rfc3339()));
-        self.filters.insert("created_at_lte".to_string(), serde_json::Value::String(end.to_rfc3339()));
+        self.filters.insert(
+            "created_at_gte".to_string(),
+            serde_json::Value::String(start.to_rfc3339()),
+        );
+        self.filters.insert(
+            "created_at_lte".to_string(),
+            serde_json::Value::String(end.to_rfc3339()),
+        );
         self
     }
-    
+
     /// Add memory type filter
     pub fn memory_type(mut self, memory_type: MemoryType) -> Self {
-        self.filters.insert("memory_type".to_string(), serde_json::Value::String(memory_type.to_string()));
+        self.filters.insert(
+            "memory_type".to_string(),
+            serde_json::Value::String(memory_type.to_string()),
+        );
         self
     }
-    
+
     /// Add custom filter
     pub fn custom<T: Serialize>(mut self, key: String, value: T) -> Result<Self> {
-        let value = serde_json::to_value(value)
-            .map_err(|e| AgentMemError::validation_error(&format!("Invalid filter value: {}", e)))?;
+        let value = serde_json::to_value(value).map_err(|e| {
+            AgentMemError::validation_error(&format!("Invalid filter value: {}", e))
+        })?;
         self.filters.insert(key, value);
         Ok(self)
     }
-    
+
     /// Build filters
     pub fn build(self) -> HashMap<String, serde_json::Value> {
         self.filters
@@ -316,33 +331,37 @@ impl MetadataBuilder {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     /// Add user ID
     pub fn user_id(mut self, user_id: String) -> Self {
-        self.data.insert("user_id".to_string(), serde_json::Value::String(user_id));
+        self.data
+            .insert("user_id".to_string(), serde_json::Value::String(user_id));
         self
     }
-    
+
     /// Add agent ID
     pub fn agent_id(mut self, agent_id: String) -> Self {
-        self.data.insert("agent_id".to_string(), serde_json::Value::String(agent_id));
+        self.data
+            .insert("agent_id".to_string(), serde_json::Value::String(agent_id));
         self
     }
-    
+
     /// Add run ID
     pub fn run_id(mut self, run_id: String) -> Self {
-        self.data.insert("run_id".to_string(), serde_json::Value::String(run_id));
+        self.data
+            .insert("run_id".to_string(), serde_json::Value::String(run_id));
         self
     }
-    
+
     /// Add custom metadata
     pub fn custom<T: Serialize>(mut self, key: String, value: T) -> Result<Self> {
-        let value = serde_json::to_value(value)
-            .map_err(|e| AgentMemError::validation_error(&format!("Invalid metadata value: {}", e)))?;
+        let value = serde_json::to_value(value).map_err(|e| {
+            AgentMemError::validation_error(&format!("Invalid metadata value: {}", e))
+        })?;
         self.data.insert(key, value);
         Ok(self)
     }
-    
+
     /// Build metadata
     pub fn build(self) -> HashMap<String, serde_json::Value> {
         self.data
@@ -410,14 +429,14 @@ impl AgentMemClient {
     pub fn new(config: AgentMemClientConfig) -> Self {
         let engine = Arc::new(MemoryEngine::new(config.engine.clone()));
         let semaphore = Arc::new(Semaphore::new(config.performance.max_concurrent_operations));
-        
+
         Self {
             engine,
             config,
             semaphore,
         }
     }
-    
+
     /// Create client with default configuration
     pub fn default() -> Self {
         Self::new(AgentMemClientConfig::default())
@@ -466,7 +485,9 @@ impl AgentMemClient {
         }
 
         if limit == 0 {
-            return Err(AgentMemError::validation_error("Limit must be greater than 0"));
+            return Err(AgentMemError::validation_error(
+                "Limit must be greater than 0",
+            ));
         }
 
         // Build search filters
@@ -570,13 +591,16 @@ impl AgentMemClient {
         }
 
         // Use semaphore to control concurrency
-        let semaphore = Arc::new(Semaphore::new(self.config.performance.max_concurrent_operations));
+        let semaphore = Arc::new(Semaphore::new(
+            self.config.performance.max_concurrent_operations,
+        ));
         let mut tasks = Vec::new();
 
         for request in requests {
             let client = self.clone();
-            let permit = semaphore.clone().acquire_owned().await
-                .map_err(|e| AgentMemError::internal_error(&format!("Failed to acquire permit: {}", e)))?;
+            let permit = semaphore.clone().acquire_owned().await.map_err(|e| {
+                AgentMemError::internal_error(&format!("Failed to acquire permit: {}", e))
+            })?;
 
             let task = tokio::spawn(async move {
                 let _permit = permit;
@@ -594,7 +618,12 @@ impl AgentMemClient {
             match result {
                 Ok(Ok(add_result)) => final_results.push(add_result),
                 Ok(Err(e)) => return Err(e),
-                Err(e) => return Err(AgentMemError::internal_error(&format!("Task failed: {}", e))),
+                Err(e) => {
+                    return Err(AgentMemError::internal_error(&format!(
+                        "Task failed: {}",
+                        e
+                    )))
+                }
             }
         }
 
@@ -607,13 +636,16 @@ impl AgentMemClient {
             return Ok(vec![]);
         }
 
-        let semaphore = Arc::new(Semaphore::new(self.config.performance.max_concurrent_operations));
+        let semaphore = Arc::new(Semaphore::new(
+            self.config.performance.max_concurrent_operations,
+        ));
         let mut tasks = Vec::new();
 
         for request in requests {
             let client = self.clone();
-            let permit = semaphore.clone().acquire_owned().await
-                .map_err(|e| AgentMemError::internal_error(&format!("Failed to acquire permit: {}", e)))?;
+            let permit = semaphore.clone().acquire_owned().await.map_err(|e| {
+                AgentMemError::internal_error(&format!("Failed to acquire permit: {}", e))
+            })?;
 
             let task = tokio::spawn(async move {
                 let _permit = permit;
@@ -631,7 +663,12 @@ impl AgentMemClient {
             match result {
                 Ok(Ok(update_result)) => final_results.push(update_result),
                 Ok(Err(e)) => return Err(e),
-                Err(e) => return Err(AgentMemError::internal_error(&format!("Task failed: {}", e))),
+                Err(e) => {
+                    return Err(AgentMemError::internal_error(&format!(
+                        "Task failed: {}",
+                        e
+                    )))
+                }
             }
         }
 
@@ -644,13 +681,16 @@ impl AgentMemClient {
             return Ok(vec![]);
         }
 
-        let semaphore = Arc::new(Semaphore::new(self.config.performance.max_concurrent_operations));
+        let semaphore = Arc::new(Semaphore::new(
+            self.config.performance.max_concurrent_operations,
+        ));
         let mut tasks = Vec::new();
 
         for memory_id in memory_ids {
             let client = self.clone();
-            let permit = semaphore.clone().acquire_owned().await
-                .map_err(|e| AgentMemError::internal_error(&format!("Failed to acquire permit: {}", e)))?;
+            let permit = semaphore.clone().acquire_owned().await.map_err(|e| {
+                AgentMemError::internal_error(&format!("Failed to acquire permit: {}", e))
+            })?;
 
             let task = tokio::spawn(async move {
                 let _permit = permit;
@@ -668,7 +708,7 @@ impl AgentMemClient {
             match result {
                 Ok(Ok(delete_result)) => final_results.push(delete_result),
                 Ok(Err(_)) => final_results.push(false), // Failed to delete
-                Err(_) => final_results.push(false), // Task failed
+                Err(_) => final_results.push(false),     // Task failed
             }
         }
 
@@ -681,12 +721,14 @@ impl AgentMemClient {
         request.messages.validate()?;
 
         // Acquire semaphore permit for concurrency control
-        let _permit = self.semaphore.acquire().await
-            .map_err(|e| AgentMemError::internal_error(&format!("Failed to acquire permit: {}", e)))?;
+        let _permit = self.semaphore.acquire().await.map_err(|e| {
+            AgentMemError::internal_error(&format!("Failed to acquire permit: {}", e))
+        })?;
 
         // Convert messages to memory
         let messages = request.messages.to_message_list();
-        let _content = messages.iter()
+        let _content = messages
+            .iter()
             .map(|m| format!("{}: {}", m.role, m.content))
             .collect::<Vec<_>>()
             .join("\n");
@@ -710,7 +752,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_client_creation() {
-        let client = AgentMemClient::default();
+        let _client = AgentMemClient::default();
         assert!(true); // Basic test to ensure client can be created
     }
 
@@ -718,16 +760,18 @@ mod tests {
     async fn test_add_memory_basic() {
         let client = AgentMemClient::default();
 
-        let result = client.add(
-            Messages::Single("I love pizza".to_string()),
-            Some("user123".to_string()),
-            Some("agent456".to_string()),
-            None,
-            None,
-            true,
-            Some(MemoryType::Episodic),
-            None,
-        ).await;
+        let result = client
+            .add(
+                Messages::Single("I love pizza".to_string()),
+                Some("user123".to_string()),
+                Some("agent456".to_string()),
+                None,
+                None,
+                true,
+                Some(MemoryType::Episodic),
+                None,
+            )
+            .await;
 
         assert!(result.is_ok());
         let add_result = result.unwrap();
@@ -739,15 +783,17 @@ mod tests {
     async fn test_search_memory_basic() {
         let client = AgentMemClient::default();
 
-        let result = client.search(
-            "food preferences".to_string(),
-            Some("user123".to_string()),
-            None,
-            None,
-            10,
-            None,
-            Some(0.7),
-        ).await;
+        let result = client
+            .search(
+                "food preferences".to_string(),
+                Some("user123".to_string()),
+                None,
+                None,
+                10,
+                None,
+                Some(0.7),
+            )
+            .await;
 
         assert!(result.is_ok());
         let search_result = result.unwrap();
@@ -776,8 +822,14 @@ mod tests {
             .build();
 
         assert_eq!(filters.get("user_id").unwrap().as_str().unwrap(), "user123");
-        assert_eq!(filters.get("agent_id").unwrap().as_str().unwrap(), "agent456");
-        assert_eq!(filters.get("memory_type").unwrap().as_str().unwrap(), "semantic");
+        assert_eq!(
+            filters.get("agent_id").unwrap().as_str().unwrap(),
+            "agent456"
+        );
+        assert_eq!(
+            filters.get("memory_type").unwrap().as_str().unwrap(),
+            "semantic"
+        );
     }
 
     #[tokio::test]
@@ -789,8 +841,14 @@ mod tests {
             .unwrap()
             .build();
 
-        assert_eq!(metadata.get("user_id").unwrap().as_str().unwrap(), "user123");
-        assert_eq!(metadata.get("agent_id").unwrap().as_str().unwrap(), "agent456");
+        assert_eq!(
+            metadata.get("user_id").unwrap().as_str().unwrap(),
+            "user123"
+        );
+        assert_eq!(
+            metadata.get("agent_id").unwrap().as_str().unwrap(),
+            "agent456"
+        );
         assert_eq!(metadata.get("category").unwrap().as_str().unwrap(), "food");
     }
 

@@ -1,9 +1,11 @@
 //! Groq LLM 提供商实现
-//! 
+//!
 //! Groq 是一个高性能的 AI 推理平台，
 //! 专注于提供极速的 LLM 推理服务。
 
-use agent_mem_traits::{AgentMemError, LLMConfig, LLMProvider, Message, MessageRole, ModelInfo, Result};
+use agent_mem_traits::{
+    AgentMemError, LLMConfig, LLMProvider, Message, MessageRole, ModelInfo, Result,
+};
 use async_trait::async_trait;
 use futures::Stream;
 use reqwest::Client;
@@ -82,7 +84,9 @@ impl GroqProvider {
     /// 创建新的 Groq 提供商实例
     pub fn new(config: LLMConfig) -> Result<Self> {
         // 验证必需的配置
-        let api_key = config.api_key.as_ref()
+        let _api_key = config
+            .api_key
+            .as_ref()
             .ok_or_else(|| AgentMemError::config_error("Groq API key is required"))?;
 
         if config.model.is_empty() {
@@ -92,9 +96,12 @@ impl GroqProvider {
         let client = Client::builder()
             .timeout(Duration::from_secs(30)) // Groq 以速度著称，30秒足够
             .build()
-            .map_err(|e| AgentMemError::llm_error(&format!("Failed to create HTTP client: {}", e)))?;
+            .map_err(|e| {
+                AgentMemError::llm_error(&format!("Failed to create HTTP client: {}", e))
+            })?;
 
-        let base_url = config.base_url
+        let base_url = config
+            .base_url
             .clone()
             .unwrap_or_else(|| "https://api.groq.com/openai/v1".to_string());
 
@@ -149,11 +156,10 @@ impl GroqProvider {
                 .map_err(|e| AgentMemError::llm_error(&format!("Request failed: {}", e)))?;
 
             if response.status().is_success() {
-                let groq_response: GroqResponse = response
-                    .json()
-                    .await
-                    .map_err(|e| AgentMemError::llm_error(&format!("Failed to parse response: {}", e)))?;
-                
+                let groq_response: GroqResponse = response.json().await.map_err(|e| {
+                    AgentMemError::llm_error(&format!("Failed to parse response: {}", e))
+                })?;
+
                 return Ok(groq_response);
             } else if response.status().is_server_error() && retries < max_retries {
                 retries += 1;
@@ -165,19 +171,17 @@ impl GroqProvider {
                     .text()
                     .await
                     .unwrap_or_else(|_| "Unknown error".to_string());
-                
+
                 // 尝试解析 Groq 错误响应
                 if let Ok(groq_error) = serde_json::from_str::<GroqError>(&error_text) {
                     return Err(AgentMemError::llm_error(&format!(
-                        "Groq API error: {} ({})", 
-                        groq_error.error.message, 
-                        groq_error.error.error_type
+                        "Groq API error: {} ({})",
+                        groq_error.error.message, groq_error.error.error_type
                     )));
                 } else {
                     return Err(AgentMemError::llm_error(&format!(
-                        "HTTP error {}: {}", 
-                        status, 
-                        error_text
+                        "HTTP error {}: {}",
+                        status, error_text
                     )));
                 }
             }
@@ -191,12 +195,13 @@ impl GroqProvider {
         }
 
         let choice = &response.choices[0];
-        
+
         // 检查完成原因
         if let Some(finish_reason) = &choice.finish_reason {
             if finish_reason != "stop" && finish_reason != "length" {
                 return Err(AgentMemError::llm_error(&format!(
-                    "Generation stopped due to: {}", finish_reason
+                    "Generation stopped due to: {}",
+                    finish_reason
                 )));
             }
         }
@@ -240,10 +245,15 @@ impl LLMProvider for GroqProvider {
         self.extract_response_text(&response)
     }
 
-    async fn generate_stream(&self, _messages: &[Message]) -> Result<Box<dyn Stream<Item = Result<String>> + Send + Unpin>> {
+    async fn generate_stream(
+        &self,
+        _messages: &[Message],
+    ) -> Result<Box<dyn Stream<Item = Result<String>> + Send + Unpin>> {
         // Groq 流式生成需要额外的实现
         // 目前返回错误，表示不支持
-        Err(AgentMemError::llm_error("Streaming not yet implemented for Groq"))
+        Err(AgentMemError::llm_error(
+            "Streaming not yet implemented for Groq",
+        ))
     }
 
     fn get_model_info(&self) -> ModelInfo {

@@ -8,18 +8,23 @@
 //! - 端到端处理能力
 //! - 性能监控和优化
 
+use crate::conflict_resolution::{ConflictDetection, ConflictResolver, ConflictResolverConfig};
+use crate::decision_engine::{
+    DecisionContext, DecisionResult, EnhancedDecisionEngine, ExistingMemory, MemoryDecision,
+    MemoryDecisionEngine,
+};
+use crate::fact_extraction::{AdvancedFactExtractor, ExtractedFact, FactExtractor, StructuredFact};
+use crate::importance_evaluator::{
+    ImportanceEvaluation, ImportanceEvaluator, ImportanceEvaluatorConfig,
+};
+use agent_mem_core::Memory;
+use agent_mem_llm::{factory::RealLLMFactory, LLMProvider};
+use agent_mem_traits::{LLMConfig, MemoryItem, MemoryType, Message, Result, Session};
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use agent_mem_traits::{Result, Message, MemoryItem, Session, MemoryType, LLMConfig};
-use agent_mem_llm::{LLMProvider, factory::RealLLMFactory};
-use async_trait::async_trait;
-use agent_mem_core::Memory;
-use crate::fact_extraction::{FactExtractor, ExtractedFact, AdvancedFactExtractor, StructuredFact};
-use crate::decision_engine::{MemoryDecisionEngine, MemoryDecision, ExistingMemory, EnhancedDecisionEngine, DecisionContext, DecisionResult};
-use crate::conflict_resolution::{ConflictResolver, ConflictResolverConfig, ConflictDetection};
-use crate::importance_evaluator::{ImportanceEvaluator, ImportanceEvaluatorConfig, ImportanceEvaluation};
-use tracing::{debug, info, warn, error};
+use tracing::{debug, error, info, warn};
 
 // MockLLMProvider 已移除，使用真实的 LLM 提供商
 
@@ -113,10 +118,8 @@ impl IntelligentMemoryProcessor {
         let llm = RealLLMFactory::create_with_fallback(&llm_config).await?;
         let fact_extractor = FactExtractor::new(llm.clone());
         let decision_engine = MemoryDecisionEngine::new(llm.clone());
-        let conflict_resolver = ConflictResolver::new(
-            llm.clone(),
-            ConflictResolverConfig::default(),
-        );
+        let conflict_resolver =
+            ConflictResolver::new(llm.clone(), ConflictResolverConfig::default());
         let config = ProcessingConfig::default();
 
         Ok(Self {
@@ -145,10 +148,8 @@ impl IntelligentMemoryProcessor {
         let llm = RealLLMFactory::create_with_fallback(&llm_config).await?;
         let fact_extractor = FactExtractor::new(llm.clone());
         let decision_engine = MemoryDecisionEngine::new(llm.clone());
-        let conflict_resolver = ConflictResolver::new(
-            llm.clone(),
-            ConflictResolverConfig::default(),
-        );
+        let conflict_resolver =
+            ConflictResolver::new(llm.clone(), ConflictResolverConfig::default());
 
         Ok(Self {
             fact_extractor,
@@ -185,12 +186,15 @@ impl IntelligentMemoryProcessor {
         }
 
         // 5. 冲突检测
-        let new_memories: Vec<MemoryItem> = extracted_facts.iter()
+        let new_memories: Vec<MemoryItem> = extracted_facts
+            .iter()
             .map(|fact| MemoryItem {
                 id: uuid::Uuid::new_v4().to_string(),
                 content: fact.content.clone(),
                 hash: None,
-                metadata: fact.metadata.iter()
+                metadata: fact
+                    .metadata
+                    .iter()
                     .map(|(k, v)| (k.clone(), serde_json::Value::String(v.clone())))
                     .collect(),
                 score: Some(fact.confidence),
@@ -198,14 +202,20 @@ impl IntelligentMemoryProcessor {
                 updated_at: None,
                 session: Session::default(),
                 memory_type: MemoryType::Episodic,
-                entities: fact.entities.iter().map(|e| agent_mem_traits::Entity {
-                    id: e.id.clone(),
-                    name: e.name.clone(),
-                    entity_type: format!("{:?}", e.entity_type),
-                    attributes: e.attributes.iter()
-                        .map(|(k, v)| (k.clone(), serde_json::Value::String(v.clone())))
-                        .collect(),
-                }).collect(),
+                entities: fact
+                    .entities
+                    .iter()
+                    .map(|e| agent_mem_traits::Entity {
+                        id: e.id.clone(),
+                        name: e.name.clone(),
+                        entity_type: format!("{:?}", e.entity_type),
+                        attributes: e
+                            .attributes
+                            .iter()
+                            .map(|(k, v)| (k.clone(), serde_json::Value::String(v.clone())))
+                            .collect(),
+                    })
+                    .collect(),
                 relations: vec![], // 简化处理，暂时为空
                 agent_id: "default".to_string(),
                 user_id: None,
@@ -219,22 +229,26 @@ impl IntelligentMemoryProcessor {
             .collect();
 
         // 转换 ExistingMemory 到 MemoryItem
-        let existing_memory_items: Vec<MemoryItem> = existing_memories.iter()
+        let existing_memory_items: Vec<MemoryItem> = existing_memories
+            .iter()
             .map(|mem| MemoryItem {
                 id: mem.id.clone(),
                 content: mem.content.clone(),
                 hash: None,
-                metadata: mem.metadata.iter()
+                metadata: mem
+                    .metadata
+                    .iter()
                     .map(|(k, v)| (k.clone(), serde_json::Value::String(v.clone())))
                     .collect(),
                 score: Some(mem.importance),
                 created_at: chrono::DateTime::parse_from_rfc3339(&mem.created_at)
                     .unwrap_or_else(|_| chrono::Utc::now().into())
                     .with_timezone(&chrono::Utc),
-                updated_at: mem.updated_at.as_ref().and_then(|s|
-                    chrono::DateTime::parse_from_rfc3339(s).ok()
+                updated_at: mem.updated_at.as_ref().and_then(|s| {
+                    chrono::DateTime::parse_from_rfc3339(s)
+                        .ok()
                         .map(|dt| dt.with_timezone(&chrono::Utc))
-                ),
+                }),
                 session: Session::default(),
                 memory_type: MemoryType::Episodic,
                 entities: vec![],
@@ -250,7 +264,8 @@ impl IntelligentMemoryProcessor {
             })
             .collect();
 
-        let conflict_detections = self.conflict_resolver
+        let conflict_detections = self
+            .conflict_resolver
             .detect_conflicts(&new_memories, &existing_memory_items)
             .await?;
 
@@ -264,10 +279,18 @@ impl IntelligentMemoryProcessor {
         let recommendations = self.generate_recommendations(&extracted_facts, &memory_decisions);
 
         // 8. 计算质量指标
-        let quality_metrics = self.calculate_quality_metrics(&extracted_facts, &memory_decisions, &conflict_detections);
+        let quality_metrics = self.calculate_quality_metrics(
+            &extracted_facts,
+            &memory_decisions,
+            &conflict_detections,
+        );
 
         // 9. 生成处理洞察
-        let processing_insights = self.generate_processing_insights(&extracted_facts, &memory_decisions, existing_memories);
+        let processing_insights = self.generate_processing_insights(
+            &extracted_facts,
+            &memory_decisions,
+            existing_memories,
+        );
 
         // 7. 计算统计信息
         let processing_time = start_time.elapsed();
@@ -317,7 +340,7 @@ impl IntelligentMemoryProcessor {
             if memory.importance < 0.3 {
                 report.low_importance_memories.push(memory.id.clone());
             }
-            
+
             if memory.content.len() < 20 {
                 report.short_memories.push(memory.id.clone());
             }
@@ -326,11 +349,14 @@ impl IntelligentMemoryProcessor {
         // 检测重复记忆
         for (i, memory1) in existing_memories.iter().enumerate() {
             for memory2 in existing_memories.iter().skip(i + 1) {
-                let similarity = self.decision_engine
+                let similarity = self
+                    .decision_engine
                     .calculate_content_similarity(&memory1.content, &memory2.content);
-                
+
                 if similarity > 0.8 {
-                    report.duplicate_memories.push((memory1.id.clone(), memory2.id.clone()));
+                    report
+                        .duplicate_memories
+                        .push((memory1.id.clone(), memory2.id.clone()));
                 }
             }
         }
@@ -379,7 +405,8 @@ impl IntelligentMemoryProcessor {
         };
 
         // 计算事实多样性分数（基于不同类别的数量）
-        let unique_categories: std::collections::HashSet<_> = facts.iter()
+        let unique_categories: std::collections::HashSet<_> = facts
+            .iter()
             .map(|f| std::mem::discriminant(&f.category))
             .collect();
         let fact_diversity_score = if facts.is_empty() {
@@ -445,11 +472,19 @@ impl IntelligentMemoryProcessor {
 
         // 生成注意区域
         let mut attention_areas = Vec::new();
-        if facts.iter().any(|f| matches!(f.category, crate::fact_extraction::FactCategory::Personal)) {
-            attention_areas.push("Personal information detected - ensure privacy compliance".to_string());
+        if facts
+            .iter()
+            .any(|f| matches!(f.category, crate::fact_extraction::FactCategory::Personal))
+        {
+            attention_areas
+                .push("Personal information detected - ensure privacy compliance".to_string());
         }
-        if facts.iter().any(|f| matches!(f.category, crate::fact_extraction::FactCategory::Financial)) {
-            attention_areas.push("Financial information detected - ensure security measures".to_string());
+        if facts
+            .iter()
+            .any(|f| matches!(f.category, crate::fact_extraction::FactCategory::Financial))
+        {
+            attention_areas
+                .push("Financial information detected - ensure security measures".to_string());
         }
 
         ProcessingInsights {
@@ -485,11 +520,12 @@ impl IntelligentMemoryProcessor {
         }
 
         // 基于事实类别的推荐
-        let personal_facts = facts.iter().filter(|f| matches!(f.category, crate::fact_extraction::FactCategory::Personal)).count();
+        let personal_facts = facts
+            .iter()
+            .filter(|f| matches!(f.category, crate::fact_extraction::FactCategory::Personal))
+            .count();
         if personal_facts > 0 {
-            recommendations.push(
-                "Personal facts detected. Ensure privacy compliance.".to_string()
-            );
+            recommendations.push("Personal facts detected. Ensure privacy compliance.".to_string());
         }
 
         recommendations
@@ -579,19 +615,17 @@ mod tests {
             },
         ];
 
-        let decisions = vec![
-            MemoryDecision {
-                action: crate::decision_engine::MemoryAction::Add {
-                    content: "Test".to_string(),
-                    importance: 0.8,
-                    metadata: HashMap::new(),
-                },
-                confidence: 0.5, // 低置信度
-                reasoning: "Test".to_string(),
-                affected_memories: vec![],
-                estimated_impact: 0.5,
+        let decisions = vec![MemoryDecision {
+            action: crate::decision_engine::MemoryAction::Add {
+                content: "Test".to_string(),
+                importance: 0.8,
+                metadata: HashMap::new(),
             },
-        ];
+            confidence: 0.5, // 低置信度
+            reasoning: "Test".to_string(),
+            affected_memories: vec![],
+            estimated_impact: 0.5,
+        }];
 
         // 创建处理器实例进行测试
         let processor = IntelligentMemoryProcessor::new("test-key".to_string());
@@ -604,7 +638,9 @@ mod tests {
         assert!(recommendations.iter().any(|r| r.contains("low confidence")));
 
         // 应该包含关于个人信息的推荐
-        assert!(recommendations.iter().any(|r| r.contains("Personal facts") || r.contains("privacy")));
+        assert!(recommendations
+            .iter()
+            .any(|r| r.contains("Personal facts") || r.contains("privacy")));
     }
 }
 
@@ -702,23 +738,16 @@ pub struct PerformanceMetrics {
 
 impl EnhancedIntelligentProcessor {
     /// 创建新的增强智能处理器
-    pub fn new(
-        llm: Arc<dyn LLMProvider + Send + Sync>,
-        config: ProcessorConfig,
-    ) -> Self {
+    pub fn new(llm: Arc<dyn LLMProvider + Send + Sync>, config: ProcessorConfig) -> Self {
         let fact_extractor = AdvancedFactExtractor::new(llm.clone());
         let decision_engine = EnhancedDecisionEngine::new(
             llm.clone(),
             crate::decision_engine::DecisionEngineConfig::default(),
         );
-        let conflict_resolver = ConflictResolver::new(
-            llm.clone(),
-            ConflictResolverConfig::default(),
-        );
-        let importance_evaluator = ImportanceEvaluator::new(
-            llm.clone(),
-            ImportanceEvaluatorConfig::default(),
-        );
+        let conflict_resolver =
+            ConflictResolver::new(llm.clone(), ConflictResolverConfig::default());
+        let importance_evaluator =
+            ImportanceEvaluator::new(llm.clone(), ImportanceEvaluatorConfig::default());
 
         Self {
             fact_extractor,
@@ -738,17 +767,30 @@ impl EnhancedIntelligentProcessor {
         let start_time = std::time::Instant::now();
         let processing_id = format!("proc_{}", chrono::Utc::now().timestamp());
 
-        info!("开始增强记忆处理，ID: {}, 消息数: {}, 现有记忆数: {}",
-              processing_id, messages.len(), existing_memories.len());
+        info!(
+            "开始增强记忆处理，ID: {}, 消息数: {}, 现有记忆数: {}",
+            processing_id,
+            messages.len(),
+            existing_memories.len()
+        );
 
         let mut stage_timings = HashMap::new();
 
         // 1. 事实提取阶段
         let fact_start = std::time::Instant::now();
-        let structured_facts = self.fact_extractor.extract_structured_facts(messages).await?;
-        stage_timings.insert("fact_extraction".to_string(), fact_start.elapsed().as_millis() as u64);
+        let structured_facts = self
+            .fact_extractor
+            .extract_structured_facts(messages)
+            .await?;
+        stage_timings.insert(
+            "fact_extraction".to_string(),
+            fact_start.elapsed().as_millis() as u64,
+        );
 
-        info!("事实提取完成，提取到 {} 个结构化事实", structured_facts.len());
+        info!(
+            "事实提取完成，提取到 {} 个结构化事实",
+            structured_facts.len()
+        );
 
         // 2. 重要性评估阶段
         let importance_start = std::time::Instant::now();
@@ -771,19 +813,27 @@ impl EnhancedIntelligentProcessor {
                 updated_at: Some(chrono::Utc::now()),
                 session: agent_mem_traits::Session::new(),
                 memory_type: agent_mem_traits::MemoryType::Episodic,
-                entities: fact.entities.iter().map(|e| agent_mem_traits::Entity {
-                    id: e.id.clone(),
-                    name: e.name.clone(),
-                    entity_type: format!("{:?}", e.entity_type),
-                    attributes: HashMap::new(),
-                }).collect(),
-                relations: fact.relations.iter().map(|r| agent_mem_traits::Relation {
-                    id: format!("rel_{}", r.subject_id),
-                    source: r.subject.clone(),
-                    relation: r.predicate.clone(),
-                    target: r.object.clone(),
-                    confidence: r.confidence,
-                }).collect(),
+                entities: fact
+                    .entities
+                    .iter()
+                    .map(|e| agent_mem_traits::Entity {
+                        id: e.id.clone(),
+                        name: e.name.clone(),
+                        entity_type: format!("{:?}", e.entity_type),
+                        attributes: HashMap::new(),
+                    })
+                    .collect(),
+                relations: fact
+                    .relations
+                    .iter()
+                    .map(|r| agent_mem_traits::Relation {
+                        id: format!("rel_{}", r.subject_id),
+                        source: r.subject.clone(),
+                        relation: r.predicate.clone(),
+                        target: r.object.clone(),
+                        confidence: r.confidence,
+                    })
+                    .collect(),
                 agent_id: "demo_agent".to_string(),
                 user_id: None,
                 importance: fact.importance,
@@ -794,16 +844,21 @@ impl EnhancedIntelligentProcessor {
                 version: 1,
             };
 
-            let evaluation = self.importance_evaluator.evaluate_importance(
-                &temp_memory,
-                &[fact.clone()],
-                existing_memories,
-            ).await?;
+            let evaluation = self
+                .importance_evaluator
+                .evaluate_importance(&temp_memory, &[fact.clone()], existing_memories)
+                .await?;
             importance_evaluations.push(evaluation);
         }
-        stage_timings.insert("importance_evaluation".to_string(), importance_start.elapsed().as_millis() as u64);
+        stage_timings.insert(
+            "importance_evaluation".to_string(),
+            importance_start.elapsed().as_millis() as u64,
+        );
 
-        info!("重要性评估完成，评估了 {} 个记忆", importance_evaluations.len());
+        info!(
+            "重要性评估完成，评估了 {} 个记忆",
+            importance_evaluations.len()
+        );
 
         // 3. 冲突检测阶段
         let conflict_start = std::time::Instant::now();
@@ -820,19 +875,27 @@ impl EnhancedIntelligentProcessor {
                 updated_at: Some(chrono::Utc::now()),
                 session: agent_mem_traits::Session::new(),
                 memory_type: agent_mem_traits::MemoryType::Episodic,
-                entities: fact.entities.iter().map(|e| agent_mem_traits::Entity {
-                    id: e.id.clone(),
-                    name: e.name.clone(),
-                    entity_type: format!("{:?}", e.entity_type),
-                    attributes: HashMap::new(),
-                }).collect(),
-                relations: fact.relations.iter().map(|r| agent_mem_traits::Relation {
-                    id: format!("rel_{}", r.subject_id),
-                    source: r.subject.clone(),
-                    relation: r.predicate.clone(),
-                    target: r.object.clone(),
-                    confidence: r.confidence,
-                }).collect(),
+                entities: fact
+                    .entities
+                    .iter()
+                    .map(|e| agent_mem_traits::Entity {
+                        id: e.id.clone(),
+                        name: e.name.clone(),
+                        entity_type: format!("{:?}", e.entity_type),
+                        attributes: HashMap::new(),
+                    })
+                    .collect(),
+                relations: fact
+                    .relations
+                    .iter()
+                    .map(|r| agent_mem_traits::Relation {
+                        id: format!("rel_{}", r.subject_id),
+                        source: r.subject.clone(),
+                        relation: r.predicate.clone(),
+                        target: r.object.clone(),
+                        confidence: r.confidence,
+                    })
+                    .collect(),
                 agent_id: "demo_agent".to_string(),
                 user_id: None,
                 importance: fact.importance,
@@ -844,11 +907,14 @@ impl EnhancedIntelligentProcessor {
             })
             .collect();
 
-        let conflict_detections = self.conflict_resolver.detect_conflicts(
-            &temp_memories,
-            existing_memories,
-        ).await?;
-        stage_timings.insert("conflict_detection".to_string(), conflict_start.elapsed().as_millis() as u64);
+        let conflict_detections = self
+            .conflict_resolver
+            .detect_conflicts(&temp_memories, existing_memories)
+            .await?;
+        stage_timings.insert(
+            "conflict_detection".to_string(),
+            conflict_start.elapsed().as_millis() as u64,
+        );
 
         info!("冲突检测完成，检测到 {} 个冲突", conflict_detections.len());
 
@@ -862,10 +928,19 @@ impl EnhancedIntelligentProcessor {
             user_preferences: HashMap::new(),
         };
 
-        let decision_result = self.decision_engine.make_decisions(&decision_context).await?;
-        stage_timings.insert("decision_making".to_string(), decision_start.elapsed().as_millis() as u64);
+        let decision_result = self
+            .decision_engine
+            .make_decisions(&decision_context)
+            .await?;
+        stage_timings.insert(
+            "decision_making".to_string(),
+            decision_start.elapsed().as_millis() as u64,
+        );
 
-        info!("决策制定完成，生成 {} 个推荐操作", decision_result.recommended_actions.len());
+        info!(
+            "决策制定完成，生成 {} 个推荐操作",
+            decision_result.recommended_actions.len()
+        );
 
         // 5. 计算处理统计和性能指标
         let total_time = start_time.elapsed();
@@ -896,8 +971,10 @@ impl EnhancedIntelligentProcessor {
             overall_confidence,
         };
 
-        info!("增强记忆处理完成，整体置信度: {:.2}, 总耗时: {}ms",
-              result.overall_confidence, result.processing_stats.total_processing_time_ms);
+        info!(
+            "增强记忆处理完成，整体置信度: {:.2}, 总耗时: {}ms",
+            result.overall_confidence, result.processing_stats.total_processing_time_ms
+        );
 
         Ok(result)
     }
@@ -929,7 +1006,7 @@ impl EnhancedIntelligentProcessor {
             performance_metrics: PerformanceMetrics {
                 throughput_facts_per_second: throughput,
                 average_response_time_ms: total_ms as f32 / messages_count as f32,
-                memory_usage_mb: 0.0, // 简化实现
+                memory_usage_mb: 0.0,   // 简化实现
                 cpu_usage_percent: 0.0, // 简化实现
             },
         }

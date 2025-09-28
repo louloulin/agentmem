@@ -1,5 +1,5 @@
 //! 云服务集成模块
-//! 
+//!
 //! 提供与主要云服务提供商的集成功能，包括：
 //! - AWS 集成 (S3, RDS, ElastiCache)
 //! - Azure 集成 (Cosmos DB, Redis Cache)
@@ -7,13 +7,13 @@
 //! - 阿里云集成 (OSS, RDS, Redis)
 //! - 多云部署和数据同步
 
-use agent_mem_traits::{Result, AgentMemError};
+use agent_mem_traits::{AgentMemError, Result};
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{info, warn, error};
-use async_trait::async_trait;
+use tracing::{error, info, warn};
 
 /// 云服务提供商类型
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -281,37 +281,43 @@ impl CloudIntegrationManager {
             match service_config.provider {
                 CloudProvider::AWS => {
                     if aws_integrator.is_none() {
-                        aws_integrator = Some(Arc::new(AWSIntegrator::new(service_config.clone()).await?));
+                        aws_integrator =
+                            Some(Arc::new(AWSIntegrator::new(service_config.clone()).await?));
                     }
                 }
                 CloudProvider::Azure => {
                     if azure_integrator.is_none() {
-                        azure_integrator = Some(Arc::new(AzureIntegrator::new(service_config.clone()).await?));
+                        azure_integrator = Some(Arc::new(
+                            AzureIntegrator::new(service_config.clone()).await?,
+                        ));
                     }
                 }
                 CloudProvider::GCP => {
                     if gcp_integrator.is_none() {
-                        gcp_integrator = Some(Arc::new(GCPIntegrator::new(service_config.clone()).await?));
+                        gcp_integrator =
+                            Some(Arc::new(GCPIntegrator::new(service_config.clone()).await?));
                     }
                 }
                 CloudProvider::Alibaba => {
                     if alibaba_integrator.is_none() {
-                        alibaba_integrator = Some(Arc::new(AlibabaIntegrator::new(service_config.clone()).await?));
+                        alibaba_integrator = Some(Arc::new(
+                            AlibabaIntegrator::new(service_config.clone()).await?,
+                        ));
                     }
                 }
             }
         }
 
         let multi_cloud_syncer = Arc::new(RwLock::new(
-            MultiCloudSyncer::new(config.multi_cloud_sync.clone()).await?
+            MultiCloudSyncer::new(config.multi_cloud_sync.clone()).await?,
         ));
 
         let failover_manager = Arc::new(RwLock::new(
-            CloudFailoverManager::new(config.failover_config.clone()).await?
+            CloudFailoverManager::new(config.failover_config.clone()).await?,
         ));
 
         let consistency_manager = Arc::new(RwLock::new(
-            ConsistencyManager::new(config.consistency_config.clone()).await?
+            ConsistencyManager::new(config.consistency_config.clone()).await?,
         ));
 
         Ok(Self {
@@ -327,47 +333,105 @@ impl CloudIntegrationManager {
     }
 
     /// 获取对象存储客户端
-    pub async fn get_object_storage_client(&self, provider: CloudProvider) -> Result<Option<Arc<dyn ObjectStorageClient>>> {
+    pub async fn get_object_storage_client(
+        &self,
+        provider: CloudProvider,
+    ) -> Result<Option<Arc<dyn ObjectStorageClient>>> {
         match provider {
-            CloudProvider::AWS => Ok(self.aws_integrator.as_ref().and_then(|i| i.s3_client().map(|c| c.clone()))),
-            CloudProvider::Azure => Ok(self.azure_integrator.as_ref().and_then(|i| i.blob_client().map(|c| c.clone()))),
-            CloudProvider::GCP => Ok(self.gcp_integrator.as_ref().and_then(|i| i.cloud_storage_client().map(|c| c.clone()))),
-            CloudProvider::Alibaba => Ok(self.alibaba_integrator.as_ref().and_then(|i| i.oss_client().map(|c| c.clone()))),
+            CloudProvider::AWS => Ok(self
+                .aws_integrator
+                .as_ref()
+                .and_then(|i| i.s3_client().map(|c| c.clone()))),
+            CloudProvider::Azure => Ok(self
+                .azure_integrator
+                .as_ref()
+                .and_then(|i| i.blob_client().map(|c| c.clone()))),
+            CloudProvider::GCP => Ok(self
+                .gcp_integrator
+                .as_ref()
+                .and_then(|i| i.cloud_storage_client().map(|c| c.clone()))),
+            CloudProvider::Alibaba => Ok(self
+                .alibaba_integrator
+                .as_ref()
+                .and_then(|i| i.oss_client().map(|c| c.clone()))),
         }
     }
 
     /// 获取数据库客户端
-    pub async fn get_database_client(&self, provider: CloudProvider) -> Result<Option<Arc<dyn DatabaseClient>>> {
+    pub async fn get_database_client(
+        &self,
+        provider: CloudProvider,
+    ) -> Result<Option<Arc<dyn DatabaseClient>>> {
         match provider {
-            CloudProvider::AWS => Ok(self.aws_integrator.as_ref().and_then(|i| i.rds_client().map(|c| c.clone()))),
-            CloudProvider::Azure => Ok(self.azure_integrator.as_ref().and_then(|i| i.cosmos_client().map(|c| c.clone()))),
-            CloudProvider::GCP => Ok(self.gcp_integrator.as_ref().and_then(|i| i.cloud_sql_client().map(|c| c.clone()))),
-            CloudProvider::Alibaba => Ok(self.alibaba_integrator.as_ref().and_then(|i| i.rds_client().map(|c| c.clone()))),
+            CloudProvider::AWS => Ok(self
+                .aws_integrator
+                .as_ref()
+                .and_then(|i| i.rds_client().map(|c| c.clone()))),
+            CloudProvider::Azure => Ok(self
+                .azure_integrator
+                .as_ref()
+                .and_then(|i| i.cosmos_client().map(|c| c.clone()))),
+            CloudProvider::GCP => Ok(self
+                .gcp_integrator
+                .as_ref()
+                .and_then(|i| i.cloud_sql_client().map(|c| c.clone()))),
+            CloudProvider::Alibaba => Ok(self
+                .alibaba_integrator
+                .as_ref()
+                .and_then(|i| i.rds_client().map(|c| c.clone()))),
         }
     }
 
     /// 获取缓存客户端
-    pub async fn get_cache_client(&self, provider: CloudProvider) -> Result<Option<Arc<dyn CacheClient>>> {
+    pub async fn get_cache_client(
+        &self,
+        provider: CloudProvider,
+    ) -> Result<Option<Arc<dyn CacheClient>>> {
         match provider {
-            CloudProvider::AWS => Ok(self.aws_integrator.as_ref().and_then(|i| i.elasticache_client().map(|c| c.clone()))),
-            CloudProvider::Azure => Ok(self.azure_integrator.as_ref().and_then(|i| i.redis_client().map(|c| c.clone()))),
+            CloudProvider::AWS => Ok(self
+                .aws_integrator
+                .as_ref()
+                .and_then(|i| i.elasticache_client().map(|c| c.clone()))),
+            CloudProvider::Azure => Ok(self
+                .azure_integrator
+                .as_ref()
+                .and_then(|i| i.redis_client().map(|c| c.clone()))),
             CloudProvider::GCP => Err(AgentMemError::unsupported_operation("GCP 不支持缓存服务")),
-            CloudProvider::Alibaba => Ok(self.alibaba_integrator.as_ref().and_then(|i| i.redis_client().map(|c| c.clone()))),
+            CloudProvider::Alibaba => Ok(self
+                .alibaba_integrator
+                .as_ref()
+                .and_then(|i| i.redis_client().map(|c| c.clone()))),
         }
     }
 
     /// 获取大数据客户端
-    pub async fn get_bigdata_client(&self, provider: CloudProvider) -> Result<Option<Arc<dyn BigDataClient>>> {
+    pub async fn get_bigdata_client(
+        &self,
+        provider: CloudProvider,
+    ) -> Result<Option<Arc<dyn BigDataClient>>> {
         match provider {
-            CloudProvider::AWS => Err(AgentMemError::unsupported_operation("AWS 不支持 BigQuery 服务")),
-            CloudProvider::Azure => Err(AgentMemError::unsupported_operation("Azure 不支持 BigQuery 服务")),
-            CloudProvider::GCP => Ok(self.gcp_integrator.as_ref().and_then(|i| i.bigquery_client().map(|c| c.clone()))),
-            CloudProvider::Alibaba => Err(AgentMemError::unsupported_operation("阿里云不支持 BigQuery 服务")),
+            CloudProvider::AWS => Err(AgentMemError::unsupported_operation(
+                "AWS 不支持 BigQuery 服务",
+            )),
+            CloudProvider::Azure => Err(AgentMemError::unsupported_operation(
+                "Azure 不支持 BigQuery 服务",
+            )),
+            CloudProvider::GCP => Ok(self
+                .gcp_integrator
+                .as_ref()
+                .and_then(|i| i.bigquery_client().map(|c| c.clone()))),
+            CloudProvider::Alibaba => Err(AgentMemError::unsupported_operation(
+                "阿里云不支持 BigQuery 服务",
+            )),
         }
     }
 
     /// 启动多云同步
-    pub async fn start_multi_cloud_sync(&self, source: CloudProvider, target: CloudProvider) -> Result<String> {
+    pub async fn start_multi_cloud_sync(
+        &self,
+        source: CloudProvider,
+        target: CloudProvider,
+    ) -> Result<String> {
         info!("启动多云同步: {:?} -> {:?}", source, target);
         let syncer = self.multi_cloud_syncer.read().await;
         syncer.start_sync(source, target).await
@@ -398,20 +462,37 @@ impl CloudIntegrationManager {
     }
 
     /// 执行跨云数据迁移
-    pub async fn migrate_data(&self, source: CloudProvider, target: CloudProvider, data_keys: Vec<String>) -> Result<MigrationResult> {
-        info!("执行跨云数据迁移: {:?} -> {:?}, 数据量: {}", source, target, data_keys.len());
+    pub async fn migrate_data(
+        &self,
+        source: CloudProvider,
+        target: CloudProvider,
+        data_keys: Vec<String>,
+    ) -> Result<MigrationResult> {
+        info!(
+            "执行跨云数据迁移: {:?} -> {:?}, 数据量: {}",
+            source,
+            target,
+            data_keys.len()
+        );
 
-        let source_storage = self.get_object_storage_client(source).await?
+        let source_storage = self
+            .get_object_storage_client(source)
+            .await?
             .ok_or_else(|| AgentMemError::not_found("源存储客户端未找到"))?;
 
-        let target_storage = self.get_object_storage_client(target).await?
+        let target_storage = self
+            .get_object_storage_client(target)
+            .await?
             .ok_or_else(|| AgentMemError::not_found("目标存储客户端未找到"))?;
 
         let mut migrated_count = 0;
         let mut failed_keys = Vec::new();
 
         for key in &data_keys {
-            match self.migrate_single_object(&*source_storage, &*target_storage, "default-bucket", key).await {
+            match self
+                .migrate_single_object(&*source_storage, &*target_storage, "default-bucket", key)
+                .await
+            {
                 Ok(_) => migrated_count += 1,
                 Err(e) => {
                     warn!("迁移对象失败: {}, 错误: {:?}", key, e);
@@ -512,9 +593,12 @@ impl AWSIntegrator {
     pub async fn new(config: CloudServiceConfig) -> Result<Self> {
         info!("初始化 AWS 集成器");
 
-        let s3_client = Some(Arc::new(AWSS3Client::new(&config).await?) as Arc<dyn ObjectStorageClient>);
-        let rds_client = Some(Arc::new(AWSRDSClient::new(&config).await?) as Arc<dyn DatabaseClient>);
-        let elasticache_client = Some(Arc::new(AWSElastiCacheClient::new(&config).await?) as Arc<dyn CacheClient>);
+        let s3_client =
+            Some(Arc::new(AWSS3Client::new(&config).await?) as Arc<dyn ObjectStorageClient>);
+        let rds_client =
+            Some(Arc::new(AWSRDSClient::new(&config).await?) as Arc<dyn DatabaseClient>);
+        let elasticache_client =
+            Some(Arc::new(AWSElastiCacheClient::new(&config).await?) as Arc<dyn CacheClient>);
 
         Ok(Self {
             config,
@@ -553,9 +637,12 @@ impl AzureIntegrator {
     pub async fn new(config: CloudServiceConfig) -> Result<Self> {
         info!("初始化 Azure 集成器");
 
-        let cosmos_client = Some(Arc::new(AzureCosmosClient::new(&config).await?) as Arc<dyn DatabaseClient>);
-        let redis_client = Some(Arc::new(AzureRedisClient::new(&config).await?) as Arc<dyn CacheClient>);
-        let blob_client = Some(Arc::new(AzureBlobClient::new(&config).await?) as Arc<dyn ObjectStorageClient>);
+        let cosmos_client =
+            Some(Arc::new(AzureCosmosClient::new(&config).await?) as Arc<dyn DatabaseClient>);
+        let redis_client =
+            Some(Arc::new(AzureRedisClient::new(&config).await?) as Arc<dyn CacheClient>);
+        let blob_client =
+            Some(Arc::new(AzureBlobClient::new(&config).await?) as Arc<dyn ObjectStorageClient>);
 
         Ok(Self {
             config,
@@ -594,9 +681,13 @@ impl GCPIntegrator {
     pub async fn new(config: CloudServiceConfig) -> Result<Self> {
         info!("初始化 GCP 集成器");
 
-        let bigquery_client = Some(Arc::new(GCPBigQueryClient::new(&config).await?) as Arc<dyn BigDataClient>);
-        let cloud_sql_client = Some(Arc::new(GCPCloudSQLClient::new(&config).await?) as Arc<dyn DatabaseClient>);
-        let cloud_storage_client = Some(Arc::new(GCPCloudStorageClient::new(&config).await?) as Arc<dyn ObjectStorageClient>);
+        let bigquery_client =
+            Some(Arc::new(GCPBigQueryClient::new(&config).await?) as Arc<dyn BigDataClient>);
+        let cloud_sql_client =
+            Some(Arc::new(GCPCloudSQLClient::new(&config).await?) as Arc<dyn DatabaseClient>);
+        let cloud_storage_client =
+            Some(Arc::new(GCPCloudStorageClient::new(&config).await?)
+                as Arc<dyn ObjectStorageClient>);
 
         Ok(Self {
             config,
@@ -635,9 +726,12 @@ impl AlibabaIntegrator {
     pub async fn new(config: CloudServiceConfig) -> Result<Self> {
         info!("初始化阿里云集成器");
 
-        let oss_client = Some(Arc::new(AlibabaOSSClient::new(&config).await?) as Arc<dyn ObjectStorageClient>);
-        let rds_client = Some(Arc::new(AlibabaRDSClient::new(&config).await?) as Arc<dyn DatabaseClient>);
-        let redis_client = Some(Arc::new(AlibabaRedisClient::new(&config).await?) as Arc<dyn CacheClient>);
+        let oss_client =
+            Some(Arc::new(AlibabaOSSClient::new(&config).await?) as Arc<dyn ObjectStorageClient>);
+        let rds_client =
+            Some(Arc::new(AlibabaRDSClient::new(&config).await?) as Arc<dyn DatabaseClient>);
+        let redis_client =
+            Some(Arc::new(AlibabaRedisClient::new(&config).await?) as Arc<dyn CacheClient>);
 
         Ok(Self {
             config,
@@ -723,7 +817,11 @@ pub trait ObjectStorageClient: Send + Sync {
 #[async_trait]
 pub trait DatabaseClient: Send + Sync {
     /// 执行查询
-    async fn execute_query(&self, query: &str, params: &[&str]) -> Result<Vec<HashMap<String, String>>>;
+    async fn execute_query(
+        &self,
+        query: &str,
+        params: &[&str],
+    ) -> Result<Vec<HashMap<String, String>>>;
 
     /// 执行更新
     async fn execute_update(&self, query: &str, params: &[&str]) -> Result<u64>;
@@ -791,7 +889,12 @@ impl AWSS3Client {
 #[async_trait]
 impl ObjectStorageClient for AWSS3Client {
     async fn put_object(&self, bucket: &str, key: &str, data: &[u8]) -> Result<()> {
-        info!("AWS S3: 上传对象 {}/{}, 大小: {} bytes", bucket, key, data.len());
+        info!(
+            "AWS S3: 上传对象 {}/{}, 大小: {} bytes",
+            bucket,
+            key,
+            data.len()
+        );
         // 模拟 S3 上传操作
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         Ok(())
@@ -843,7 +946,11 @@ impl AWSRDSClient {
 
 #[async_trait]
 impl DatabaseClient for AWSRDSClient {
-    async fn execute_query(&self, query: &str, params: &[&str]) -> Result<Vec<HashMap<String, String>>> {
+    async fn execute_query(
+        &self,
+        query: &str,
+        params: &[&str],
+    ) -> Result<Vec<HashMap<String, String>>> {
         info!("AWS RDS: 执行查询: {}, 参数: {:?}", query, params);
         // 模拟 RDS 查询操作
         tokio::time::sleep(tokio::time::Duration::from_millis(150)).await;
@@ -952,7 +1059,11 @@ impl AzureCosmosClient {
 
 #[async_trait]
 impl DatabaseClient for AzureCosmosClient {
-    async fn execute_query(&self, query: &str, params: &[&str]) -> Result<Vec<HashMap<String, String>>> {
+    async fn execute_query(
+        &self,
+        query: &str,
+        params: &[&str],
+    ) -> Result<Vec<HashMap<String, String>>> {
         info!("Azure Cosmos DB: 执行查询: {}, 参数: {:?}", query, params);
         // 模拟 Cosmos DB 查询操作
         tokio::time::sleep(tokio::time::Duration::from_millis(180)).await;
@@ -1062,7 +1173,12 @@ impl AzureBlobClient {
 #[async_trait]
 impl ObjectStorageClient for AzureBlobClient {
     async fn put_object(&self, bucket: &str, key: &str, data: &[u8]) -> Result<()> {
-        info!("Azure Blob: 上传对象 {}/{}, 大小: {} bytes", bucket, key, data.len());
+        info!(
+            "Azure Blob: 上传对象 {}/{}, 大小: {} bytes",
+            bucket,
+            key,
+            data.len()
+        );
         // 模拟 Azure Blob 上传操作
         tokio::time::sleep(tokio::time::Duration::from_millis(110)).await;
         Ok(())
@@ -1132,7 +1248,11 @@ impl BigDataClient for GCPBigQueryClient {
     }
 
     async fn insert_data(&self, dataset_id: &str, data: &[HashMap<String, String>]) -> Result<()> {
-        info!("GCP BigQuery: 插入数据到数据集: {}, 记录数: {}", dataset_id, data.len());
+        info!(
+            "GCP BigQuery: 插入数据到数据集: {}, 记录数: {}",
+            dataset_id,
+            data.len()
+        );
         // 模拟 BigQuery 数据插入操作
         tokio::time::sleep(tokio::time::Duration::from_millis(250)).await;
         Ok(())
@@ -1163,7 +1283,11 @@ impl GCPCloudSQLClient {
 
 #[async_trait]
 impl DatabaseClient for GCPCloudSQLClient {
-    async fn execute_query(&self, query: &str, params: &[&str]) -> Result<Vec<HashMap<String, String>>> {
+    async fn execute_query(
+        &self,
+        query: &str,
+        params: &[&str],
+    ) -> Result<Vec<HashMap<String, String>>> {
         info!("GCP Cloud SQL: 执行查询: {}, 参数: {:?}", query, params);
         // 模拟 Cloud SQL 查询操作
         tokio::time::sleep(tokio::time::Duration::from_millis(160)).await;
@@ -1220,7 +1344,12 @@ impl GCPCloudStorageClient {
 #[async_trait]
 impl ObjectStorageClient for GCPCloudStorageClient {
     async fn put_object(&self, bucket: &str, key: &str, data: &[u8]) -> Result<()> {
-        info!("GCP Cloud Storage: 上传对象 {}/{}, 大小: {} bytes", bucket, key, data.len());
+        info!(
+            "GCP Cloud Storage: 上传对象 {}/{}, 大小: {} bytes",
+            bucket,
+            key,
+            data.len()
+        );
         // 模拟 GCP Cloud Storage 上传操作
         tokio::time::sleep(tokio::time::Duration::from_millis(105)).await;
         Ok(())
@@ -1273,7 +1402,12 @@ impl AlibabaOSSClient {
 #[async_trait]
 impl ObjectStorageClient for AlibabaOSSClient {
     async fn put_object(&self, bucket: &str, key: &str, data: &[u8]) -> Result<()> {
-        info!("阿里云 OSS: 上传对象 {}/{}, 大小: {} bytes", bucket, key, data.len());
+        info!(
+            "阿里云 OSS: 上传对象 {}/{}, 大小: {} bytes",
+            bucket,
+            key,
+            data.len()
+        );
         // 模拟阿里云 OSS 上传操作
         tokio::time::sleep(tokio::time::Duration::from_millis(95)).await;
         Ok(())
@@ -1325,7 +1459,11 @@ impl AlibabaRDSClient {
 
 #[async_trait]
 impl DatabaseClient for AlibabaRDSClient {
-    async fn execute_query(&self, query: &str, params: &[&str]) -> Result<Vec<HashMap<String, String>>> {
+    async fn execute_query(
+        &self,
+        query: &str,
+        params: &[&str],
+    ) -> Result<Vec<HashMap<String, String>>> {
         info!("阿里云 RDS: 执行查询: {}, 参数: {:?}", query, params);
         // 模拟阿里云 RDS 查询操作
         tokio::time::sleep(tokio::time::Duration::from_millis(140)).await;
@@ -1434,7 +1572,8 @@ impl MultiCloudSyncer {
     /// 启动同步任务
     pub async fn start_sync(&self, source: CloudProvider, target: CloudProvider) -> Result<String> {
         info!("启动多云同步: {:?} -> {:?}", source, target);
-        let task_id = format!("sync_{}_{}",
+        let task_id = format!(
+            "sync_{}_{}",
             format!("{:?}", source).to_lowercase(),
             format!("{:?}", target).to_lowercase()
         );
@@ -1507,7 +1646,10 @@ impl CloudFailoverManager {
             error_count: 0,
         };
 
-        self.health_status.write().await.insert(provider, status.clone());
+        self.health_status
+            .write()
+            .await
+            .insert(provider, status.clone());
         Ok(status)
     }
 
@@ -1557,7 +1699,10 @@ impl ConsistencyManager {
             conflict_count: 0,
         };
 
-        self.consistency_state.write().await.insert(data_id.to_string(), state);
+        self.consistency_state
+            .write()
+            .await
+            .insert(data_id.to_string(), state);
         Ok(())
     }
 }

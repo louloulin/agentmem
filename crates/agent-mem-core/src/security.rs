@@ -56,23 +56,36 @@ impl Default for SecurityConfig {
 /// User permissions
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum Permission {
+    /// 读取内存权限
     ReadMemory,
+    /// 写入内存权限
     WriteMemory,
+    /// 删除内存权限
     DeleteMemory,
+    /// 管理员访问权限
     AdminAccess,
+    /// 配置系统权限
     ConfigureSystem,
+    /// 查看审计日志权限
     ViewAuditLogs,
+    /// 导出数据权限
     ExportData,
+    /// 导入数据权限
     ImportData,
+    /// 管理用户权限
     ManageUsers,
+    /// 查看指标权限
     ViewMetrics,
 }
 
 /// User role with permissions
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Role {
+    /// 角色名称
     pub name: String,
+    /// 角色权限集合
     pub permissions: HashSet<Permission>,
+    /// 角色描述
     pub description: String,
 }
 

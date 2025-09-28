@@ -1,10 +1,10 @@
 //! 优化引擎模块
-//! 
+//!
 //! 提供自动性能优化和建议功能
 
 use agent_mem_traits::Result;
 use std::collections::HashMap;
-use tracing::{info, debug};
+use tracing::{debug, info};
 
 /// 优化引擎
 pub struct OptimizationEngine {
@@ -53,7 +53,10 @@ impl OptimizationEngine {
     }
 
     /// 生成缓存优化建议
-    pub async fn generate_cache_optimizations(&self, stats: &CachePerformanceStats) -> Result<Vec<String>> {
+    pub async fn generate_cache_optimizations(
+        &self,
+        stats: &CachePerformanceStats,
+    ) -> Result<Vec<String>> {
         let mut recommendations = Vec::new();
 
         // 基于命中率的优化建议
@@ -82,7 +85,10 @@ impl OptimizationEngine {
             recommendations.push("Increase cache TTL for frequently accessed items".to_string());
         }
 
-        info!("Generated {} cache optimization recommendations", recommendations.len());
+        info!(
+            "Generated {} cache optimization recommendations",
+            recommendations.len()
+        );
         Ok(recommendations)
     }
 
@@ -123,7 +129,10 @@ impl OptimizationEngine {
     }
 
     /// 生成查询优化建议
-    pub async fn generate_query_optimizations(&self, stats: &QueryPerformanceStats) -> Result<Vec<String>> {
+    pub async fn generate_query_optimizations(
+        &self,
+        stats: &QueryPerformanceStats,
+    ) -> Result<Vec<String>> {
         let mut recommendations = Vec::new();
 
         // 基于查询时间的优化建议
@@ -154,12 +163,20 @@ impl OptimizationEngine {
             recommendations.push("Implement better error handling for queries".to_string());
         }
 
-        info!("Generated {} query optimization recommendations", recommendations.len());
+        info!(
+            "Generated {} query optimization recommendations",
+            recommendations.len()
+        );
         Ok(recommendations)
     }
 
     /// 记录优化历史
-    pub fn record_optimization(&mut self, optimization_type: String, description: String, impact: f64) {
+    pub fn record_optimization(
+        &mut self,
+        optimization_type: String,
+        description: String,
+        impact: f64,
+    ) {
         let record = OptimizationRecord {
             optimization_type: optimization_type.clone(),
             description,
@@ -303,7 +320,7 @@ mod tests {
         let engine = OptimizationEngine::new();
         let stats = engine.analyze_cache_performance().await;
         assert!(stats.is_ok());
-        
+
         let stats = stats.unwrap();
         assert!(stats.hit_rate > 0.0);
         assert!(stats.miss_rate > 0.0);
@@ -317,14 +334,14 @@ mod tests {
             hit_rate: 0.5, // Low hit rate should trigger recommendations
             miss_rate: 0.5,
             average_access_time_ms: 10.0, // High access time should trigger recommendations
-            memory_usage_mb: 1024, // High memory usage should trigger recommendations
-            eviction_rate: 0.15, // High eviction rate should trigger recommendations
-            fragmentation_ratio: 0.25, // High fragmentation should trigger recommendations
+            memory_usage_mb: 1024,        // High memory usage should trigger recommendations
+            eviction_rate: 0.15,          // High eviction rate should trigger recommendations
+            fragmentation_ratio: 0.25,    // High fragmentation should trigger recommendations
         };
 
         let recommendations = engine.generate_cache_optimizations(&stats).await;
         assert!(recommendations.is_ok());
-        
+
         let recommendations = recommendations.unwrap();
         assert!(!recommendations.is_empty());
     }
@@ -334,7 +351,7 @@ mod tests {
         let engine = OptimizationEngine::new();
         let stats = engine.analyze_query_performance().await;
         assert!(stats.is_ok());
-        
+
         let stats = stats.unwrap();
         assert!(stats.average_query_time_ms > 0.0);
         assert!(stats.total_queries > 0);
@@ -345,16 +362,16 @@ mod tests {
         let engine = OptimizationEngine::new();
         let stats = QueryPerformanceStats {
             average_query_time_ms: 100.0, // High query time should trigger recommendations
-            slow_query_count: 20, // High slow query count should trigger recommendations
-            cache_hit_rate: 0.5, // Low cache hit rate should trigger recommendations
-            index_usage_rate: 0.6, // Low index usage should trigger recommendations
+            slow_query_count: 20,         // High slow query count should trigger recommendations
+            cache_hit_rate: 0.5,          // Low cache hit rate should trigger recommendations
+            index_usage_rate: 0.6,        // Low index usage should trigger recommendations
             total_queries: 10000,
             failed_queries: 10, // Failed queries should trigger recommendations
         };
 
         let recommendations = engine.generate_query_optimizations(&stats).await;
         assert!(recommendations.is_ok());
-        
+
         let recommendations = recommendations.unwrap();
         assert!(!recommendations.is_empty());
     }
@@ -362,11 +379,11 @@ mod tests {
     #[test]
     fn test_optimization_history() {
         let mut engine = OptimizationEngine::new();
-        
+
         engine.record_optimization(
             "cache".to_string(),
             "Increased cache size".to_string(),
-            0.25
+            0.25,
         );
 
         let history = engine.get_optimization_history();

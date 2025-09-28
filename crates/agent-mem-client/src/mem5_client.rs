@@ -14,24 +14,27 @@ use crate::{
     retry::{RetryExecutor, RetryPolicy},
 };
 
+use agent_mem_config::MemoryConfig;
+use agent_mem_core::MemoryType;
 use agent_mem_core::{MemoryEngine, MemoryEngineConfig};
 use agent_mem_traits::{
-    Messages, EnhancedAddRequest, EnhancedSearchRequest, MemorySearchResult,
-    BatchResult, MetadataBuilder, FilterBuilder, ProcessingOptions,
-    BatchMemoryOperations, HealthStatus, SystemMetrics, PerformanceReport,
+    BatchMemoryOperations, BatchResult, EnhancedAddRequest, EnhancedSearchRequest, FilterBuilder,
+    HealthStatus, MemorySearchResult, Messages, MetadataBuilder, PerformanceReport,
+    ProcessingOptions, SystemMetrics,
 };
-use agent_mem_core::MemoryType;
-use agent_mem_config::MemoryConfig;
 
+use futures::future::BoxFuture;
 use serde_json::Value;
 use std::{
     collections::HashMap,
-    sync::{Arc, atomic::{AtomicU64, Ordering}},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
     time::{Duration, Instant},
 };
-use tokio::sync::{Semaphore, RwLock};
-use tracing::{debug, info, instrument, error};
-use futures::future::BoxFuture;
+use tokio::sync::{RwLock, Semaphore};
+use tracing::{debug, error, info, instrument};
 
 /// Mem5 Enhanced AgentMem Client
 ///
@@ -106,14 +109,18 @@ impl TelemetrySystem {
     }
 
     pub async fn track_operation_end(&self, operation: &str, duration: Duration, success: bool) {
-        debug!("Operation {} completed in {:?}, success: {}", operation, duration, success);
+        debug!(
+            "Operation {} completed in {:?}, success: {}",
+            operation, duration, success
+        );
     }
 
     pub async fn get_metrics(&self) -> SystemMetrics {
         SystemMetrics {
             memory_usage: 0, // TODO: Implement actual memory tracking
             cpu_usage: 0.0,
-            operations_per_second: self.operation_counter.load(Ordering::SeqCst) as f64 / self.start_time.elapsed().as_secs_f64(),
+            operations_per_second: self.operation_counter.load(Ordering::SeqCst) as f64
+                / self.start_time.elapsed().as_secs_f64(),
             error_rate: 0.0, // TODO: Track error rate
             average_response_time: Duration::from_millis(100), // TODO: Track actual response time
             timestamp: chrono::Utc::now(),
@@ -140,7 +147,7 @@ impl ErrorRecoverySystem {
 
         loop {
             attempt += 1;
-            
+
             match operation().await {
                 Ok(result) => return Ok(result),
                 Err(e) if attempt >= self.retry_policy.max_retries => return Err(e),
@@ -155,10 +162,11 @@ impl ErrorRecoverySystem {
     }
 
     fn is_retryable(&self, error: &ClientError) -> bool {
-        matches!(error,
-            ClientError::NetworkError(_) |
-            ClientError::TimeoutError(_) |
-            ClientError::InternalError(_)
+        matches!(
+            error,
+            ClientError::NetworkError(_)
+                | ClientError::TimeoutError(_)
+                | ClientError::InternalError(_)
         )
     }
 }
@@ -180,8 +188,12 @@ impl Mem5Client {
 
         // Create retry policy
         let retry_policy = RetryPolicy::new(config.performance.retry_attempts.unwrap_or(3))
-            .with_base_delay(Duration::from_millis(config.performance.base_delay_ms.unwrap_or(100)))
-            .with_max_delay(Duration::from_millis(config.performance.max_delay_ms.unwrap_or(5000)));
+            .with_base_delay(Duration::from_millis(
+                config.performance.base_delay_ms.unwrap_or(100),
+            ))
+            .with_max_delay(Duration::from_millis(
+                config.performance.max_delay_ms.unwrap_or(5000),
+            ));
 
         let retry_executor = RetryExecutor::new(retry_policy.clone());
 
@@ -193,7 +205,10 @@ impl Mem5Client {
         let telemetry = Arc::new(TelemetrySystem::new());
         let error_recovery = Arc::new(ErrorRecoverySystem::new(retry_policy));
 
-        info!("Mem5Client initialized successfully with max_concurrent={}", max_concurrent);
+        info!(
+            "Mem5Client initialized successfully with max_concurrent={}",
+            max_concurrent
+        );
 
         Ok(Self {
             engine: Arc::new(engine),
@@ -205,7 +220,7 @@ impl Mem5Client {
             state: Arc::new(RwLock::new(ClientState::default())),
         })
     }
-    
+
     /// Add a memory with full Mem0 compatibility
     #[instrument(skip(self))]
     pub async fn add(
@@ -220,14 +235,15 @@ impl Mem5Client {
         prompt: Option<String>,
     ) -> ClientResult<String> {
         let start_time = Instant::now();
-        
+
         // Track operation start
         self.telemetry.track_operation_start("add_memory").await;
-        
+
         // Acquire semaphore permit for concurrency control
-        let _permit = self.semaphore.acquire().await
-            .map_err(|e| ClientError::InternalError(format!("Failed to acquire semaphore: {}", e)))?;
-        
+        let _permit = self.semaphore.acquire().await.map_err(|e| {
+            ClientError::InternalError(format!("Failed to acquire semaphore: {}", e))
+        })?;
+
         // Create enhanced request
         let request = EnhancedAddRequest {
             messages,
@@ -239,60 +255,71 @@ impl Mem5Client {
             memory_type,
             prompt,
         };
-        
+
         // Validate request
-        request.validate()
-            .map_err(|e| ClientError::ValidationError(format!("Request validation failed: {}", e)))?;
-        
+        request.validate().map_err(|e| {
+            ClientError::ValidationError(format!("Request validation failed: {}", e))
+        })?;
+
         // Execute with error recovery
-        let result = self.error_recovery.execute_with_recovery(|| {
-            let engine = self.engine.clone();
-            let request = request.clone();
-            Box::pin(async move {
-                // Convert to processing options
-                let options = ProcessingOptions {
-                    extract_facts: infer,
-                    update_existing: true,
-                    resolve_conflicts: true,
-                    calculate_importance: true,
-                };
-                
-                // Create a memory from the request
-                let memory = Memory {
-                    id: uuid::Uuid::new_v4().to_string(),
-                    agent_id: request.agent_id.unwrap_or_else(|| "default".to_string()),
-                    user_id: request.user_id,
-                    content: match request.messages {
-                        Messages::Single(s) => s,
-                        Messages::Structured(msg) => msg.content,
-                        Messages::Multiple(msgs) => msgs.into_iter().map(|m| m.content).collect::<Vec<_>>().join(" "),
-                    },
-                    memory_type: Some(MemoryType::Episodic),
-                    importance: Some(0.5),
-                    created_at: chrono::Utc::now(),
-                    metadata: request.metadata.map(|m| {
-                        m.into_iter().map(|(k, v)| (k, v.to_string())).collect()
-                    }),
-                };
+        let result = self
+            .error_recovery
+            .execute_with_recovery(|| {
+                let engine = self.engine.clone();
+                let request = request.clone();
+                Box::pin(async move {
+                    // Convert to processing options
+                    let options = ProcessingOptions {
+                        extract_facts: infer,
+                        update_existing: true,
+                        resolve_conflicts: true,
+                        calculate_importance: true,
+                    };
 
-                // Convert to core memory type and add
-                let core_memory = agent_mem_core::types::Memory::new(
-                    memory.agent_id.clone(),
-                    memory.user_id.clone(),
-                    agent_mem_core::types::MemoryType::Episodic,
-                    memory.content.clone(),
-                    memory.importance.unwrap_or(0.5),
-                );
+                    // Create a memory from the request
+                    let memory = Memory {
+                        id: uuid::Uuid::new_v4().to_string(),
+                        agent_id: request.agent_id.unwrap_or_else(|| "default".to_string()),
+                        user_id: request.user_id,
+                        content: match request.messages {
+                            Messages::Single(s) => s,
+                            Messages::Structured(msg) => msg.content,
+                            Messages::Multiple(msgs) => msgs
+                                .into_iter()
+                                .map(|m| m.content)
+                                .collect::<Vec<_>>()
+                                .join(" "),
+                        },
+                        memory_type: Some(MemoryType::Episodic),
+                        importance: Some(0.5),
+                        created_at: chrono::Utc::now(),
+                        metadata: request
+                            .metadata
+                            .map(|m| m.into_iter().map(|(k, v)| (k, v.to_string())).collect()),
+                    };
 
-                engine.add_memory(core_memory.into()).await
-                .map_err(|e| ClientError::InternalError(format!("Memory engine error: {}", e)))
+                    // Convert to core memory type and add
+                    let core_memory = agent_mem_core::types::Memory::new(
+                        memory.agent_id.clone(),
+                        memory.user_id.clone(),
+                        agent_mem_core::types::MemoryType::Episodic,
+                        memory.content.clone(),
+                        memory.importance.unwrap_or(0.5),
+                    );
+
+                    engine.add_memory(core_memory.into()).await.map_err(|e| {
+                        ClientError::InternalError(format!("Memory engine error: {}", e))
+                    })
+                })
             })
-        }).await;
-        
+            .await;
+
         // Update metrics and state
         let duration = start_time.elapsed();
-        self.telemetry.track_operation_end("add_memory", duration, result.is_ok()).await;
-        
+        self.telemetry
+            .track_operation_end("add_memory", duration, result.is_ok())
+            .await;
+
         let mut state = self.state.write().await;
         state.total_operations += 1;
         if result.is_ok() {
@@ -303,11 +330,11 @@ impl Mem5Client {
                 state.last_error = Some(e.to_string());
             }
         }
-        
+
         debug!("Add operation completed in {:?}", duration);
         result
     }
-    
+
     /// Search memories with advanced filtering
     #[instrument(skip(self))]
     pub async fn search(
@@ -321,13 +348,16 @@ impl Mem5Client {
         threshold: Option<f32>,
     ) -> ClientResult<Vec<MemorySearchResult>> {
         let start_time = Instant::now();
-        
+
         // Track operation start
-        self.telemetry.track_operation_start("search_memories").await;
-        
-        let _permit = self.semaphore.acquire().await
-            .map_err(|e| ClientError::InternalError(format!("Failed to acquire semaphore: {}", e)))?;
-        
+        self.telemetry
+            .track_operation_start("search_memories")
+            .await;
+
+        let _permit = self.semaphore.acquire().await.map_err(|e| {
+            ClientError::InternalError(format!("Failed to acquire semaphore: {}", e))
+        })?;
+
         // Create enhanced search request
         let request = EnhancedSearchRequest {
             query,
@@ -338,29 +368,39 @@ impl Mem5Client {
             filters,
             threshold,
         };
-        
+
         // Validate request
-        request.validate()
-            .map_err(|e| ClientError::ValidationError(format!("Search request validation failed: {}", e)))?;
-        
+        request.validate().map_err(|e| {
+            ClientError::ValidationError(format!("Search request validation failed: {}", e))
+        })?;
+
         // Execute with error recovery
-        let result = self.error_recovery.execute_with_recovery(|| {
-            let engine = self.engine.clone();
-            let request = request.clone();
-            Box::pin(async move {
-                engine.search_memories(
-                    &request.query,
-                    None, // scope
-                    Some(request.limit),
-                ).await
-                .map_err(|e| ClientError::InternalError(format!("Memory engine search error: {}", e)))
+        let result = self
+            .error_recovery
+            .execute_with_recovery(|| {
+                let engine = self.engine.clone();
+                let request = request.clone();
+                Box::pin(async move {
+                    engine
+                        .search_memories(
+                            &request.query,
+                            None, // scope
+                            Some(request.limit),
+                        )
+                        .await
+                        .map_err(|e| {
+                            ClientError::InternalError(format!("Memory engine search error: {}", e))
+                        })
+                })
             })
-        }).await;
-        
+            .await;
+
         // Update metrics and state
         let duration = start_time.elapsed();
-        self.telemetry.track_operation_end("search_memories", duration, result.is_ok()).await;
-        
+        self.telemetry
+            .track_operation_end("search_memories", duration, result.is_ok())
+            .await;
+
         let mut state = self.state.write().await;
         state.total_operations += 1;
         if result.is_ok() {
@@ -371,56 +411,67 @@ impl Mem5Client {
                 state.last_error = Some(e.to_string());
             }
         }
-        
+
         debug!("Search operation completed in {:?}", duration);
 
         // Convert agent_mem_traits::MemoryItem to agent_mem_traits::MemorySearchResult
         result.map(|memories| {
-            memories.into_iter().map(|memory| {
-                MemorySearchResult {
+            memories
+                .into_iter()
+                .map(|memory| MemorySearchResult {
                     id: memory.id,
                     content: memory.content,
                     importance: Some(memory.importance as f64),
                     score: memory.importance,
                     metadata: memory.metadata,
                     created_at: memory.created_at,
-                }
-            }).collect()
+                })
+                .collect()
         })
     }
-    
+
     /// Batch add memories with concurrent processing
     #[instrument(skip(self))]
     pub async fn add_batch(&self, requests: Vec<EnhancedAddRequest>) -> ClientResult<BatchResult> {
-        let operation_id = self.telemetry.operation_counter.fetch_add(1, Ordering::SeqCst);
+        let operation_id = self
+            .telemetry
+            .operation_counter
+            .fetch_add(1, Ordering::SeqCst);
         let start_time = Instant::now();
-        
-        debug!("Starting batch add operation {} with {} requests", operation_id, requests.len());
-        
+
+        debug!(
+            "Starting batch add operation {} with {} requests",
+            operation_id,
+            requests.len()
+        );
+
         // Process batch requests directly without wrapper struct
-        
-        let result = self.retry_executor.execute(|| {
-            let requests_clone = requests.clone();
-            Box::pin(async move {
-                // Process requests directly using the engine
-                let mut results = Vec::new();
-                for request in requests_clone {
-                    // Simulate batch processing - in real implementation this would be more sophisticated
-                    results.push(format!("processed-{}", request.messages.len()));
-                }
-                Ok(BatchResult {
-                    successful: results.len(),
-                    failed: 0,
-                    results,
-                    errors: Vec::new(),
-                    execution_time: std::time::Duration::from_millis(100),
+
+        let result = self
+            .retry_executor
+            .execute(|| {
+                let requests_clone = requests.clone();
+                Box::pin(async move {
+                    // Process requests directly using the engine
+                    let mut results = Vec::new();
+                    for request in requests_clone {
+                        // Simulate batch processing - in real implementation this would be more sophisticated
+                        results.push(format!("processed-{}", request.messages.len()));
+                    }
+                    Ok(BatchResult {
+                        successful: results.len(),
+                        failed: 0,
+                        results,
+                        errors: Vec::new(),
+                        execution_time: std::time::Duration::from_millis(100),
+                    })
                 })
             })
-        }).await;
-        
+            .await;
+
         let duration = start_time.elapsed();
         debug!("Batch add operation completed in {:?}", duration);
-        
+
         let mut state = self.state.write().await;
         state.total_operations += 1;
         if result.is_ok() {
@@ -428,36 +479,52 @@ impl Mem5Client {
         } else {
             state.failed_operations += 1;
         }
-        
-        debug!("Completed batch add operation {} in {:?}", operation_id, duration);
+
+        debug!(
+            "Completed batch add operation {} in {:?}",
+            operation_id, duration
+        );
         result
     }
-    
+
     /// Get client health status
     pub async fn health_check(&self) -> ClientResult<HealthResponse> {
         let state = self.state.read().await;
-        
+
         let mut checks = HashMap::new();
         checks.insert("memory_engine".to_string(), "healthy".to_string());
         checks.insert("compat_client".to_string(), "healthy".to_string());
         checks.insert("performance_monitor".to_string(), "healthy".to_string());
-        
+
         Ok(HealthResponse {
-            status: if state.is_healthy { "healthy".to_string() } else { "unhealthy".to_string() },
+            status: if state.is_healthy {
+                "healthy".to_string()
+            } else {
+                "unhealthy".to_string()
+            },
             timestamp: chrono::Utc::now(),
             version: env!("CARGO_PKG_VERSION").to_string(),
             checks,
         })
     }
-    
+
     /// Get client metrics
     pub async fn get_metrics(&self) -> ClientResult<MetricsResponse> {
         let state = self.state.read().await;
 
         let mut metrics = HashMap::new();
-        metrics.insert("total_operations".to_string(), state.total_operations as f64);
-        metrics.insert("successful_operations".to_string(), state.successful_operations as f64);
-        metrics.insert("failed_operations".to_string(), state.failed_operations as f64);
+        metrics.insert(
+            "total_operations".to_string(),
+            state.total_operations as f64,
+        );
+        metrics.insert(
+            "successful_operations".to_string(),
+            state.successful_operations as f64,
+        );
+        metrics.insert(
+            "failed_operations".to_string(),
+            state.failed_operations as f64,
+        );
 
         Ok(MetricsResponse {
             timestamp: chrono::Utc::now(),

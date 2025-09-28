@@ -232,7 +232,6 @@ impl LLMClient {
 mod tests {
     use super::*;
 
-
     fn create_test_config() -> LLMConfig {
         LLMConfig {
             provider: "openai".to_string(),

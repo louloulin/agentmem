@@ -7,13 +7,13 @@
 //! - 过程记忆存储
 
 use agent_mem_compat::{
-    Mem0Client, ProceduralMemoryConfig, WorkflowStep, StepType, StepStatus, Task, TaskPriority,
+    Mem0Client, ProceduralMemoryConfig, StepStatus, StepType, Task, TaskPriority, WorkflowStep,
 };
 use agent_mem_traits::Session;
 use chrono::Utc;
 use serde_json::json;
 use std::collections::HashMap;
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 #[tokio::main]
@@ -159,9 +159,9 @@ async fn demo_workflow_creation_and_execution(
     // 执行工作流步骤
     for i in 1..=3 {
         println!("\n📋 执行第 {} 步", i);
-        
+
         let result = client.execute_next_step(&execution_id).await?;
-        
+
         if result.success {
             println!("  ✅ 步骤 {} 执行成功: {}", result.step_id, result.message);
             println!("  ⏱️ 执行时间: {}ms", result.execution_time_ms);
@@ -217,7 +217,10 @@ async fn demo_task_chain_management(client: &Mem0Client) -> Result<(), Box<dyn s
                 let mut params = HashMap::new();
                 params.insert("type".to_string(), json!("data_processing"));
                 params.insert("processing_type".to_string(), json!("clean"));
-                params.insert("rules".to_string(), json!(["remove_duplicates", "validate_format"]));
+                params.insert(
+                    "rules".to_string(),
+                    json!(["remove_duplicates", "validate_format"]),
+                );
                 params
             },
             status: agent_mem_compat::TaskStatus::Pending,
@@ -278,9 +281,9 @@ async fn demo_task_chain_management(client: &Mem0Client) -> Result<(), Box<dyn s
     // 执行任务链中的任务
     for i in 1..=4 {
         println!("\n🔄 执行任务 {}", i);
-        
+
         let result = client.execute_next_task(&chain_id).await?;
-        
+
         if result.success {
             println!("  ✅ 任务 {} 执行成功: {}", result.task_id, result.message);
             println!("  ⏱️ 执行时间: {}秒", result.duration);
@@ -301,15 +304,19 @@ async fn demo_task_chain_management(client: &Mem0Client) -> Result<(), Box<dyn s
         println!("\n🎉 任务链执行完成!");
         println!("  最终状态: {:?}", task_chain.status);
         println!("  总任务数: {}", task_chain.tasks.len());
-        
+
         // 统计任务状态
-        let completed_count = task_chain.tasks.iter()
+        let completed_count = task_chain
+            .tasks
+            .iter()
             .filter(|t| t.status == agent_mem_compat::TaskStatus::Completed)
             .count();
-        let failed_count = task_chain.tasks.iter()
+        let failed_count = task_chain
+            .tasks
+            .iter()
             .filter(|t| t.status == agent_mem_compat::TaskStatus::Failed)
             .count();
-        
+
         println!("  已完成任务: {}", completed_count);
         println!("  失败任务: {}", failed_count);
     }
@@ -459,7 +466,9 @@ async fn demo_workflow_listing(client: &Mem0Client) -> Result<(), Box<dyn std::e
 
     // 按标签过滤工作流
     println!("🏷️ 按标签 'demo' 过滤工作流:");
-    let demo_workflows = client.list_workflows(Some(vec!["demo".to_string()])).await?;
+    let demo_workflows = client
+        .list_workflows(Some(vec!["demo".to_string()]))
+        .await?;
 
     for workflow in demo_workflows {
         println!("  - {} (标签: {:?})", workflow.name, workflow.tags);

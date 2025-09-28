@@ -187,7 +187,8 @@ impl VectorStore for MemoryVectorStore {
         threshold: Option<f32>,
     ) -> Result<Vec<VectorSearchResult>> {
         use crate::utils::VectorStoreDefaults;
-        self.default_search_with_filters(query_vector, limit, filters, threshold).await
+        self.default_search_with_filters(query_vector, limit, filters, threshold)
+            .await
     }
 
     async fn health_check(&self) -> Result<agent_mem_traits::HealthStatus> {
@@ -197,7 +198,8 @@ impl VectorStore for MemoryVectorStore {
 
     async fn get_stats(&self) -> Result<agent_mem_traits::VectorStoreStats> {
         use crate::utils::VectorStoreDefaults;
-        self.default_get_stats(self.config.dimension.unwrap_or(1536)).await
+        self.default_get_stats(self.config.dimension.unwrap_or(1536))
+            .await
     }
 
     async fn add_vectors_batch(&self, batches: Vec<Vec<VectorData>>) -> Result<Vec<Vec<String>>> {

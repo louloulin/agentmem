@@ -6,11 +6,11 @@
 //! - 智能合并策略
 //! - 置信度评估
 
-use agent_mem_traits::{Result, Message};
-use agent_mem_llm::LLMProvider;
-use agent_mem_core::Memory;
-use crate::fact_extraction::{StructuredFact, Entity, Relation};
+use crate::fact_extraction::{Entity, Relation, StructuredFact};
 use crate::similarity::SemanticSimilarity;
+use agent_mem_core::Memory;
+use agent_mem_llm::LLMProvider;
+use agent_mem_traits::{Message, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -67,9 +67,7 @@ pub enum ResolutionStrategy {
     /// 标记为冲突，需要人工处理
     MarkForManualReview,
     /// 删除重复项
-    RemoveDuplicates {
-        keep_memory_id: String,
-    },
+    RemoveDuplicates { keep_memory_id: String },
 }
 
 /// 合并策略
@@ -109,13 +107,9 @@ pub enum ResolutionResult {
         deleted_memories: Vec<String>,
     },
     /// 需要人工干预
-    RequiresManualIntervention {
-        reason: String,
-    },
+    RequiresManualIntervention { reason: String },
     /// 解决失败
-    Failed {
-        error: String,
-    },
+    Failed { error: String },
 }
 
 /// 冲突解决器
@@ -151,12 +145,9 @@ impl Default for ConflictResolverConfig {
 
 impl ConflictResolver {
     /// 创建新的冲突解决器
-    pub fn new(
-        llm: Arc<dyn LLMProvider + Send + Sync>,
-        config: ConflictResolverConfig,
-    ) -> Self {
+    pub fn new(llm: Arc<dyn LLMProvider + Send + Sync>, config: ConflictResolverConfig) -> Self {
         let similarity = SemanticSimilarity::default();
-        
+
         Self {
             llm,
             similarity,
@@ -170,22 +161,32 @@ impl ConflictResolver {
         new_memories: &[Memory],
         existing_memories: &[Memory],
     ) -> Result<Vec<ConflictDetection>> {
-        info!("开始检测冲突，新记忆: {}, 现有记忆: {}", new_memories.len(), existing_memories.len());
-        
+        info!(
+            "开始检测冲突，新记忆: {}, 现有记忆: {}",
+            new_memories.len(),
+            existing_memories.len()
+        );
+
         let mut conflicts = Vec::new();
-        
+
         // 1. 检测语义冲突
-        let semantic_conflicts = self.detect_semantic_conflicts(new_memories, existing_memories).await?;
+        let semantic_conflicts = self
+            .detect_semantic_conflicts(new_memories, existing_memories)
+            .await?;
         conflicts.extend(semantic_conflicts);
-        
+
         // 2. 检测时间冲突
-        let temporal_conflicts = self.detect_temporal_conflicts(new_memories, existing_memories).await?;
+        let temporal_conflicts = self
+            .detect_temporal_conflicts(new_memories, existing_memories)
+            .await?;
         conflicts.extend(temporal_conflicts);
-        
+
         // 3. 检测重复内容
-        let duplicate_conflicts = self.detect_duplicates(new_memories, existing_memories).await?;
+        let duplicate_conflicts = self
+            .detect_duplicates(new_memories, existing_memories)
+            .await?;
         conflicts.extend(duplicate_conflicts);
-        
+
         info!("检测到 {} 个冲突", conflicts.len());
         Ok(conflicts)
     }
@@ -197,14 +198,14 @@ impl ConflictResolver {
         memories: &[Memory],
     ) -> Result<Vec<ConflictResolution>> {
         info!("开始解决 {} 个冲突", conflicts.len());
-        
+
         let mut resolutions = Vec::new();
-        
+
         for conflict in conflicts {
             let resolution = self.resolve_single_conflict(conflict, memories).await?;
             resolutions.push(resolution);
         }
-        
+
         info!("完成冲突解决，生成 {} 个解决方案", resolutions.len());
         Ok(resolutions)
     }
@@ -216,19 +217,21 @@ impl ConflictResolver {
         existing_memories: &[Memory],
     ) -> Result<Vec<ConflictDetection>> {
         let mut conflicts = Vec::new();
-        
+
         for new_memory in new_memories {
             for existing_memory in existing_memories {
                 // 计算语义相似度
-                let similarity = self.similarity.calculate_similarity(
-                    &new_memory.content,
-                    &existing_memory.content,
-                ).await?;
-                
+                let similarity = self
+                    .similarity
+                    .calculate_similarity(&new_memory.content, &existing_memory.content)
+                    .await?;
+
                 // 如果相似度高但内容不同，可能存在冲突
                 if similarity > self.config.semantic_similarity_threshold {
-                    let conflict_severity = self.analyze_semantic_conflict(new_memory, existing_memory).await?;
-                    
+                    let conflict_severity = self
+                        .analyze_semantic_conflict(new_memory, existing_memory)
+                        .await?;
+
                     if conflict_severity > 0.5 {
                         let conflict = ConflictDetection {
                             id: format!("semantic_conflict_{}", conflicts.len()),
@@ -241,10 +244,12 @@ impl ConflictResolver {
                             ),
                             severity: conflict_severity,
                             confidence: similarity,
-                            suggested_resolution: self.suggest_resolution_strategy(
-                                &ConflictType::Semantic,
-                                &[new_memory.clone(), existing_memory.clone()],
-                            ).await?,
+                            suggested_resolution: self
+                                .suggest_resolution_strategy(
+                                    &ConflictType::Semantic,
+                                    &[new_memory.clone(), existing_memory.clone()],
+                                )
+                                .await?,
                             detected_at: chrono::Utc::now(),
                         };
                         conflicts.push(conflict);
@@ -252,7 +257,7 @@ impl ConflictResolver {
                 }
             }
         }
-        
+
         Ok(conflicts)
     }
 
@@ -263,12 +268,14 @@ impl ConflictResolver {
         existing_memories: &[Memory],
     ) -> Result<Vec<ConflictDetection>> {
         let mut conflicts = Vec::new();
-        
+
         // 简化的时间冲突检测逻辑
         for new_memory in new_memories {
             for existing_memory in existing_memories {
-                let time_diff = (new_memory.created_at - existing_memory.created_at).num_hours().abs();
-                
+                let time_diff = (new_memory.created_at - existing_memory.created_at)
+                    .num_hours()
+                    .abs();
+
                 if time_diff <= self.config.temporal_conflict_window_hours {
                     // 检查是否存在时间相关的冲突
                     if self.has_temporal_conflict(&new_memory.content, &existing_memory.content) {
@@ -287,7 +294,7 @@ impl ConflictResolver {
                 }
             }
         }
-        
+
         Ok(conflicts)
     }
 
@@ -298,17 +305,18 @@ impl ConflictResolver {
         existing_memories: &[Memory],
     ) -> Result<Vec<ConflictDetection>> {
         let mut conflicts = Vec::new();
-        
+
         for new_memory in new_memories {
             for existing_memory in existing_memories {
-                let similarity = self.similarity.calculate_similarity(
-                    &new_memory.content,
-                    &existing_memory.content,
-                ).await?;
-                
+                let similarity = self
+                    .similarity
+                    .calculate_similarity(&new_memory.content, &existing_memory.content)
+                    .await?;
+
                 // 高相似度且内容长度相近，可能是重复
                 if similarity > 0.95 {
-                    let length_ratio = (new_memory.content.len() as f32) / (existing_memory.content.len() as f32);
+                    let length_ratio =
+                        (new_memory.content.len() as f32) / (existing_memory.content.len() as f32);
                     if length_ratio > 0.8 && length_ratio < 1.2 {
                         let conflict = ConflictDetection {
                             id: format!("duplicate_conflict_{}", conflicts.len()),
@@ -318,7 +326,9 @@ impl ConflictResolver {
                             severity: 0.6,
                             confidence: similarity,
                             suggested_resolution: ResolutionStrategy::RemoveDuplicates {
-                                keep_memory_id: if new_memory.created_at > existing_memory.created_at {
+                                keep_memory_id: if new_memory.created_at
+                                    > existing_memory.created_at
+                                {
                                     new_memory.id.clone()
                                 } else {
                                     existing_memory.id.clone()
@@ -331,7 +341,7 @@ impl ConflictResolver {
                 }
             }
         }
-        
+
         Ok(conflicts)
     }
 
@@ -355,7 +365,7 @@ impl ConflictResolver {
         );
 
         let response = self.llm.generate(&[Message::user(&prompt)]).await?;
-        
+
         // 解析响应
         #[derive(Deserialize)]
         struct ConflictAnalysis {
@@ -384,10 +394,14 @@ impl ConflictResolver {
         // 简化的时间冲突检测
         // 实际实现中可以使用更复杂的时间实体识别
         let time_keywords = ["昨天", "今天", "明天", "上周", "下周", "去年", "今年"];
-        
-        let has_time1 = time_keywords.iter().any(|&keyword| content1.contains(keyword));
-        let has_time2 = time_keywords.iter().any(|&keyword| content2.contains(keyword));
-        
+
+        let has_time1 = time_keywords
+            .iter()
+            .any(|&keyword| content1.contains(keyword));
+        let has_time2 = time_keywords
+            .iter()
+            .any(|&keyword| content2.contains(keyword));
+
         has_time1 && has_time2
     }
 
@@ -402,7 +416,7 @@ impl ConflictResolver {
                 if memories.len() == 2 {
                     let newer = &memories[0];
                     let older = &memories[1];
-                    
+
                     if newer.created_at > older.created_at {
                         Ok(ResolutionStrategy::KeepLatest)
                     } else {
@@ -439,14 +453,14 @@ impl ConflictResolver {
                     .iter()
                     .filter(|m| conflict.memory_ids.contains(&m.id))
                     .collect();
-                
+
                 if let Some(latest) = conflict_memories.iter().max_by_key(|m| m.created_at) {
                     let to_delete: Vec<String> = conflict_memories
                         .iter()
                         .filter(|m| m.id != latest.id)
                         .map(|m| m.id.clone())
                         .collect();
-                    
+
                     ResolutionResult::Success {
                         updated_memories: vec![latest.id.clone()],
                         deleted_memories: to_delete,
@@ -458,12 +472,13 @@ impl ConflictResolver {
                 }
             }
             ResolutionStrategy::RemoveDuplicates { keep_memory_id } => {
-                let to_delete: Vec<String> = conflict.memory_ids
+                let to_delete: Vec<String> = conflict
+                    .memory_ids
                     .iter()
                     .filter(|id| *id != keep_memory_id)
                     .cloned()
                     .collect();
-                
+
                 ResolutionResult::Success {
                     updated_memories: vec![keep_memory_id.clone()],
                     deleted_memories: to_delete,

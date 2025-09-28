@@ -1,9 +1,7 @@
 //! 嵌入模型工厂模式实现
 
 use crate::config::EmbeddingConfig;
-use crate::providers::{
-    CohereEmbedder, HuggingFaceEmbedder, LocalEmbedder, OpenAIEmbedder,
-};
+use crate::providers::{LocalEmbedder, OpenAIEmbedder};
 use agent_mem_traits::{AgentMemError, Embedder, Result};
 use async_trait::async_trait;
 use std::sync::Arc;
@@ -392,11 +390,7 @@ impl RealEmbeddingFactory {
                 Ok(embedder) => {
                     // 验证嵌入提供商
                     if let Err(e) = Self::validate_embedder(&embedder).await {
-                        tracing::warn!(
-                            "Embedder validation failed on attempt {}: {}",
-                            attempt,
-                            e
-                        );
+                        tracing::warn!("Embedder validation failed on attempt {}: {}", attempt, e);
                         if attempt < max_retries {
                             let delay = std::time::Duration::from_secs(2_u64.pow(attempt - 1));
                             tokio::time::sleep(delay).await;
@@ -418,7 +412,9 @@ impl RealEmbeddingFactory {
             }
         }
 
-        Err(AgentMemError::config_error("Failed to create embedder after all retries"))
+        Err(AgentMemError::config_error(
+            "Failed to create embedder after all retries",
+        ))
     }
 
     /// 创建嵌入提供商，带有回退机制
@@ -448,7 +444,10 @@ impl RealEmbeddingFactory {
                             Ok(embedder)
                         }
                         Err(fallback_err) => {
-                            tracing::error!("Fallback embedder creation also failed: {}", fallback_err);
+                            tracing::error!(
+                                "Fallback embedder creation also failed: {}",
+                                fallback_err
+                            );
                             Err(e) // 返回原始错误
                         }
                     }
@@ -463,10 +462,8 @@ impl RealEmbeddingFactory {
     async fn validate_embedder(embedder: &Arc<dyn Embedder + Send + Sync>) -> Result<()> {
         // 健康检查
         let health_check_timeout = std::time::Duration::from_secs(10);
-        let health_result = tokio::time::timeout(
-            health_check_timeout,
-            embedder.health_check()
-        ).await;
+        let health_result =
+            tokio::time::timeout(health_check_timeout, embedder.health_check()).await;
 
         match health_result {
             Ok(Ok(true)) => {
@@ -476,7 +473,10 @@ impl RealEmbeddingFactory {
                 return Err(AgentMemError::config_error("Embedder health check failed"));
             }
             Ok(Err(e)) => {
-                return Err(AgentMemError::config_error(&format!("Embedder health check error: {}", e)));
+                return Err(AgentMemError::config_error(&format!(
+                    "Embedder health check error: {}",
+                    e
+                )));
             }
             Err(_) => {
                 return Err(AgentMemError::config_error("Embedder health check timeout"));
@@ -486,15 +486,14 @@ impl RealEmbeddingFactory {
         // 测试嵌入生成
         let test_text = "test embedding";
         let embed_timeout = std::time::Duration::from_secs(30);
-        let embed_result = tokio::time::timeout(
-            embed_timeout,
-            embedder.embed(test_text)
-        ).await;
+        let embed_result = tokio::time::timeout(embed_timeout, embedder.embed(test_text)).await;
 
         match embed_result {
             Ok(Ok(embedding)) => {
                 if embedding.is_empty() {
-                    return Err(AgentMemError::config_error("Embedder returned empty embedding"));
+                    return Err(AgentMemError::config_error(
+                        "Embedder returned empty embedding",
+                    ));
                 }
                 if embedding.len() != embedder.dimension() {
                     return Err(AgentMemError::config_error(&format!(
@@ -506,12 +505,13 @@ impl RealEmbeddingFactory {
                 tracing::debug!("Embedder test embedding successful");
                 Ok(())
             }
-            Ok(Err(e)) => {
-                Err(AgentMemError::config_error(&format!("Embedder test embedding failed: {}", e)))
-            }
-            Err(_) => {
-                Err(AgentMemError::config_error("Embedder test embedding timeout"))
-            }
+            Ok(Err(e)) => Err(AgentMemError::config_error(&format!(
+                "Embedder test embedding failed: {}",
+                e
+            ))),
+            Err(_) => Err(AgentMemError::config_error(
+                "Embedder test embedding timeout",
+            )),
         }
     }
 

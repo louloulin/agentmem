@@ -1,5 +1,5 @@
 //! 多租户隔离系统
-//! 
+//!
 //! 实现企业级多租户隔离，包括数据隔离、资源隔离、网络隔离和计费隔离。
 
 use agent_mem_traits::AgentMemError;
@@ -157,15 +157,21 @@ impl TenantConfig {
     /// 验证租户配置
     pub fn validate(&self) -> Result<(), AgentMemError> {
         if self.name.is_empty() {
-            return Err(AgentMemError::validation_error("Tenant name cannot be empty"));
+            return Err(AgentMemError::validation_error(
+                "Tenant name cannot be empty",
+            ));
         }
 
         if self.namespace.is_empty() {
-            return Err(AgentMemError::validation_error("Tenant namespace cannot be empty"));
+            return Err(AgentMemError::validation_error(
+                "Tenant namespace cannot be empty",
+            ));
         }
 
         if self.resource_limits.max_memories == 0 {
-            return Err(AgentMemError::validation_error("Max memories must be greater than 0"));
+            return Err(AgentMemError::validation_error(
+                "Max memories must be greater than 0",
+            ));
         }
 
         Ok(())
@@ -240,7 +246,10 @@ impl IsolationEngine {
             }
             DataPartitioningStrategy::RangeBased { ranges } => {
                 // 简化实现：使用第一个范围
-                ranges.first().cloned().unwrap_or_else(|| "default".to_string())
+                ranges
+                    .first()
+                    .cloned()
+                    .unwrap_or_else(|| "default".to_string())
             }
         }
     }
@@ -268,17 +277,17 @@ impl IsolationEngine {
             ResourceIsolationStrategy::HardLimits => {
                 // 硬限制：严格执行
                 if current_usage.memory_count >= limits.max_memories {
-                    return Err(AgentMemError::validation_error(
-                        format!("Memory count limit exceeded: {} >= {}",
-                               current_usage.memory_count, limits.max_memories)
-                    ));
+                    return Err(AgentMemError::validation_error(format!(
+                        "Memory count limit exceeded: {} >= {}",
+                        current_usage.memory_count, limits.max_memories
+                    )));
                 }
 
                 if current_usage.storage_bytes >= limits.max_storage_bytes {
-                    return Err(AgentMemError::validation_error(
-                        format!("Storage limit exceeded: {} >= {}",
-                               current_usage.storage_bytes, limits.max_storage_bytes)
-                    ));
+                    return Err(AgentMemError::validation_error(format!(
+                        "Storage limit exceeded: {} >= {}",
+                        current_usage.storage_bytes, limits.max_storage_bytes
+                    )));
                 }
 
                 Ok(())
@@ -306,7 +315,7 @@ impl IsolationEngine {
         // 简化实现：根据系统负载动态调整
         // 实际实现中应该考虑当前系统负载、历史使用模式等
         let load_factor = 0.8; // 假设当前负载为80%
-        
+
         ResourceLimits {
             max_memories: (limits.max_memories as f64 * load_factor) as usize,
             max_storage_bytes: (limits.max_storage_bytes as f64 * load_factor) as u64,
@@ -371,9 +380,10 @@ impl TenantRegistry {
         let mut usage = self.resource_usage.write().await;
 
         if tenants.contains_key(&config.tenant_id) {
-            return Err(AgentMemError::validation_error(
-                format!("Tenant {} already exists", config.tenant_id.as_str())
-            ));
+            return Err(AgentMemError::validation_error(format!(
+                "Tenant {} already exists",
+                config.tenant_id.as_str()
+            )));
         }
 
         let tenant_id = config.tenant_id.clone();
@@ -396,9 +406,10 @@ impl TenantRegistry {
 
         let mut tenants = self.tenants.write().await;
         if !tenants.contains_key(&config.tenant_id) {
-            return Err(AgentMemError::not_found(
-                format!("Tenant {} not found", config.tenant_id.as_str())
-            ));
+            return Err(AgentMemError::not_found(format!(
+                "Tenant {} not found",
+                config.tenant_id.as_str()
+            )));
         }
 
         tenants.insert(config.tenant_id.clone(), config);
@@ -411,9 +422,10 @@ impl TenantRegistry {
         let mut usage = self.resource_usage.write().await;
 
         if !tenants.contains_key(tenant_id) {
-            return Err(AgentMemError::not_found(
-                format!("Tenant {} not found", tenant_id.as_str())
-            ));
+            return Err(AgentMemError::not_found(format!(
+                "Tenant {} not found",
+                tenant_id.as_str()
+            )));
         }
 
         tenants.remove(tenant_id);
@@ -444,9 +456,10 @@ impl TenantRegistry {
         let mut resource_usage = self.resource_usage.write().await;
 
         if !resource_usage.contains_key(tenant_id) {
-            return Err(AgentMemError::not_found(
-                format!("Tenant {} not found", tenant_id.as_str())
-            ));
+            return Err(AgentMemError::not_found(format!(
+                "Tenant {} not found",
+                tenant_id.as_str()
+            )));
         }
 
         resource_usage.insert(tenant_id.clone(), usage);
@@ -460,9 +473,10 @@ impl TenantRegistry {
         match tenants.get(tenant_id) {
             Some(config) if config.is_active => Ok(()),
             Some(_) => Err(AgentMemError::validation_error("Tenant is not active")),
-            None => Err(AgentMemError::not_found(
-                format!("Tenant {} not found", tenant_id.as_str())
-            )),
+            None => Err(AgentMemError::not_found(format!(
+                "Tenant {} not found",
+                tenant_id.as_str()
+            ))),
         }
     }
 }
@@ -495,10 +509,16 @@ impl ResourceManager {
         self.registry.validate_tenant(tenant_id).await?;
 
         // 获取租户配置和当前使用情况
-        let config = self.registry.get_tenant(tenant_id).await
+        let config = self
+            .registry
+            .get_tenant(tenant_id)
+            .await
             .ok_or_else(|| AgentMemError::not_found("Tenant not found"))?;
 
-        let mut current_usage = self.registry.get_resource_usage(tenant_id).await
+        let mut current_usage = self
+            .registry
+            .get_resource_usage(tenant_id)
+            .await
             .unwrap_or_default();
 
         // 模拟操作对资源使用的影响
@@ -520,13 +540,18 @@ impl ResourceManager {
         tenant_id: &TenantId,
         operation: ResourceOperation,
     ) -> Result<(), AgentMemError> {
-        let mut current_usage = self.registry.get_resource_usage(tenant_id).await
+        let mut current_usage = self
+            .registry
+            .get_resource_usage(tenant_id)
+            .await
             .unwrap_or_default();
 
         self.apply_operation(&mut current_usage, &operation);
         current_usage.last_updated = chrono::Utc::now().timestamp();
 
-        self.registry.update_resource_usage(tenant_id, current_usage).await?;
+        self.registry
+            .update_resource_usage(tenant_id, current_usage)
+            .await?;
         Ok(())
     }
 
@@ -603,7 +628,7 @@ impl BillingTracker {
 
         // 默认计费规则 (分/单位)
         pricing_rules.insert("memory_storage".to_string(), 1); // 1分/MB/月
-        pricing_rules.insert("api_request".to_string(), 1);    // 1分/1000请求
+        pricing_rules.insert("api_request".to_string(), 1); // 1分/1000请求
         pricing_rules.insert("embedding_generation".to_string(), 5); // 5分/1000嵌入
         pricing_rules.insert("search_operation".to_string(), 2); // 2分/1000搜索
 
@@ -674,7 +699,9 @@ impl BillingTracker {
         start_time: Option<i64>,
         end_time: Option<i64>,
     ) -> u64 {
-        let records = self.get_billing_records(tenant_id, start_time, end_time).await;
+        let records = self
+            .get_billing_records(tenant_id, start_time, end_time)
+            .await;
         records.iter().map(|record| record.cost_cents).sum()
     }
 
@@ -748,10 +775,14 @@ impl MultiTenantManager {
         self.tenant_registry.validate_tenant(tenant_id).await?;
 
         // 检查资源限制
-        self.resource_manager.check_limits(tenant_id, operation.clone()).await?;
+        self.resource_manager
+            .check_limits(tenant_id, operation.clone())
+            .await?;
 
         // 记录资源使用
-        self.resource_manager.record_usage(tenant_id, operation).await?;
+        self.resource_manager
+            .record_usage(tenant_id, operation)
+            .await?;
 
         Ok(())
     }
@@ -774,14 +805,24 @@ impl MultiTenantManager {
     }
 
     /// 获取租户统计信息
-    pub async fn get_tenant_stats(&self, tenant_id: &TenantId) -> Result<TenantStats, AgentMemError> {
-        let config = self.tenant_registry.get_tenant(tenant_id).await
+    pub async fn get_tenant_stats(
+        &self,
+        tenant_id: &TenantId,
+    ) -> Result<TenantStats, AgentMemError> {
+        let config = self
+            .tenant_registry
+            .get_tenant(tenant_id)
+            .await
             .ok_or_else(|| AgentMemError::not_found("Tenant not found"))?;
 
-        let usage = self.tenant_registry.get_resource_usage(tenant_id).await
+        let usage = self
+            .tenant_registry
+            .get_resource_usage(tenant_id)
+            .await
             .unwrap_or_default();
 
-        let total_cost = self.billing_tracker
+        let total_cost = self
+            .billing_tracker
             .calculate_total_cost(tenant_id, None, None)
             .await;
 
