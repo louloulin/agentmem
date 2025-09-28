@@ -43,6 +43,34 @@ pub enum CoreError {
     #[error("Storage error: {0}")]
     Storage(String),
 
+    /// Database error
+    #[error("Database error: {0}")]
+    DatabaseError(String),
+
+    /// Cache error
+    #[error("Cache error: {0}")]
+    CacheError(String),
+
+    /// Migration error
+    #[error("Migration error: {0}")]
+    MigrationError(String),
+
+    /// Serialization error
+    #[error("Serialization error: {0}")]
+    SerializationError(String),
+
+    /// Validation error
+    #[error("Validation error: {0}")]
+    ValidationError(String),
+
+    /// Not found error
+    #[error("Not found: {0}")]
+    NotFound(String),
+
+    /// IO error
+    #[error("IO error: {0}")]
+    IoError(String),
+
     /// Search error
     #[error("Search error: {0}")]
     Search(String),

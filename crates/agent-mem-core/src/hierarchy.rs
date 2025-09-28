@@ -23,6 +23,29 @@ pub enum MemoryLevel {
     Contextual,
 }
 
+impl MemoryLevel {
+    /// Convert memory level to string representation
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            MemoryLevel::Strategic => "strategic",
+            MemoryLevel::Tactical => "tactical",
+            MemoryLevel::Operational => "operational",
+            MemoryLevel::Contextual => "contextual",
+        }
+    }
+
+    /// Create memory level from string representation
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "strategic" => Some(MemoryLevel::Strategic),
+            "tactical" => Some(MemoryLevel::Tactical),
+            "operational" => Some(MemoryLevel::Operational),
+            "contextual" => Some(MemoryLevel::Contextual),
+            _ => None,
+        }
+    }
+}
+
 /// Memory scope levels following ContextEngine's hierarchy
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
 pub enum MemoryScope {
@@ -156,6 +179,34 @@ impl MemoryScope {
                 agent_id: agent_id.clone(),
                 user_id: user_id.clone(),
             }),
+        }
+    }
+
+    /// Convert memory scope to string representation (simplified)
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            MemoryScope::Global => "global",
+            MemoryScope::Agent(_) => "agent",
+            MemoryScope::User { .. } => "user",
+            MemoryScope::Session { .. } => "session",
+        }
+    }
+
+    /// Create memory scope from string representation (simplified, returns Global for unknown)
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "global" => Some(MemoryScope::Global),
+            "agent" => Some(MemoryScope::Agent("unknown".to_string())),
+            "user" => Some(MemoryScope::User {
+                agent_id: "unknown".to_string(),
+                user_id: "unknown".to_string(),
+            }),
+            "session" => Some(MemoryScope::Session {
+                agent_id: "unknown".to_string(),
+                user_id: "unknown".to_string(),
+                session_id: "unknown".to_string(),
+            }),
+            _ => None,
         }
     }
 }

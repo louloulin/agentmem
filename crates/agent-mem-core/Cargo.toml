@@ -30,6 +30,10 @@ async-trait.workspace = true
 tracing.workspace = true
 futures = "0.3"
 
+# Database dependencies
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "json"] }
+redis = { version = "0.24", features = ["tokio-comp", "connection-manager"] }
+
 [dev-dependencies]
 tempfile.workspace = true
 tokio-test = "0.4"
