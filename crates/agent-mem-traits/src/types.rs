@@ -219,25 +219,41 @@ impl Session {
     }
 }
 
-/// Types of memory
+/// Types of memory (AgentMem 7.0 - 8 cognitive memory types)
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum MemoryType {
-    Factual, // 事实性记忆
+    // Legacy type for backward compatibility
+    Factual, // 事实性记忆 (mapped to Semantic)
+
+    // Basic cognitive memories
     #[default]
-    Episodic, // 情节性记忆
-    Procedural, // 程序性记忆
-    Semantic, // 语义记忆
-    Working, // 工作记忆
+    Episodic, // 情节性记忆 - specific events and experiences
+    Procedural, // 程序性记忆 - skills and procedures
+    Semantic, // 语义记忆 - facts and general knowledge
+    Working, // 工作记忆 - temporary information processing
+
+    // Advanced cognitive memories (AgentMem 7.0)
+    Core, // 核心记忆 - persistent identity and preferences
+    Resource, // 资源记忆 - multimedia content and documents
+    Knowledge, // 知识记忆 - structured knowledge graphs
+    Contextual, // 上下文记忆 - environment-aware information
 }
 
 impl MemoryType {
     pub fn as_str(&self) -> &'static str {
         match self {
+            // Legacy type
             MemoryType::Factual => "factual",
+            // Basic cognitive memories
             MemoryType::Episodic => "episodic",
             MemoryType::Procedural => "procedural",
             MemoryType::Semantic => "semantic",
             MemoryType::Working => "working",
+            // Advanced cognitive memories (AgentMem 7.0)
+            MemoryType::Core => "core",
+            MemoryType::Resource => "resource",
+            MemoryType::Knowledge => "knowledge",
+            MemoryType::Contextual => "contextual",
         }
     }
 
@@ -671,11 +687,18 @@ pub struct VectorSearchResult {
 impl std::fmt::Display for MemoryType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            // Legacy type
             MemoryType::Factual => write!(f, "factual"),
+            // Basic cognitive memories
             MemoryType::Episodic => write!(f, "episodic"),
             MemoryType::Procedural => write!(f, "procedural"),
             MemoryType::Semantic => write!(f, "semantic"),
             MemoryType::Working => write!(f, "working"),
+            // Advanced cognitive memories (AgentMem 7.0)
+            MemoryType::Core => write!(f, "core"),
+            MemoryType::Resource => write!(f, "resource"),
+            MemoryType::Knowledge => write!(f, "knowledge"),
+            MemoryType::Contextual => write!(f, "contextual"),
         }
     }
 }
@@ -685,13 +708,20 @@ impl std::str::FromStr for MemoryType {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
+            // Legacy type
             "factual" => Ok(MemoryType::Factual),
+            // Basic cognitive memories
             "episodic" => Ok(MemoryType::Episodic),
             "procedural" => Ok(MemoryType::Procedural),
             "semantic" => Ok(MemoryType::Semantic),
             "working" => Ok(MemoryType::Working),
+            // Advanced cognitive memories (AgentMem 7.0)
+            "core" => Ok(MemoryType::Core),
+            "resource" => Ok(MemoryType::Resource),
+            "knowledge" => Ok(MemoryType::Knowledge),
+            "contextual" => Ok(MemoryType::Contextual),
             _ => Err(crate::AgentMemError::ValidationError(format!(
-                "Invalid memory type: {s}"
+                "Invalid memory type: {s}. Valid types: factual, episodic, procedural, semantic, working, core, resource, knowledge, contextual"
             ))),
         }
     }

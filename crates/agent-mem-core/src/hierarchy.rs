@@ -449,11 +449,18 @@ impl HierarchicalMemoryManager {
                 scope_stats.total_memories += 1;
 
                 match memory.memory.memory_type {
+                    // Legacy type
                     MemoryType::Factual => scope_stats.semantic_memories += 1,
+                    // Basic cognitive memories
                     MemoryType::Episodic => scope_stats.episodic_memories += 1,
                     MemoryType::Semantic => scope_stats.semantic_memories += 1,
                     MemoryType::Procedural => scope_stats.procedural_memories += 1,
                     MemoryType::Working => scope_stats.untyped_memories += 1,
+                    // Advanced cognitive memories (AgentMem 7.0)
+                    MemoryType::Core => scope_stats.semantic_memories += 1, // Core memories are semantic-like
+                    MemoryType::Resource => scope_stats.untyped_memories += 1, // Resource memories are untyped
+                    MemoryType::Knowledge => scope_stats.semantic_memories += 1, // Knowledge memories are semantic-like
+                    MemoryType::Contextual => scope_stats.episodic_memories += 1, // Contextual memories are episodic-like
                 }
 
                 if memory.hierarchy_metadata.inheritance.inherited {

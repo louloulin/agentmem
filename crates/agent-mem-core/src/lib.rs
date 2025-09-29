@@ -20,6 +20,8 @@ pub mod history;
 pub mod intelligence;
 pub mod lifecycle;
 pub mod manager;
+/// Specialized memory managers for different memory types
+pub mod managers;
 pub mod operations;
 pub mod search;
 pub mod security;
@@ -30,6 +32,7 @@ pub mod types;
 // Re-export core types
 pub use engine::{MemoryEngine, MemoryEngineConfig};
 pub use hierarchy::{HierarchyManager, MemoryLevel};
+pub use managers::{CoreMemoryManager, CoreMemoryBlock, CoreMemoryBlockType, CoreMemoryConfig, CoreMemoryStats};
 
 // Re-export from traits
 pub use agent_mem_traits::{
@@ -62,6 +65,10 @@ pub enum CoreError {
     /// Validation error
     #[error("Validation error: {0}")]
     ValidationError(String),
+
+    /// Invalid input error
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
 
     /// Not found error
     #[error("Not found: {0}")]

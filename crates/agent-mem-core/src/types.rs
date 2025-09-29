@@ -6,36 +6,105 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
-/// Memory type classification
+/// Cognitive memory type classification (8 types for AgentMem 7.0)
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum MemoryType {
-    /// Episodic memories - specific events and experiences
+    // Basic cognitive memories (existing)
+    /// Episodic memories - specific events and experiences with temporal context
     Episodic,
-    /// Semantic memories - facts and general knowledge
+    /// Semantic memories - facts, concepts, and general knowledge
     Semantic,
-    /// Procedural memories - skills and procedures
+    /// Procedural memories - skills, procedures, and how-to knowledge
     Procedural,
-    /// Working memories - temporary information
+    /// Working memories - temporary information processing and active context
     Working,
+
+    // Advanced cognitive memories (new in AgentMem 7.0)
+    /// Core memories - persistent identity, preferences, and fundamental beliefs
+    Core,
+    /// Resource memories - multimedia content, documents, and external resources
+    Resource,
+    /// Knowledge memories - structured knowledge graphs and domain expertise
+    Knowledge,
+    /// Contextual memories - environment-aware and situation-specific information
+    Contextual,
 }
 
 impl MemoryType {
+    /// Convert memory type to string representation
     pub fn as_str(&self) -> &'static str {
         match self {
+            // Basic cognitive memories
             MemoryType::Episodic => "episodic",
             MemoryType::Semantic => "semantic",
             MemoryType::Procedural => "procedural",
             MemoryType::Working => "working",
+            // Advanced cognitive memories (AgentMem 7.0)
+            MemoryType::Core => "core",
+            MemoryType::Resource => "resource",
+            MemoryType::Knowledge => "knowledge",
+            MemoryType::Contextual => "contextual",
         }
     }
 
+    /// Parse memory type from string representation
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
+            // Basic cognitive memories
             "episodic" => Some(MemoryType::Episodic),
             "semantic" => Some(MemoryType::Semantic),
             "procedural" => Some(MemoryType::Procedural),
             "working" => Some(MemoryType::Working),
+            // Advanced cognitive memories (AgentMem 7.0)
+            "core" => Some(MemoryType::Core),
+            "resource" => Some(MemoryType::Resource),
+            "knowledge" => Some(MemoryType::Knowledge),
+            "contextual" => Some(MemoryType::Contextual),
             _ => None,
+        }
+    }
+
+    /// Get all available memory types
+    pub fn all_types() -> Vec<Self> {
+        vec![
+            MemoryType::Episodic,
+            MemoryType::Semantic,
+            MemoryType::Procedural,
+            MemoryType::Working,
+            MemoryType::Core,
+            MemoryType::Resource,
+            MemoryType::Knowledge,
+            MemoryType::Contextual,
+        ]
+    }
+
+    /// Check if this is a basic cognitive memory type
+    pub fn is_basic_type(&self) -> bool {
+        matches!(
+            self,
+            MemoryType::Episodic | MemoryType::Semantic | MemoryType::Procedural | MemoryType::Working
+        )
+    }
+
+    /// Check if this is an advanced cognitive memory type (AgentMem 7.0)
+    pub fn is_advanced_type(&self) -> bool {
+        matches!(
+            self,
+            MemoryType::Core | MemoryType::Resource | MemoryType::Knowledge | MemoryType::Contextual
+        )
+    }
+
+    /// Get the description of the memory type
+    pub fn description(&self) -> &'static str {
+        match self {
+            MemoryType::Episodic => "Specific events and experiences with temporal context",
+            MemoryType::Semantic => "Facts, concepts, and general knowledge",
+            MemoryType::Procedural => "Skills, procedures, and how-to knowledge",
+            MemoryType::Working => "Temporary information processing and active context",
+            MemoryType::Core => "Persistent identity, preferences, and fundamental beliefs",
+            MemoryType::Resource => "Multimedia content, documents, and external resources",
+            MemoryType::Knowledge => "Structured knowledge graphs and domain expertise",
+            MemoryType::Contextual => "Environment-aware and situation-specific information",
         }
     }
 }
@@ -216,10 +285,16 @@ impl From<Memory> for MemoryItem {
             ),
             session,
             memory_type: match memory.memory_type {
+                // Basic cognitive memories
                 MemoryType::Episodic => TraitMemoryType::Episodic,
                 MemoryType::Semantic => TraitMemoryType::Semantic,
                 MemoryType::Procedural => TraitMemoryType::Procedural,
                 MemoryType::Working => TraitMemoryType::Working,
+                // Advanced cognitive memories (AgentMem 7.0)
+                MemoryType::Core => TraitMemoryType::Core,
+                MemoryType::Resource => TraitMemoryType::Resource,
+                MemoryType::Knowledge => TraitMemoryType::Knowledge,
+                MemoryType::Contextual => TraitMemoryType::Contextual,
             },
             entities: Vec::new(),  // TODO: Extract entities if needed
             relations: Vec::new(), // TODO: Extract relations if needed
@@ -259,10 +334,17 @@ impl TryFrom<MemoryItem> for Memory {
             .ok_or_else(|| AgentMemError::memory_error("Missing agent_id in session"))?;
 
         let memory_type = match item.memory_type {
+            // Basic cognitive memories
             agent_mem_traits::MemoryType::Episodic => MemoryType::Episodic,
             agent_mem_traits::MemoryType::Semantic => MemoryType::Semantic,
             agent_mem_traits::MemoryType::Procedural => MemoryType::Procedural,
             agent_mem_traits::MemoryType::Working => MemoryType::Working,
+            // Advanced cognitive memories (AgentMem 7.0)
+            agent_mem_traits::MemoryType::Core => MemoryType::Core,
+            agent_mem_traits::MemoryType::Resource => MemoryType::Resource,
+            agent_mem_traits::MemoryType::Knowledge => MemoryType::Knowledge,
+            agent_mem_traits::MemoryType::Contextual => MemoryType::Contextual,
+            // Legacy mapping
             agent_mem_traits::MemoryType::Factual => MemoryType::Semantic, // Map Factual to Semantic
         };
 
@@ -420,5 +502,134 @@ impl Default for MemoryStats {
             most_accessed_memory_id: None,
             total_access_count: 0,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_memory_type_string_conversion() {
+        // Test basic cognitive memory types
+        assert_eq!(MemoryType::Episodic.as_str(), "episodic");
+        assert_eq!(MemoryType::Semantic.as_str(), "semantic");
+        assert_eq!(MemoryType::Procedural.as_str(), "procedural");
+        assert_eq!(MemoryType::Working.as_str(), "working");
+
+        // Test advanced cognitive memory types (AgentMem 7.0)
+        assert_eq!(MemoryType::Core.as_str(), "core");
+        assert_eq!(MemoryType::Resource.as_str(), "resource");
+        assert_eq!(MemoryType::Knowledge.as_str(), "knowledge");
+        assert_eq!(MemoryType::Contextual.as_str(), "contextual");
+    }
+
+    #[test]
+    fn test_memory_type_from_string() {
+        // Test basic cognitive memory types
+        assert_eq!(MemoryType::from_str("episodic"), Some(MemoryType::Episodic));
+        assert_eq!(MemoryType::from_str("semantic"), Some(MemoryType::Semantic));
+        assert_eq!(MemoryType::from_str("procedural"), Some(MemoryType::Procedural));
+        assert_eq!(MemoryType::from_str("working"), Some(MemoryType::Working));
+
+        // Test advanced cognitive memory types (AgentMem 7.0)
+        assert_eq!(MemoryType::from_str("core"), Some(MemoryType::Core));
+        assert_eq!(MemoryType::from_str("resource"), Some(MemoryType::Resource));
+        assert_eq!(MemoryType::from_str("knowledge"), Some(MemoryType::Knowledge));
+        assert_eq!(MemoryType::from_str("contextual"), Some(MemoryType::Contextual));
+
+        // Test invalid type
+        assert_eq!(MemoryType::from_str("invalid"), None);
+    }
+
+    #[test]
+    fn test_memory_type_classification() {
+        // Test basic type classification
+        assert!(MemoryType::Episodic.is_basic_type());
+        assert!(MemoryType::Semantic.is_basic_type());
+        assert!(MemoryType::Procedural.is_basic_type());
+        assert!(MemoryType::Working.is_basic_type());
+
+        assert!(!MemoryType::Episodic.is_advanced_type());
+        assert!(!MemoryType::Semantic.is_advanced_type());
+        assert!(!MemoryType::Procedural.is_advanced_type());
+        assert!(!MemoryType::Working.is_advanced_type());
+
+        // Test advanced type classification
+        assert!(MemoryType::Core.is_advanced_type());
+        assert!(MemoryType::Resource.is_advanced_type());
+        assert!(MemoryType::Knowledge.is_advanced_type());
+        assert!(MemoryType::Contextual.is_advanced_type());
+
+        assert!(!MemoryType::Core.is_basic_type());
+        assert!(!MemoryType::Resource.is_basic_type());
+        assert!(!MemoryType::Knowledge.is_basic_type());
+        assert!(!MemoryType::Contextual.is_basic_type());
+    }
+
+    #[test]
+    fn test_memory_type_all_types() {
+        let all_types = MemoryType::all_types();
+        assert_eq!(all_types.len(), 8);
+
+        // Verify all types are included
+        assert!(all_types.contains(&MemoryType::Episodic));
+        assert!(all_types.contains(&MemoryType::Semantic));
+        assert!(all_types.contains(&MemoryType::Procedural));
+        assert!(all_types.contains(&MemoryType::Working));
+        assert!(all_types.contains(&MemoryType::Core));
+        assert!(all_types.contains(&MemoryType::Resource));
+        assert!(all_types.contains(&MemoryType::Knowledge));
+        assert!(all_types.contains(&MemoryType::Contextual));
+    }
+
+    #[test]
+    fn test_memory_type_descriptions() {
+        // Test that all memory types have descriptions
+        for memory_type in MemoryType::all_types() {
+            let description = memory_type.description();
+            assert!(!description.is_empty(), "Memory type {:?} should have a description", memory_type);
+        }
+    }
+
+    #[test]
+    fn test_memory_creation_with_new_types() {
+        // Test creating memories with new cognitive types
+        let core_memory = Memory::new(
+            "agent_1".to_string(),
+            Some("user_1".to_string()),
+            MemoryType::Core,
+            "User prefers dark mode interface".to_string(),
+            0.9,
+        );
+        assert_eq!(core_memory.memory_type, MemoryType::Core);
+        assert_eq!(core_memory.importance, 0.9);
+
+        let resource_memory = Memory::new(
+            "agent_1".to_string(),
+            Some("user_1".to_string()),
+            MemoryType::Resource,
+            "Document: project_plan.pdf".to_string(),
+            0.7,
+        );
+        assert_eq!(resource_memory.memory_type, MemoryType::Resource);
+
+        let knowledge_memory = Memory::new(
+            "agent_1".to_string(),
+            Some("user_1".to_string()),
+            MemoryType::Knowledge,
+            "Python is a programming language".to_string(),
+            0.8,
+        );
+        assert_eq!(knowledge_memory.memory_type, MemoryType::Knowledge);
+
+        let contextual_memory = Memory::new(
+            "agent_1".to_string(),
+            Some("user_1".to_string()),
+            MemoryType::Contextual,
+            "Currently in meeting room A".to_string(),
+            0.6,
+        );
+        assert_eq!(contextual_memory.memory_type, MemoryType::Contextual);
     }
 }
