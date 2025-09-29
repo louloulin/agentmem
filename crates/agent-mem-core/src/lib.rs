@@ -34,7 +34,11 @@ pub use engine::{MemoryEngine, MemoryEngineConfig};
 pub use hierarchy::{HierarchyManager, MemoryLevel};
 pub use managers::{
     CoreMemoryManager, CoreMemoryBlock, CoreMemoryBlockType, CoreMemoryConfig, CoreMemoryStats,
-    ResourceMemoryManager, ResourceMetadata, ResourceType, ResourceStorageConfig, ResourceStorageStats
+    ResourceMemoryManager, ResourceMetadata, ResourceType, ResourceStorageConfig, ResourceStorageStats,
+    ContextualMemoryManager, ContextualMemoryConfig, ContextState, EnvironmentType,
+    LocationInfo, TemporalInfo, TimeOfDay, Season, UserState, ActivityState,
+    DeviceInfo, NetworkInfo, ContextCorrelation, CorrelationType,
+    EnvironmentChangeEvent, ChangeType, ContextualMemoryStats
 };
 
 // Re-export from traits
