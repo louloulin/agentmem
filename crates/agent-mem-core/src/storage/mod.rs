@@ -290,7 +290,7 @@ impl HybridStorageManager {
         
         // Cache in Redis if enabled
         if self.config.cache.enabled {
-            let _ = self.redis.set(&memory.id, memory, Some(self.config.cache.default_ttl)).await;
+            let _ = self.redis.set(&memory.memory.id, memory, Some(self.config.cache.default_ttl)).await;
         }
         
         Ok(())
@@ -323,7 +323,7 @@ impl HybridStorageManager {
         
         // Update cache if enabled
         if self.config.cache.enabled {
-            let _ = self.redis.set(&memory.id, memory, Some(self.config.cache.default_ttl)).await;
+            let _ = self.redis.set(&memory.memory.id, memory, Some(self.config.cache.default_ttl)).await;
         }
         
         Ok(())

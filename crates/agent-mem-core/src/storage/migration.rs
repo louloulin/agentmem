@@ -129,7 +129,7 @@ impl MigrationManager {
                             if self.config.verify_data {
                                 match target.get_memory(id).await {
                                     Ok(Some(retrieved)) => {
-                                        if retrieved.id != memory.id || retrieved.content != memory.content {
+                                        if retrieved.memory.id != memory.memory.id || retrieved.memory.content != memory.memory.content {
                                             warn!("Data verification failed for memory {}", id);
                                             progress.errors.push(format!("Verification failed for {}", id));
                                         }
@@ -254,20 +254,32 @@ impl MigrationManager {
         
         // For now, we'll get memories by different scopes and levels
         
-        let scopes = [MemoryScope::Global, MemoryScope::User, MemoryScope::Session];
+        let scopes = [
+            MemoryScope::Global,
+            MemoryScope::Agent("default".to_string()),
+            MemoryScope::User {
+                agent_id: "default".to_string(),
+                user_id: "default".to_string(),
+            },
+            MemoryScope::Session {
+                agent_id: "default".to_string(),
+                user_id: "default".to_string(),
+                session_id: "default".to_string(),
+            },
+        ];
         let levels = [MemoryLevel::Strategic, MemoryLevel::Tactical, MemoryLevel::Operational];
 
         for scope in &scopes {
-            match storage.get_memories_by_scope(*scope, limit).await {
+            match storage.get_memories_by_scope(scope.clone(), limit).await {
                 Ok(memories) => {
                     progress.total_items += memories.len() as u64;
                     
                     for memory in memories {
-                        match cache.set(&memory.id, &memory, None).await {
+                        match cache.set(&memory.memory.id, &memory, None).await {
                             Ok(_) => progress.migrated_items += 1,
                             Err(e) => {
                                 progress.failed_items += 1;
-                                progress.errors.push(format!("Failed to cache {}: {}", memory.id, e));
+                                progress.errors.push(format!("Failed to cache {}: {}", memory.memory.id, e));
                             }
                         }
                     }
@@ -280,18 +292,18 @@ impl MigrationManager {
         }
 
         for level in &levels {
-            match storage.get_memories_by_level(*level, limit).await {
+            match storage.get_memories_by_level(level.clone(), limit).await {
                 Ok(memories) => {
                     for memory in memories {
                         // Only cache if not already cached
-                        match cache.exists(&memory.id).await {
+                        match cache.exists(&memory.memory.id).await {
                             Ok(false) => {
                                 progress.total_items += 1;
-                                match cache.set(&memory.id, &memory, None).await {
+                                match cache.set(&memory.memory.id, &memory, None).await {
                                     Ok(_) => progress.migrated_items += 1,
                                     Err(e) => {
                                         progress.failed_items += 1;
-                                        progress.errors.push(format!("Failed to cache {}: {}", memory.id, e));
+                                        progress.errors.push(format!("Failed to cache {}: {}", memory.memory.id, e));
                                     }
                                 }
                             }
@@ -299,7 +311,7 @@ impl MigrationManager {
                                 // Already cached, skip
                             }
                             Err(e) => {
-                                warn!("Failed to check cache existence for {}: {}", memory.id, e);
+                                warn!("Failed to check cache existence for {}: {}", memory.memory.id, e);
                             }
                         }
                     }

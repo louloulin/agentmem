@@ -230,6 +230,29 @@ pub enum MemoryType {
     Working, // 工作记忆
 }
 
+impl MemoryType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            MemoryType::Factual => "factual",
+            MemoryType::Episodic => "episodic",
+            MemoryType::Procedural => "procedural",
+            MemoryType::Semantic => "semantic",
+            MemoryType::Working => "working",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "factual" => Some(MemoryType::Factual),
+            "episodic" => Some(MemoryType::Episodic),
+            "procedural" => Some(MemoryType::Procedural),
+            "semantic" => Some(MemoryType::Semantic),
+            "working" => Some(MemoryType::Working),
+            _ => None,
+        }
+    }
+}
+
 /// An extracted fact from content
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExtractedFact {

@@ -26,7 +26,9 @@ impl RedisCache {
         let mut conn = client.get_async_connection().await
             .map_err(|e| CoreError::CacheError(format!("Failed to connect to Redis: {}", e)))?;
         
-        let _: String = conn.ping().await
+        let _: String = redis::cmd("PING")
+            .query_async(&mut conn)
+            .await
             .map_err(|e| CoreError::CacheError(format!("Redis ping failed: {}", e)))?;
 
         Ok(Self { client, config })
@@ -69,7 +71,7 @@ impl CacheBackend for RedisCache {
                 let memory = self.deserialize_memory(&data)?;
                 Ok(Some(memory))
             }
-            Err(redis::RedisError { kind: redis::ErrorKind::TypeError, .. }) => {
+            Err(e) if e.kind() == redis::ErrorKind::TypeError => {
                 // Key doesn't exist
                 Ok(None)
             }
@@ -162,7 +164,10 @@ impl CacheBackend for RedisCache {
         let mut conn = self.get_connection().await?;
 
         // Get Redis info
-        let info: String = conn.info("memory").await
+        let info: String = redis::cmd("INFO")
+            .arg("memory")
+            .query_async(&mut conn)
+            .await
             .map_err(|e| CoreError::CacheError(format!("Redis info failed: {}", e)))?;
 
         // Parse memory usage from info

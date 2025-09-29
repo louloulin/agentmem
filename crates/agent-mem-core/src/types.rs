@@ -1,6 +1,7 @@
 //! Core memory types and data structures
 
-use agent_mem_traits::{AgentMemError, MemoryItem, Result, Vector};
+use agent_mem_traits::{AgentMemError, MemoryItem, Result, Vector, Session, Entity, Relation};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -271,7 +272,7 @@ impl TryFrom<MemoryItem> for Memory {
             user_id: item.session.user_id,
             memory_type,
             content: item.content,
-            importance: item.score.unwrap_or(0.5),
+            importance: item.importance,
             embedding: None,
             created_at: item.created_at.timestamp(),
             last_accessed_at: item

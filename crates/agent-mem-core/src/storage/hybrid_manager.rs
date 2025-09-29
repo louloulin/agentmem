@@ -97,16 +97,16 @@ impl HybridHierarchyManager {
             scope_index
                 .entry(memory.scope.clone())
                 .or_insert_with(Vec::new)
-                .push(memory.id.clone());
+                .push(memory.memory.id.clone());
         }
 
         // Update level index
         {
             let mut level_index = self.level_index.write().await;
             level_index
-                .entry(memory.level)
+                .entry(memory.level.clone())
                 .or_insert_with(Vec::new)
-                .push(memory.id.clone());
+                .push(memory.memory.id.clone());
         }
 
         Ok(())
@@ -163,7 +163,7 @@ impl HybridHierarchyManager {
         // Store in memory cache
         {
             let mut cache = self.memory_cache.write().await;
-            cache.insert(memory.id.clone(), memory.clone());
+            cache.insert(memory.memory.id.clone(), memory.clone());
         }
 
         // Store in persistent storage if initialized
@@ -196,11 +196,12 @@ impl HybridHierarchyManager {
         };
 
         // Remove from indexes if we had the memory
+        let had_memory = memory_info.is_some();
         if let Some(memory) = memory_info {
             self.remove_from_indexes(id, &memory.scope, memory.level).await?;
         }
 
-        Ok(storage_removed || memory_info.is_some())
+        Ok(storage_removed || had_memory)
     }
 
     /// Get health status of storage backends
@@ -243,13 +244,13 @@ impl HybridHierarchyManager {
 
 #[async_trait]
 impl HierarchyManager for HybridHierarchyManager {
-    async fn add_memory(&self, memory: Memory) -> CoreResult<HierarchicalMemory> {
+    async fn add_memory(&self, memory: crate::Memory) -> CoreResult<HierarchicalMemory> {
         // Determine appropriate level based on importance
-        let level = if memory.score.unwrap_or(0.0) > 0.8 {
+        let level = if memory.importance > 0.8 {
             MemoryLevel::Strategic
-        } else if memory.score.unwrap_or(0.0) > 0.6 {
+        } else if memory.importance > 0.6 {
             MemoryLevel::Tactical
-        } else if memory.score.unwrap_or(0.0) > 0.4 {
+        } else if memory.importance > 0.4 {
             MemoryLevel::Operational
         } else {
             MemoryLevel::Contextual
@@ -258,48 +259,45 @@ impl HierarchyManager for HybridHierarchyManager {
         // Determine scope based on memory metadata
         let scope = if memory.metadata.contains_key("global") {
             MemoryScope::Global
-        } else if let Some(agent_id) = memory.metadata.get("agent_id") {
-            if let Some(user_id) = memory.metadata.get("user_id") {
-                if let Some(session_id) = memory.metadata.get("session_id") {
+        } else if let Some(agent_id) = memory.metadata.get("agent_id").and_then(|v| v.as_str()) {
+            if let Some(user_id) = memory.metadata.get("user_id").and_then(|v| v.as_str()) {
+                if let Some(session_id) = memory.metadata.get("session_id").and_then(|v| v.as_str()) {
                     MemoryScope::Session {
-                        agent_id: agent_id.clone(),
-                        user_id: user_id.clone(),
-                        session_id: session_id.clone(),
+                        agent_id: agent_id.to_string(),
+                        user_id: user_id.to_string(),
+                        session_id: session_id.to_string(),
                     }
                 } else {
                     MemoryScope::User {
-                        agent_id: agent_id.clone(),
-                        user_id: user_id.clone(),
+                        agent_id: agent_id.to_string(),
+                        user_id: user_id.to_string(),
                     }
                 }
             } else {
-                MemoryScope::Agent(agent_id.clone())
+                MemoryScope::Agent(agent_id.to_string())
             }
         } else {
             MemoryScope::Global
         };
 
+        // Convert MemoryItem to types::Memory
+        let types_memory: crate::types::Memory = memory.try_into()
+            .map_err(|e| CoreError::Storage(format!("Failed to convert memory: {}", e)))?;
+
+        use crate::hierarchy::HierarchyMetadata;
+
         let hierarchical_memory = HierarchicalMemory {
-            id: memory.id.clone(),
-            content: memory.content,
-            hash: memory.hash,
-            metadata: memory.metadata,
-            score: memory.score,
-            memory_type: memory.memory_type,
+            memory: types_memory.into(),
             scope,
             level,
-            importance: memory.score.unwrap_or(0.5),
-            access_count: 0,
-            last_accessed: None,
-            created_at: memory.created_at,
-            updated_at: memory.updated_at,
+            hierarchy_metadata: HierarchyMetadata::default(),
         };
 
         // Store the memory
         self.store_memory_internal(&hierarchical_memory).await?;
 
-        info!("Added memory {} at level {:?} in scope {:?}", 
-              hierarchical_memory.id, hierarchical_memory.level, hierarchical_memory.scope);
+        info!("Added memory {} at level {:?} in scope {:?}",
+              hierarchical_memory.memory.id, hierarchical_memory.level, hierarchical_memory.scope);
 
         Ok(hierarchical_memory)
     }
@@ -309,7 +307,7 @@ impl HierarchyManager for HybridHierarchyManager {
     }
 
     async fn update_memory(&self, memory: HierarchicalMemory) -> CoreResult<HierarchicalMemory> {
-        let memory_id = memory.id.clone();
+        let memory_id = memory.memory.id.clone();
 
         // Update in storage
         self.store_memory_internal(&memory).await?;
@@ -348,7 +346,7 @@ impl HierarchyManager for HybridHierarchyManager {
         if let Ok(storage) = self.get_storage() {
             let storage_memories = storage.postgres.get_memories_by_level(level, None).await?;
             for memory in storage_memories {
-                if !result.iter().any(|m| m.id == memory.id) {
+                if !result.iter().any(|m| m.memory.id == memory.memory.id) {
                     result.push(memory);
                 }
             }
@@ -368,9 +366,9 @@ impl HierarchyManager for HybridHierarchyManager {
             let mut level_utilization = HashMap::new();
 
             for (level, count) in storage_stats.memories_by_level {
-                memories_by_level.insert(level, count as usize);
-                avg_importance_by_level.insert(level, 0.5); // Simplified
-                
+                memories_by_level.insert(level.clone(), count as usize);
+                avg_importance_by_level.insert(level.clone(), 0.5); // Simplified
+
                 let max_capacity = self.config.level_capacities.get(&level).copied().unwrap_or(1000) as f64;
                 let utilization = (count as f64 / max_capacity).min(1.0);
                 level_utilization.insert(level, utilization);
@@ -391,24 +389,24 @@ impl HierarchyManager for HybridHierarchyManager {
         let mut level_utilization = HashMap::new();
 
         for memory in cache.values() {
-            *memories_by_level.entry(memory.level).or_insert(0) += 1;
+            *memories_by_level.entry(memory.level.clone()).or_insert(0) += 1;
         }
 
         for (level, count) in &memories_by_level {
             let total_importance: f32 = cache.values()
                 .filter(|m| m.level == *level)
-                .map(|m| m.importance)
+                .map(|m| m.memory.importance)
                 .sum();
             let avg_importance = if *count > 0 {
                 total_importance / *count as f32
             } else {
                 0.0
             };
-            avg_importance_by_level.insert(*level, avg_importance);
+            avg_importance_by_level.insert(level.clone(), avg_importance as f64);
 
             let max_capacity = self.config.level_capacities.get(level).copied().unwrap_or(1000) as f64;
             let utilization = (*count as f64 / max_capacity).min(1.0);
-            level_utilization.insert(*level, utilization);
+            level_utilization.insert(level.clone(), utilization);
         }
 
         Ok(HierarchyStatistics {
@@ -445,14 +443,14 @@ impl HierarchyManager for HybridHierarchyManager {
                 }
 
                 // Simple text search in content
-                memory.content.to_lowercase().contains(&query_lower)
+                memory.memory.content.to_lowercase().contains(&query_lower)
             })
             .cloned()
             .collect();
 
         // Sort by importance (descending)
         results.sort_by(|a, b| {
-            b.importance.partial_cmp(&a.importance).unwrap_or(std::cmp::Ordering::Equal)
+            b.memory.importance.partial_cmp(&a.memory.importance).unwrap_or(std::cmp::Ordering::Equal)
         });
 
         // Apply limit

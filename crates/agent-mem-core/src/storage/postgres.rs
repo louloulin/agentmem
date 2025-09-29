@@ -111,44 +111,44 @@ impl PostgresStorage {
         let level = MemoryLevel::from_str(&level_str)
             .ok_or_else(|| CoreError::ValidationError(format!("Invalid level: {}", level_str)))?;
 
-        use agent_mem_traits::Session;
+        let created_at: chrono::DateTime<chrono::Utc> = row.try_get("created_at")
+            .map_err(|e| CoreError::DatabaseError(format!("Failed to get created_at: {}", e)))?;
+        let last_accessed: Option<chrono::DateTime<chrono::Utc>> = row.try_get("last_accessed").ok();
 
-        let memory = Memory {
+        // Convert metadata from JSONB to HashMap<String, String>
+        let metadata_map: HashMap<String, String> = metadata
+            .into_iter()
+            .filter_map(|(k, v)| match v {
+                serde_json::Value::String(s) => Some((k, s)),
+                _ => Some((k, v.to_string())),
+            })
+            .collect();
+
+        let memory = crate::types::Memory {
             id: row.try_get("id")
                 .map_err(|e| CoreError::DatabaseError(format!("Failed to get id: {}", e)))?,
-            content: row.try_get("content")
-                .map_err(|e| CoreError::DatabaseError(format!("Failed to get content: {}", e)))?,
-            hash: row.try_get("hash")
-                .map_err(|e| CoreError::DatabaseError(format!("Failed to get hash: {}", e)))?,
-            metadata,
-            score: row.try_get("score")
-                .map_err(|e| CoreError::DatabaseError(format!("Failed to get score: {}", e)))?,
-            created_at: row.try_get("created_at")
-                .map_err(|e| CoreError::DatabaseError(format!("Failed to get created_at: {}", e)))?,
-            updated_at: row.try_get("updated_at")
-                .map_err(|e| CoreError::DatabaseError(format!("Failed to get updated_at: {}", e)))?,
-            session: Session::default(), // TODO: Store session info in DB
-            memory_type,
-            entities: Vec::new(), // TODO: Store entities in DB
-            relations: Vec::new(), // TODO: Store relations in DB
             agent_id: "default".to_string(), // TODO: Store agent_id in DB
             user_id: None, // TODO: Store user_id in DB
+            memory_type,
+            content: row.try_get("content")
+                .map_err(|e| CoreError::DatabaseError(format!("Failed to get content: {}", e)))?,
             importance: row.try_get("importance")
                 .map_err(|e| CoreError::DatabaseError(format!("Failed to get importance: {}", e)))?,
             embedding: None, // TODO: Store embedding in DB
-            last_accessed_at: row.try_get("last_accessed")
-                .unwrap_or_else(|_| chrono::Utc::now()),
+            created_at: created_at.timestamp(),
+            last_accessed_at: last_accessed.map(|dt| dt.timestamp()).unwrap_or_else(|| chrono::Utc::now().timestamp()),
             access_count: row.try_get::<i64, _>("access_count")
                 .map(|v| v as u32)
                 .unwrap_or(0),
             expires_at: None, // TODO: Store expires_at in DB
+            metadata: metadata_map,
             version: 1, // TODO: Store version in DB
         };
 
         use crate::hierarchy::{HierarchyMetadata, MemoryInheritance, MemoryPermissions};
 
         Ok(HierarchicalMemory {
-            memory,
+            memory: memory.into(),
             scope,
             level,
             hierarchy_metadata: HierarchyMetadata {
@@ -194,9 +194,9 @@ impl StorageBackend for PostgresStorage {
         )
         .bind(&memory.memory.id)
         .bind(&memory.memory.content)
-        .bind(&memory.memory.hash)
+        .bind(None::<String>) // hash - not available in Memory struct
         .bind(&metadata_json)
-        .bind(&memory.memory.score)
+        .bind(Some(memory.memory.importance)) // score mapped from importance
         .bind(memory.memory.memory_type.as_str())
         .bind(memory.scope.as_str())
         .bind(memory.level.as_str())
@@ -204,7 +204,7 @@ impl StorageBackend for PostgresStorage {
         .bind(memory.memory.access_count as i64)
         .bind(&memory.memory.last_accessed_at)
         .bind(&memory.memory.created_at)
-        .bind(&memory.memory.updated_at)
+        .bind(&memory.memory.last_accessed_at) // updated_at mapped from last_accessed_at
         .execute(&self.pool)
         .await
         .map_err(|e| CoreError::DatabaseError(format!("Failed to store memory: {}", e)))?;
@@ -260,9 +260,9 @@ impl StorageBackend for PostgresStorage {
         )
         .bind(&memory.memory.id)
         .bind(&memory.memory.content)
-        .bind(&memory.memory.hash)
+        .bind(None::<String>) // hash - not available in Memory struct
         .bind(&metadata_json)
-        .bind(&memory.memory.score)
+        .bind(Some(memory.memory.importance)) // score mapped from importance
         .bind(memory.memory.memory_type.as_str())
         .bind(memory.scope.as_str())
         .bind(memory.level.as_str())
