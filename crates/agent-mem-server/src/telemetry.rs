@@ -12,6 +12,12 @@ pub fn setup_telemetry(config: &ServerConfig) -> ServerResult<()> {
         return Ok(());
     }
 
+    // Check if tracing is already initialized
+    if tracing::dispatcher::has_been_set() {
+        tracing::info!("Tracing already initialized, skipping setup");
+        return Ok(());
+    }
+
     // Create environment filter
     let env_filter =
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&config.log_level));

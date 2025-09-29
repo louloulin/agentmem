@@ -15,7 +15,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create server configuration
     let mut config = ServerConfig::default();
     config.port = 8080;
-    config.enable_logging = true;
+    config.enable_logging = false; // Disable server logging since we already initialized tracing
     config.enable_metrics = true;
     config.enable_cors = true;
 
