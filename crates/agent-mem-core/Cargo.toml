@@ -29,6 +29,9 @@ thiserror.workspace = true
 async-trait.workspace = true
 tracing.workspace = true
 futures = "0.3"
+sha2 = "0.10"
+aes-gcm = "0.10"
+rand = "0.8"
 
 # Database dependencies
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "json"] }

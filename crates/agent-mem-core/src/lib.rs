@@ -32,7 +32,10 @@ pub mod types;
 // Re-export core types
 pub use engine::{MemoryEngine, MemoryEngineConfig};
 pub use hierarchy::{HierarchyManager, MemoryLevel};
-pub use managers::{CoreMemoryManager, CoreMemoryBlock, CoreMemoryBlockType, CoreMemoryConfig, CoreMemoryStats};
+pub use managers::{
+    CoreMemoryManager, CoreMemoryBlock, CoreMemoryBlockType, CoreMemoryConfig, CoreMemoryStats,
+    ResourceMemoryManager, ResourceMetadata, ResourceType, ResourceStorageConfig, ResourceStorageStats
+};
 
 // Re-export from traits
 pub use agent_mem_traits::{
