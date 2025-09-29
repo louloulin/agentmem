@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 /// Cognitive memory type classification (8 types for AgentMem 7.0)
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum MemoryType {
     // Basic cognitive memories (existing)
     /// Episodic memories - specific events and experiences with temporal context
@@ -112,6 +112,12 @@ impl MemoryType {
             MemoryType::Knowledge => "Structured knowledge graphs and domain expertise",
             MemoryType::Contextual => "Environment-aware and situation-specific information",
         }
+    }
+}
+
+impl std::fmt::Display for MemoryType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
     }
 }
 

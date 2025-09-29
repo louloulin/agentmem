@@ -27,6 +27,8 @@ pub mod manager;
 /// Specialized memory managers for different memory types
 pub mod managers;
 pub mod operations;
+/// Active retrieval system with topic extraction, intelligent routing, and context synthesis
+pub mod retrieval;
 pub mod search;
 pub mod security;
 pub mod storage;
@@ -43,6 +45,26 @@ pub use managers::{
     EnvironmentChangeEvent, EnvironmentType, LocationInfo, NetworkInfo, ResourceMemoryManager,
     ResourceMetadata, ResourceStorageConfig, ResourceStorageStats, ResourceType, Season,
     TemporalInfo, TimeOfDay, UserState,
+};
+
+// Re-export coordination and agents modules
+pub use agents::{
+    AgentConfig, AgentStats, BaseAgent, ContextualAgent, CoreAgent, EpisodicAgent, KnowledgeAgent,
+    MemoryAgent, ProceduralAgent, ResourceAgent, SemanticAgent, WorkingAgent,
+};
+pub use coordination::{
+    AgentMessage, AgentStatus, CoordinationError, CoordinationResult, CoordinationStats,
+    LoadBalancingStrategy, MessageType, MetaMemoryConfig, MetaMemoryManager, TaskRequest,
+    TaskResponse,
+};
+
+// Re-export retrieval modules
+pub use retrieval::{
+    ActiveRetrievalConfig, ActiveRetrievalSystem, ConflictResolution, ContextSynthesizer,
+    ContextSynthesizerConfig, ExtractedTopic, RetrievalRequest, RetrievalResponse, RetrievalRouter,
+    RetrievalRouterConfig, RetrievalStats, RetrievalStrategy, RetrievedMemory, RouteDecision,
+    RoutingResult, SynthesisResult, TopicCategory, TopicExtractor, TopicExtractorConfig,
+    TopicHierarchy,
 };
 
 // Re-export from traits
