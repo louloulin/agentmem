@@ -8,6 +8,7 @@ use crate::providers::LiteLLMProvider;
 use crate::providers::OllamaProvider; // 移除条件编译，确保总是可用
 use crate::providers::{AnthropicProvider, OpenAIProvider};
 use crate::providers::{ClaudeProvider, CohereProvider, MistralProvider, PerplexityProvider};
+use crate::providers::DeepSeekProvider;
 
 use agent_mem_traits::{AgentMemError, LLMConfig, LLMProvider, Message, ModelInfo, Result};
 use async_trait::async_trait;
@@ -31,6 +32,7 @@ pub enum LLMProviderEnum {
     LiteLLM(LiteLLMProvider),
     Mistral(MistralProvider),
     Perplexity(PerplexityProvider),
+    DeepSeek(DeepSeekProvider),
 }
 
 #[async_trait]
@@ -66,6 +68,7 @@ impl LLMProvider for LLMProviderEnum {
             }
             LLMProviderEnum::Mistral(provider) => provider.generate(messages).await,
             LLMProviderEnum::Perplexity(provider) => provider.generate(messages).await,
+            LLMProviderEnum::DeepSeek(provider) => provider.generate(messages).await,
         }
     }
 
@@ -94,6 +97,7 @@ impl LLMProvider for LLMProviderEnum {
             }
             LLMProviderEnum::Mistral(provider) => provider.generate_stream(messages).await,
             LLMProviderEnum::Perplexity(provider) => provider.generate_stream(messages).await,
+            LLMProviderEnum::DeepSeek(provider) => provider.generate_stream(messages).await,
         }
     }
 
@@ -120,6 +124,7 @@ impl LLMProvider for LLMProviderEnum {
             },
             LLMProviderEnum::Mistral(provider) => provider.get_model_info(),
             LLMProviderEnum::Perplexity(provider) => provider.get_model_info(),
+            LLMProviderEnum::DeepSeek(provider) => provider.get_model_info(),
         }
     }
 
@@ -143,6 +148,7 @@ impl LLMProvider for LLMProviderEnum {
             }
             LLMProviderEnum::Mistral(provider) => provider.validate_config(),
             LLMProviderEnum::Perplexity(provider) => provider.validate_config(),
+            LLMProviderEnum::DeepSeek(provider) => provider.validate_config(),
         }
     }
 }
@@ -247,6 +253,10 @@ impl LLMFactory {
                 let provider = PerplexityProvider::new(config.clone())?;
                 LLMProviderEnum::Perplexity(provider)
             }
+            "deepseek" => {
+                let provider = DeepSeekProvider::from_config(config.clone())?;
+                LLMProviderEnum::DeepSeek(provider)
+            }
             _ => return Err(AgentMemError::unsupported_provider(&config.provider)),
         };
 
@@ -278,6 +288,7 @@ impl LLMFactory {
         providers.push("litellm");
         providers.push("mistral");
         providers.push("perplexity");
+        providers.push("deepseek");
 
         providers
     }

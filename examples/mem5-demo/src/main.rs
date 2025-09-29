@@ -8,7 +8,7 @@
 //! - Performance monitoring
 
 use agent_mem_client::Mem5Client;
-use agent_mem_compat::client::{EnhancedAddRequest, Messages};
+use agent_mem_traits::{EnhancedAddRequest, Message, Messages};
 use anyhow::Result;
 use serde_json::json;
 use std::collections::HashMap;
@@ -51,9 +51,9 @@ async fn main() -> Result<()> {
     let memory_id2 = client
         .add(
             Messages::Multiple(vec![
-                "I work as a software engineer".to_string(),
-                "I specialize in backend development".to_string(),
-                "I have 5 years of experience".to_string(),
+                Message::user("I work as a software engineer"),
+                Message::user("I specialize in backend development"),
+                Message::user("I have 5 years of experience"),
             ]),
             Some("user123".to_string()),
             Some("agent456".to_string()),

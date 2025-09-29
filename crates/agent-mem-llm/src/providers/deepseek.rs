@@ -2,7 +2,9 @@
 //!
 //! DeepSeek API 集成，提供高质量的中英文语言模型服务
 
-use agent_mem_traits::{AgentMemError, Result};
+use agent_mem_traits::{AgentMemError, LLMConfig, Message, ModelInfo, Result};
+use async_trait::async_trait;
+use futures::stream;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -244,6 +246,76 @@ impl DeepSeekProvider {
                 "No response choices returned".to_string(),
             ))
         }
+    }
+
+    /// 从 LLMConfig 创建 DeepSeekProvider
+    pub fn from_config(config: LLMConfig) -> Result<Self> {
+        let api_key = config.api_key.ok_or_else(|| {
+            AgentMemError::config_error("DeepSeek provider requires api_key")
+        })?;
+
+        let deepseek_config = DeepSeekConfig {
+            api_key,
+            base_url: config.base_url.unwrap_or_else(|| "https://api.deepseek.com/v1".to_string()),
+            model: config.model,
+            temperature: config.temperature.unwrap_or(0.7),
+            max_tokens: config.max_tokens.unwrap_or(4096),
+            timeout: Duration::from_secs(120), // 默认 120 秒超时
+        };
+
+        Self::new(deepseek_config)
+    }
+}
+
+#[async_trait]
+impl crate::LLMProvider for DeepSeekProvider {
+    async fn generate(&self, messages: &[Message]) -> Result<String> {
+        let deepseek_messages: Vec<DeepSeekMessage> = messages
+            .iter()
+            .map(|msg| DeepSeekMessage {
+                role: match msg.role {
+                    agent_mem_traits::MessageRole::System => "system".to_string(),
+                    agent_mem_traits::MessageRole::User => "user".to_string(),
+                    agent_mem_traits::MessageRole::Assistant => "assistant".to_string(),
+                },
+                content: msg.content.clone(),
+            })
+            .collect();
+
+        let response = self.chat_completion(deepseek_messages).await?;
+
+        if let Some(choice) = response.choices.first() {
+            Ok(choice.message.content.clone())
+        } else {
+            Err(AgentMemError::LLMError(
+                "No response choices returned".to_string(),
+            ))
+        }
+    }
+
+    async fn generate_stream(
+        &self,
+        _messages: &[Message],
+    ) -> Result<Box<dyn futures::Stream<Item = Result<String>> + Send + Unpin>> {
+        // DeepSeek 流式响应暂未实现，返回空流
+        Ok(Box::new(stream::empty()))
+    }
+
+    fn get_model_info(&self) -> ModelInfo {
+        ModelInfo {
+            provider: "deepseek".to_string(),
+            model: self.config.model.clone(),
+            max_tokens: self.config.max_tokens,
+            supports_streaming: false,
+            supports_functions: false,
+        }
+    }
+
+    fn validate_config(&self) -> Result<()> {
+        if self.config.api_key.is_empty() {
+            return Err(AgentMemError::config_error("DeepSeek API key is required"));
+        }
+        Ok(())
     }
 }
 

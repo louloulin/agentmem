@@ -65,10 +65,7 @@ async fn demo_real_llm_providers() -> anyhow::Result<()> {
 
             // 如果环境变量允许，进行真实 API 调用
             if std::env::var("ENABLE_REAL_API_TESTS").is_ok() {
-                let messages = vec![agent_mem_traits::Message {
-                    role: "user".to_string(),
-                    content: "Hello, this is a test.".to_string(),
-                }];
+                let messages = vec![agent_mem_traits::Message::user("Hello, this is a test.")];
 
                 match provider.generate(&messages).await {
                     Ok(response) => {
@@ -96,10 +93,14 @@ async fn demo_real_embedding_providers() -> anyhow::Result<()> {
     info!("🔢 演示真实的嵌入提供商");
 
     // 测试本地嵌入提供商
+    let mut extra_params = std::collections::HashMap::new();
+    extra_params.insert("model_path".to_string(), "/tmp/test-model".to_string());
+
     let local_config = EmbeddingConfig {
         provider: "local".to_string(),
         model: "sentence-transformers/all-MiniLM-L6-v2".to_string(),
         dimension: 384,
+        extra_params: extra_params,
         ..Default::default()
     };
 
@@ -145,10 +146,11 @@ async fn demo_real_storage_backends() -> anyhow::Result<()> {
     // 测试内存存储后端
     let memory_config = VectorStoreConfig {
         provider: "memory".to_string(),
+        dimension: Some(5), // 匹配测试向量的维度
         ..Default::default()
     };
 
-    match StorageFactory::create_store(&memory_config).await {
+    match StorageFactory::create_vector_store(&memory_config).await {
         Ok(store) => {
             info!("✅ 内存存储后端创建成功");
 
@@ -158,24 +160,18 @@ async fn demo_real_storage_backends() -> anyhow::Result<()> {
                 vector: vec![0.1, 0.2, 0.3, 0.4, 0.5],
                 metadata: {
                     let mut meta = HashMap::new();
-                    meta.insert(
-                        "test_type".to_string(),
-                        serde_json::Value::String("real_implementation".to_string()),
-                    );
-                    meta.insert(
-                        "timestamp".to_string(),
-                        serde_json::Value::Number(chrono::Utc::now().timestamp().into()),
-                    );
+                    meta.insert("test_type".to_string(), "real_implementation".to_string());
+                    meta.insert("timestamp".to_string(), chrono::Utc::now().timestamp().to_string());
                     meta
                 },
             };
 
-            match store.add_vector(&test_vector).await {
+            match store.add_vectors(vec![test_vector.clone()]).await {
                 Ok(_) => {
                     info!("✅ 向量添加成功");
 
                     // 测试搜索
-                    match store.search_vectors(&test_vector.vector, 5, None).await {
+                    match store.search_vectors(test_vector.vector, 5, None).await {
                         Ok(results) => {
                             info!("✅ 向量搜索成功，找到 {} 个结果", results.len());
 
@@ -209,6 +205,8 @@ async fn demo_real_mem0_compatibility() -> anyhow::Result<()> {
             let add_request = AddMemoryRequest {
                 user_id: "demo_user_real".to_string(),
                 memory: "I love using AgentMem because it's fast and reliable.".to_string(),
+                agent_id: Some("demo_agent_real".to_string()),
+                run_id: Some("demo_run_001".to_string()),
                 metadata: {
                     let mut meta = HashMap::new();
                     meta.insert(
@@ -242,7 +240,11 @@ async fn demo_real_mem0_compatibility() -> anyhow::Result<()> {
                         query: "AgentMem".to_string(),
                         user_id: "demo_user_real".to_string(),
                         filters: Some(MemoryFilter {
-                            category: Some("preference".to_string()),
+                            metadata: {
+                                let mut meta = HashMap::new();
+                                meta.insert("category".to_string(), serde_json::Value::String("preference".to_string()));
+                                meta
+                            },
                             limit: Some(10),
                             ..Default::default()
                         }),
@@ -255,8 +257,8 @@ async fn demo_real_mem0_compatibility() -> anyhow::Result<()> {
 
                             if !results.memories.is_empty() {
                                 let memory = &results.memories[0];
-                                if memory.content.contains("Mock")
-                                    || memory.content.contains("mock")
+                                if memory.memory.contains("Mock")
+                                    || memory.memory.contains("mock")
                                 {
                                     warn!("⚠️  记忆内容可能包含 Mock 数据");
                                 } else {
@@ -280,30 +282,26 @@ async fn demo_real_mem0_compatibility() -> anyhow::Result<()> {
 async fn demo_real_performance_monitoring() -> anyhow::Result<()> {
     info!("📊 演示真实的性能监控");
 
-    let config = PerformanceConfig::default();
-    let monitor = PerformanceMonitor::new(config);
+    let monitor = PerformanceMonitor::new(true);
 
-    match monitor.collect_metrics().await {
-        Ok(metrics) => {
-            info!("✅ 性能指标收集成功");
-            info!("   内存使用: {:.2} MB", metrics.memory_usage_mb);
-            info!("   CPU 使用: {:.2}%", metrics.cpu_usage_percent);
-            info!("   活跃连接: {}", metrics.active_connections);
+    let metrics = monitor.get_metrics().await;
+    info!("✅ 性能指标收集成功");
+    info!("   内存使用: {} bytes", metrics.memory_usage_bytes);
+    info!("   CPU 使用: {:.2}%", metrics.cpu_usage_percent);
+    info!("   活跃请求: {}", metrics.active_requests);
+    info!("   运行时间: {:.2} 秒", metrics.uptime_seconds);
 
-            // 验证指标的真实性
-            if metrics.memory_usage_mb > 0.0 && metrics.memory_usage_mb < 10000.0 {
-                info!("🎯 内存使用指标合理");
-            } else {
-                warn!("⚠️  内存使用指标可能不正确");
-            }
+    // 验证指标的真实性
+    if metrics.memory_usage_bytes > 0 {
+        info!("🎯 内存使用指标合理");
+    } else {
+        warn!("⚠️  内存使用指标可能不正确");
+    }
 
-            if metrics.cpu_usage_percent >= 0.0 && metrics.cpu_usage_percent <= 100.0 {
-                info!("🎯 CPU 使用指标合理");
-            } else {
-                warn!("⚠️  CPU 使用指标可能不正确");
-            }
-        }
-        Err(e) => error!("❌ 性能指标收集失败: {}", e),
+    if metrics.cpu_usage_percent >= 0.0 && metrics.cpu_usage_percent <= 100.0 {
+        info!("🎯 CPU 使用指标合理");
+    } else {
+        warn!("⚠️  CPU 使用指标可能不正确");
     }
 
     Ok(())
@@ -329,6 +327,8 @@ async fn demo_real_batch_operations() -> anyhow::Result<()> {
                 let add_request = AddMemoryRequest {
                     user_id: "batch_demo_user".to_string(),
                     memory: memory.clone(),
+                    agent_id: Some("batch_agent".to_string()),
+                    run_id: Some(format!("batch_run_{}", i)),
                     metadata: {
                         let mut meta = HashMap::new();
                         meta.insert(

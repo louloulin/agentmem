@@ -31,6 +31,7 @@ pub use azure::AzureProvider;
 pub use bedrock::BedrockProvider;
 pub use claude::ClaudeProvider;
 pub use cohere::CohereProvider;
+pub use deepseek::DeepSeekProvider;
 pub use gemini::GeminiProvider;
 pub use groq::GroqProvider;
 pub use litellm::{LiteLLMProvider, SupportedModel};

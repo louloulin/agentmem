@@ -7,8 +7,7 @@
 //! - Proper validation and conversion
 
 use agent_mem_client::Mem5Client;
-use agent_mem_compat::client::Messages;
-use agent_mem_traits::{Message, MessageRole};
+use agent_mem_traits::{Message, MessageRole, Messages};
 use anyhow::Result;
 use serde_json::json;
 use std::collections::HashMap;
@@ -76,12 +75,12 @@ async fn main() -> Result<()> {
 
     info!("✅ Added structured message memory with ID: {}", memory_id2);
 
-    // Test 3: Multiple string messages
-    info!("📝 Test 3: Multiple string messages");
+    // Test 3: Multiple messages
+    info!("📝 Test 3: Multiple messages");
     let multiple_messages = Messages::Multiple(vec![
-        "I work remotely from San Francisco".to_string(),
-        "I prefer flexible working hours".to_string(),
-        "I enjoy collaborative team environments".to_string(),
+        Message::user("I work remotely from San Francisco"),
+        Message::user("I prefer flexible working hours"),
+        Message::user("I enjoy collaborative team environments"),
     ]);
 
     let memory_id3 = client
@@ -178,9 +177,9 @@ async fn main() -> Result<()> {
 
     // Test multiple messages with empty string (should fail)
     let multiple_with_empty = Messages::Multiple(vec![
-        "Valid message".to_string(),
-        "".to_string(),
-        "Another valid message".to_string(),
+        Message::user("Valid message"),
+        Message::user(""),
+        Message::user("Another valid message"),
     ]);
     match multiple_with_empty.validate() {
         Ok(_) => warn!("❌ Multiple messages with empty string validation should have failed"),
@@ -191,21 +190,21 @@ async fn main() -> Result<()> {
     info!("🔄 Test 7: Message conversion");
 
     let single = Messages::Single("Test single".to_string());
-    info!("Single message content: {}", single.to_content());
+    info!("Single message content: {}", single.to_content_string());
     info!(
         "Single message list length: {}",
         single.to_message_list().len()
     );
 
     let structured = Messages::Structured(Message::user("Test structured"));
-    info!("Structured message content: {}", structured.to_content());
+    info!("Structured message content: {}", structured.to_content_string());
     info!(
         "Structured message list length: {}",
         structured.to_message_list().len()
     );
 
-    let multiple = Messages::Multiple(vec!["First".to_string(), "Second".to_string()]);
-    info!("Multiple messages content: {}", multiple.to_content());
+    let multiple = Messages::Multiple(vec![Message::user("First"), Message::user("Second")]);
+    info!("Multiple messages content: {}", multiple.to_content_string());
     info!(
         "Multiple messages list length: {}",
         multiple.to_message_list().len()
