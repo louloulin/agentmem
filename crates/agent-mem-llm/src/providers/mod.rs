@@ -17,6 +17,7 @@ pub mod groq;
 #[cfg(test)]
 mod groq_test;
 pub mod litellm;
+pub mod local_test;
 pub mod mistral;
 pub mod ollama;
 pub mod openai;
@@ -33,6 +34,7 @@ pub use cohere::CohereProvider;
 pub use gemini::GeminiProvider;
 pub use groq::GroqProvider;
 pub use litellm::{LiteLLMProvider, SupportedModel};
+pub use local_test::LocalTestProvider;
 pub use mistral::MistralProvider;
 pub use ollama::OllamaProvider;
 pub use openai::OpenAIProvider;
