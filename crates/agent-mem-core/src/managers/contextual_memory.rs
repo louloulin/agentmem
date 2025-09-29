@@ -1,13 +1,13 @@
 //! Contextual Memory 环境感知管理器
-//! 
+//!
 //! 负责管理与环境、上下文相关的记忆，包括时间、地点、情境、环境状态等信息。
 //! 支持环境变化检测、上下文关联分析和智能环境适应。
 
+use crate::{CoreError, CoreResult};
+use chrono::{DateTime, Datelike, Timelike, Utc};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use chrono::{DateTime, Utc, Timelike, Datelike};
-use serde::{Deserialize, Serialize};
-use crate::{CoreResult, CoreError};
 
 /// Contextual Memory 配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -413,11 +413,8 @@ impl ContextualMemoryManager {
         let temporal_info = self.generate_temporal_info(now);
 
         // 计算重要性评分
-        let importance_score = self.calculate_importance_score(
-            &environment_type,
-            &user_state,
-            &environment_params,
-        );
+        let importance_score =
+            self.calculate_importance_score(&environment_type, &user_state, &environment_params);
 
         let context_state = ContextState {
             id: id.clone(),
@@ -435,7 +432,9 @@ impl ContextualMemoryManager {
             access_count: 0,
         };
 
-        let mut contexts = self.contexts.write()
+        let mut contexts = self
+            .contexts
+            .write()
             .map_err(|_| CoreError::InvalidInput("获取上下文写锁失败".to_string()))?;
 
         // 检查容量限制
@@ -463,10 +462,13 @@ impl ContextualMemoryManager {
 
     /// 获取上下文状态
     pub fn get_context_state(&self, context_id: &str) -> CoreResult<ContextState> {
-        let mut contexts = self.contexts.write()
+        let mut contexts = self
+            .contexts
+            .write()
             .map_err(|_| CoreError::InvalidInput("获取上下文写锁失败".to_string()))?;
 
-        let context = contexts.get_mut(context_id)
+        let context = contexts
+            .get_mut(context_id)
             .ok_or_else(|| CoreError::InvalidInput(format!("上下文 {} 不存在", context_id)))?;
 
         // 检查是否过期
@@ -498,10 +500,13 @@ impl ContextualMemoryManager {
         device_info: Option<DeviceInfo>,
         network_info: Option<NetworkInfo>,
     ) -> CoreResult<()> {
-        let mut contexts = self.contexts.write()
+        let mut contexts = self
+            .contexts
+            .write()
             .map_err(|_| CoreError::InvalidInput("获取上下文写锁失败".to_string()))?;
 
-        let context = contexts.get_mut(context_id)
+        let context = contexts
+            .get_mut(context_id)
             .ok_or_else(|| CoreError::InvalidInput(format!("上下文 {} 不存在", context_id)))?;
 
         // 检查是否过期
@@ -551,10 +556,13 @@ impl ContextualMemoryManager {
 
     /// 删除上下文状态
     pub fn delete_context_state(&self, context_id: &str) -> CoreResult<()> {
-        let mut contexts = self.contexts.write()
+        let mut contexts = self
+            .contexts
+            .write()
             .map_err(|_| CoreError::InvalidInput("获取上下文写锁失败".to_string()))?;
 
-        contexts.remove(context_id)
+        contexts
+            .remove(context_id)
             .ok_or_else(|| CoreError::InvalidInput(format!("上下文 {} 不存在", context_id)))?;
 
         drop(contexts);
@@ -563,7 +571,9 @@ impl ContextualMemoryManager {
         self.cleanup_correlations_for_context(context_id)?;
 
         // 如果是当前活跃上下文，清除引用
-        let mut current_id = self.current_context_id.write()
+        let mut current_id = self
+            .current_context_id
+            .write()
             .map_err(|_| CoreError::InvalidInput("获取当前上下文写锁失败".to_string()))?;
 
         if let Some(ref current) = *current_id {
@@ -581,15 +591,22 @@ impl ContextualMemoryManager {
     /// 设置当前活跃上下文
     pub fn set_current_context(&self, context_id: &str) -> CoreResult<()> {
         // 验证上下文存在
-        let contexts = self.contexts.read()
+        let contexts = self
+            .contexts
+            .read()
             .map_err(|_| CoreError::InvalidInput("获取上下文读锁失败".to_string()))?;
 
         if !contexts.contains_key(context_id) {
-            return Err(CoreError::InvalidInput(format!("上下文 {} 不存在", context_id)));
+            return Err(CoreError::InvalidInput(format!(
+                "上下文 {} 不存在",
+                context_id
+            )));
         }
         drop(contexts);
 
-        let mut current_id = self.current_context_id.write()
+        let mut current_id = self
+            .current_context_id
+            .write()
             .map_err(|_| CoreError::InvalidInput("获取当前上下文写锁失败".to_string()))?;
 
         *current_id = Some(context_id.to_string());
@@ -599,7 +616,9 @@ impl ContextualMemoryManager {
 
     /// 获取当前活跃上下文
     pub fn get_current_context(&self) -> CoreResult<Option<ContextState>> {
-        let current_id = self.current_context_id.read()
+        let current_id = self
+            .current_context_id
+            .read()
             .map_err(|_| CoreError::InvalidInput("获取当前上下文读锁失败".to_string()))?;
 
         if let Some(ref context_id) = *current_id {
@@ -619,7 +638,9 @@ impl ContextualMemoryManager {
         user_activity: Option<ActivityState>,
         limit: Option<usize>,
     ) -> CoreResult<Vec<ContextState>> {
-        let contexts = self.contexts.read()
+        let contexts = self
+            .contexts
+            .read()
             .map_err(|_| CoreError::InvalidInput("获取上下文读锁失败".to_string()))?;
 
         let mut results: Vec<ContextState> = contexts
@@ -650,7 +671,8 @@ impl ContextualMemoryManager {
                 if let Some((target_lat, target_lon, radius_km)) = location_radius {
                     if let Some(ref location) = context.location {
                         if let (Some(lat), Some(lon)) = (location.latitude, location.longitude) {
-                            let distance = self.calculate_distance(lat, lon, target_lat, target_lon);
+                            let distance =
+                                self.calculate_distance(lat, lon, target_lat, target_lon);
                             if distance > radius_km {
                                 return false;
                             }
@@ -685,7 +707,9 @@ impl ContextualMemoryManager {
         results.sort_by(|a, b| {
             let score_a = a.importance_score + (a.access_count as f32 * 0.01);
             let score_b = b.importance_score + (b.access_count as f32 * 0.01);
-            score_b.partial_cmp(&score_a).unwrap_or(std::cmp::Ordering::Equal)
+            score_b
+                .partial_cmp(&score_a)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         // 限制结果数量
@@ -706,15 +730,23 @@ impl ContextualMemoryManager {
         confidence: f32,
     ) -> CoreResult<String> {
         // 验证上下文存在
-        let contexts = self.contexts.read()
+        let contexts = self
+            .contexts
+            .read()
             .map_err(|_| CoreError::InvalidInput("获取上下文读锁失败".to_string()))?;
 
         if !contexts.contains_key(source_context_id) {
-            return Err(CoreError::InvalidInput(format!("源上下文 {} 不存在", source_context_id)));
+            return Err(CoreError::InvalidInput(format!(
+                "源上下文 {} 不存在",
+                source_context_id
+            )));
         }
 
         if !contexts.contains_key(target_context_id) {
-            return Err(CoreError::InvalidInput(format!("目标上下文 {} 不存在", target_context_id)));
+            return Err(CoreError::InvalidInput(format!(
+                "目标上下文 {} 不存在",
+                target_context_id
+            )));
         }
         drop(contexts);
 
@@ -732,7 +764,9 @@ impl ContextualMemoryManager {
             last_verified_at: now,
         };
 
-        let mut correlations = self.correlations.write()
+        let mut correlations = self
+            .correlations
+            .write()
             .map_err(|_| CoreError::InvalidInput("获取关联写锁失败".to_string()))?;
 
         correlations.insert(id.clone(), correlation);
@@ -744,15 +778,20 @@ impl ContextualMemoryManager {
     }
 
     /// 获取上下文关联
-    pub fn get_correlations_for_context(&self, context_id: &str) -> CoreResult<Vec<ContextCorrelation>> {
-        let correlations = self.correlations.read()
+    pub fn get_correlations_for_context(
+        &self,
+        context_id: &str,
+    ) -> CoreResult<Vec<ContextCorrelation>> {
+        let correlations = self
+            .correlations
+            .read()
             .map_err(|_| CoreError::InvalidInput("获取关联读锁失败".to_string()))?;
 
         let results: Vec<ContextCorrelation> = correlations
             .values()
             .filter(|correlation| {
-                correlation.source_context_id == context_id ||
-                correlation.target_context_id == context_id
+                correlation.source_context_id == context_id
+                    || correlation.target_context_id == context_id
             })
             .cloned()
             .collect();
@@ -766,7 +805,9 @@ impl ContextualMemoryManager {
             return Ok(0);
         }
 
-        let mut contexts = self.contexts.write()
+        let mut contexts = self
+            .contexts
+            .write()
             .map_err(|_| CoreError::InvalidInput("获取上下文写锁失败".to_string()))?;
 
         let now = Utc::now();
@@ -800,7 +841,9 @@ impl ContextualMemoryManager {
 
     /// 获取统计信息
     pub fn get_stats(&self) -> CoreResult<ContextualMemoryStats> {
-        let stats = self.stats.read()
+        let stats = self
+            .stats
+            .read()
             .map_err(|_| CoreError::InvalidInput("获取统计读锁失败".to_string()))?;
 
         Ok(stats.clone())
@@ -886,22 +929,26 @@ impl ContextualMemoryManager {
         let r = 6371.0; // 地球半径（公里）
         let d_lat = (lat2 - lat1).to_radians();
         let d_lon = (lon2 - lon1).to_radians();
-        let a = (d_lat / 2.0).sin().powi(2) +
-                lat1.to_radians().cos() * lat2.to_radians().cos() *
-                (d_lon / 2.0).sin().powi(2);
+        let a = (d_lat / 2.0).sin().powi(2)
+            + lat1.to_radians().cos() * lat2.to_radians().cos() * (d_lon / 2.0).sin().powi(2);
         let c = 2.0 * a.sqrt().atan2((1.0 - a).sqrt());
         r * c
     }
 
     /// 清理旧上下文
     fn cleanup_old_contexts(&self, contexts: &mut HashMap<String, ContextState>) -> CoreResult<()> {
-        let mut contexts_vec: Vec<_> = contexts.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+        let mut contexts_vec: Vec<_> = contexts
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
 
         // 按重要性和访问次数排序，保留重要的
         contexts_vec.sort_by(|a, b| {
             let score_a = a.1.importance_score + (a.1.access_count as f32 * 0.01);
             let score_b = b.1.importance_score + (b.1.access_count as f32 * 0.01);
-            score_a.partial_cmp(&score_b).unwrap_or(std::cmp::Ordering::Equal)
+            score_a
+                .partial_cmp(&score_b)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         // 移除最低重要性的10%
@@ -916,12 +963,14 @@ impl ContextualMemoryManager {
 
     /// 清理指定上下文的关联
     fn cleanup_correlations_for_context(&self, context_id: &str) -> CoreResult<()> {
-        let mut correlations = self.correlations.write()
+        let mut correlations = self
+            .correlations
+            .write()
             .map_err(|_| CoreError::InvalidInput("获取关联写锁失败".to_string()))?;
 
         correlations.retain(|_, correlation| {
-            correlation.source_context_id != context_id &&
-            correlation.target_context_id != context_id
+            correlation.source_context_id != context_id
+                && correlation.target_context_id != context_id
         });
 
         Ok(())
@@ -943,16 +992,24 @@ impl ContextualMemoryManager {
 
     /// 更新统计信息
     fn update_stats(&self) -> CoreResult<()> {
-        let contexts = self.contexts.read()
+        let contexts = self
+            .contexts
+            .read()
             .map_err(|_| CoreError::InvalidInput("获取上下文读锁失败".to_string()))?;
 
-        let correlations = self.correlations.read()
+        let correlations = self
+            .correlations
+            .read()
             .map_err(|_| CoreError::InvalidInput("获取关联读锁失败".to_string()))?;
 
-        let change_events = self.change_events.read()
+        let change_events = self
+            .change_events
+            .read()
             .map_err(|_| CoreError::InvalidInput("获取变化事件读锁失败".to_string()))?;
 
-        let mut stats = self.stats.write()
+        let mut stats = self
+            .stats
+            .write()
             .map_err(|_| CoreError::InvalidInput("获取统计写锁失败".to_string()))?;
 
         let now = Utc::now();
@@ -965,10 +1022,14 @@ impl ContextualMemoryManager {
 
         for context in contexts.values() {
             // 按环境类型统计
-            *contexts_by_environment.entry(context.environment_type).or_insert(0) += 1;
+            *contexts_by_environment
+                .entry(context.environment_type)
+                .or_insert(0) += 1;
 
             // 按时间段统计
-            *contexts_by_time_of_day.entry(context.temporal_info.time_of_day).or_insert(0) += 1;
+            *contexts_by_time_of_day
+                .entry(context.temporal_info.time_of_day)
+                .or_insert(0) += 1;
 
             // 活跃/过期统计
             if let Some(expires_at) = context.expires_at {
@@ -1085,17 +1146,25 @@ mod tests {
         let user_state = create_test_user_state();
         let location = create_test_location();
         let mut env_params = HashMap::new();
-        env_params.insert("temperature".to_string(), serde_json::Value::Number(serde_json::Number::from(22)));
-        env_params.insert("lighting".to_string(), serde_json::Value::String("bright".to_string()));
+        env_params.insert(
+            "temperature".to_string(),
+            serde_json::Value::Number(serde_json::Number::from(22)),
+        );
+        env_params.insert(
+            "lighting".to_string(),
+            serde_json::Value::String("bright".to_string()),
+        );
 
-        let context_id = manager.create_context_state(
-            EnvironmentType::Work,
-            Some(location),
-            env_params,
-            user_state,
-            None,
-            None,
-        ).unwrap();
+        let context_id = manager
+            .create_context_state(
+                EnvironmentType::Work,
+                Some(location),
+                env_params,
+                user_state,
+                None,
+                None,
+            )
+            .unwrap();
 
         assert!(!context_id.is_empty());
 
@@ -1112,14 +1181,16 @@ mod tests {
         let user_state = create_test_user_state();
         let env_params = HashMap::new();
 
-        let context_id = manager.create_context_state(
-            EnvironmentType::Digital,
-            None,
-            env_params,
-            user_state,
-            None,
-            None,
-        ).unwrap();
+        let context_id = manager
+            .create_context_state(
+                EnvironmentType::Digital,
+                None,
+                env_params,
+                user_state,
+                None,
+                None,
+            )
+            .unwrap();
 
         let context = manager.get_context_state(&context_id).unwrap();
         assert_eq!(context.id, context_id);
@@ -1137,14 +1208,16 @@ mod tests {
         let user_state = create_test_user_state();
         let env_params = HashMap::new();
 
-        let context_id = manager.create_context_state(
-            EnvironmentType::Social,
-            None,
-            env_params,
-            user_state,
-            None,
-            None,
-        ).unwrap();
+        let context_id = manager
+            .create_context_state(
+                EnvironmentType::Social,
+                None,
+                env_params,
+                user_state,
+                None,
+                None,
+            )
+            .unwrap();
 
         // 更新用户状态
         let mut new_user_state = create_test_user_state();
@@ -1152,20 +1225,30 @@ mod tests {
         new_user_state.attention_level = 0.9;
 
         let mut new_env_params = HashMap::new();
-        new_env_params.insert("noise_level".to_string(), serde_json::Value::String("low".to_string()));
+        new_env_params.insert(
+            "noise_level".to_string(),
+            serde_json::Value::String("low".to_string()),
+        );
 
-        manager.update_context_state(
-            &context_id,
-            Some(new_env_params),
-            Some(new_user_state),
-            None,
-            None,
-        ).unwrap();
+        manager
+            .update_context_state(
+                &context_id,
+                Some(new_env_params),
+                Some(new_user_state),
+                None,
+                None,
+            )
+            .unwrap();
 
         let updated_context = manager.get_context_state(&context_id).unwrap();
-        assert_eq!(updated_context.user_state.activity_state, ActivityState::Focused);
+        assert_eq!(
+            updated_context.user_state.activity_state,
+            ActivityState::Focused
+        );
         assert_eq!(updated_context.user_state.attention_level, 0.9);
-        assert!(updated_context.environment_params.contains_key("noise_level"));
+        assert!(updated_context
+            .environment_params
+            .contains_key("noise_level"));
     }
 
     #[test]
@@ -1175,14 +1258,16 @@ mod tests {
         let env_params = HashMap::new();
 
         // 创建上下文
-        let context_id = manager.create_context_state(
-            EnvironmentType::Learning,
-            None,
-            env_params,
-            user_state,
-            None,
-            None,
-        ).unwrap();
+        let context_id = manager
+            .create_context_state(
+                EnvironmentType::Learning,
+                None,
+                env_params,
+                user_state,
+                None,
+                None,
+            )
+            .unwrap();
 
         // 验证当前上下文已自动设置
         let current = manager.get_current_context().unwrap();
@@ -1190,14 +1275,16 @@ mod tests {
         assert_eq!(current.unwrap().id, context_id);
 
         // 创建另一个上下文
-        let context_id2 = manager.create_context_state(
-            EnvironmentType::Entertainment,
-            None,
-            HashMap::new(),
-            create_test_user_state(),
-            None,
-            None,
-        ).unwrap();
+        let context_id2 = manager
+            .create_context_state(
+                EnvironmentType::Entertainment,
+                None,
+                HashMap::new(),
+                create_test_user_state(),
+                None,
+                None,
+            )
+            .unwrap();
 
         // 手动设置当前上下文
         manager.set_current_context(&context_id2).unwrap();
@@ -1213,45 +1300,39 @@ mod tests {
         let location = create_test_location();
 
         // 创建不同类型的上下文
-        let _work_context = manager.create_context_state(
-            EnvironmentType::Work,
-            Some(location.clone()),
-            HashMap::new(),
-            user_state.clone(),
-            None,
-            None,
-        ).unwrap();
+        let _work_context = manager
+            .create_context_state(
+                EnvironmentType::Work,
+                Some(location.clone()),
+                HashMap::new(),
+                user_state.clone(),
+                None,
+                None,
+            )
+            .unwrap();
 
-        let _social_context = manager.create_context_state(
-            EnvironmentType::Social,
-            None,
-            HashMap::new(),
-            user_state.clone(),
-            None,
-            None,
-        ).unwrap();
+        let _social_context = manager
+            .create_context_state(
+                EnvironmentType::Social,
+                None,
+                HashMap::new(),
+                user_state.clone(),
+                None,
+                None,
+            )
+            .unwrap();
 
         // 搜索工作环境
-        let work_results = manager.search_contexts(
-            Some(EnvironmentType::Work),
-            None,
-            None,
-            None,
-            None,
-            None,
-        ).unwrap();
+        let work_results = manager
+            .search_contexts(Some(EnvironmentType::Work), None, None, None, None, None)
+            .unwrap();
         assert_eq!(work_results.len(), 1);
         assert_eq!(work_results[0].environment_type, EnvironmentType::Work);
 
         // 搜索所有上下文
-        let all_results = manager.search_contexts(
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        ).unwrap();
+        let all_results = manager
+            .search_contexts(None, None, None, None, None, None)
+            .unwrap();
         assert_eq!(all_results.len(), 2);
     }
 
@@ -1261,39 +1342,42 @@ mod tests {
         let user_state = create_test_user_state();
 
         // 创建两个上下文
-        let context1 = manager.create_context_state(
-            EnvironmentType::Work,
-            None,
-            HashMap::new(),
-            user_state.clone(),
-            None,
-            None,
-        ).unwrap();
+        let context1 = manager
+            .create_context_state(
+                EnvironmentType::Work,
+                None,
+                HashMap::new(),
+                user_state.clone(),
+                None,
+                None,
+            )
+            .unwrap();
 
-        let context2 = manager.create_context_state(
-            EnvironmentType::Learning,
-            None,
-            HashMap::new(),
-            user_state,
-            None,
-            None,
-        ).unwrap();
+        let context2 = manager
+            .create_context_state(
+                EnvironmentType::Learning,
+                None,
+                HashMap::new(),
+                user_state,
+                None,
+                None,
+            )
+            .unwrap();
 
         // 创建关联
-        let correlation_id = manager.create_correlation(
-            &context1,
-            &context2,
-            CorrelationType::Sequential,
-            0.8,
-            0.9,
-        ).unwrap();
+        let correlation_id = manager
+            .create_correlation(&context1, &context2, CorrelationType::Sequential, 0.8, 0.9)
+            .unwrap();
 
         assert!(!correlation_id.is_empty());
 
         // 获取关联
         let correlations = manager.get_correlations_for_context(&context1).unwrap();
         assert_eq!(correlations.len(), 1);
-        assert_eq!(correlations[0].correlation_type, CorrelationType::Sequential);
+        assert_eq!(
+            correlations[0].correlation_type,
+            CorrelationType::Sequential
+        );
         assert_eq!(correlations[0].strength, 0.8);
         assert_eq!(correlations[0].confidence, 0.9);
     }
@@ -1303,14 +1387,16 @@ mod tests {
         let manager = create_test_manager();
         let user_state = create_test_user_state();
 
-        let context_id = manager.create_context_state(
-            EnvironmentType::Other,
-            None,
-            HashMap::new(),
-            user_state,
-            None,
-            None,
-        ).unwrap();
+        let context_id = manager
+            .create_context_state(
+                EnvironmentType::Other,
+                None,
+                HashMap::new(),
+                user_state,
+                None,
+                None,
+            )
+            .unwrap();
 
         // 验证上下文存在
         assert!(manager.get_context_state(&context_id).is_ok());
@@ -1330,14 +1416,16 @@ mod tests {
         let user_state = create_test_user_state();
 
         // 创建上下文
-        let _context_id = manager.create_context_state(
-            EnvironmentType::Physical,
-            None,
-            HashMap::new(),
-            user_state,
-            None,
-            None,
-        ).unwrap();
+        let _context_id = manager
+            .create_context_state(
+                EnvironmentType::Physical,
+                None,
+                HashMap::new(),
+                user_state,
+                None,
+                None,
+            )
+            .unwrap();
 
         // 等待过期
         std::thread::sleep(std::time::Duration::from_secs(2));
@@ -1365,7 +1453,10 @@ mod tests {
         };
 
         let mut env_params = HashMap::new();
-        env_params.insert("priority".to_string(), serde_json::Value::String("high".to_string()));
+        env_params.insert(
+            "priority".to_string(),
+            serde_json::Value::String("high".to_string()),
+        );
 
         let work_score = manager.calculate_importance_score(
             &EnvironmentType::Work,
@@ -1406,10 +1497,26 @@ mod tests {
         let manager = create_test_manager();
 
         // 测试不同时间的时间段分类
-        let morning_time = chrono::Utc::now().date_naive().and_hms_opt(9, 0, 0).unwrap().and_utc();
-        let afternoon_time = chrono::Utc::now().date_naive().and_hms_opt(15, 0, 0).unwrap().and_utc();
-        let evening_time = chrono::Utc::now().date_naive().and_hms_opt(20, 0, 0).unwrap().and_utc();
-        let night_time = chrono::Utc::now().date_naive().and_hms_opt(2, 0, 0).unwrap().and_utc();
+        let morning_time = chrono::Utc::now()
+            .date_naive()
+            .and_hms_opt(9, 0, 0)
+            .unwrap()
+            .and_utc();
+        let afternoon_time = chrono::Utc::now()
+            .date_naive()
+            .and_hms_opt(15, 0, 0)
+            .unwrap()
+            .and_utc();
+        let evening_time = chrono::Utc::now()
+            .date_naive()
+            .and_hms_opt(20, 0, 0)
+            .unwrap()
+            .and_utc();
+        let night_time = chrono::Utc::now()
+            .date_naive()
+            .and_hms_opt(2, 0, 0)
+            .unwrap()
+            .and_utc();
 
         let morning_info = manager.generate_temporal_info(morning_time);
         let afternoon_info = manager.generate_temporal_info(afternoon_time);
@@ -1428,30 +1535,38 @@ mod tests {
         let user_state = create_test_user_state();
 
         // 创建不同类型的上下文
-        let _work_context = manager.create_context_state(
-            EnvironmentType::Work,
-            None,
-            HashMap::new(),
-            user_state.clone(),
-            None,
-            None,
-        ).unwrap();
+        let _work_context = manager
+            .create_context_state(
+                EnvironmentType::Work,
+                None,
+                HashMap::new(),
+                user_state.clone(),
+                None,
+                None,
+            )
+            .unwrap();
 
-        let _social_context = manager.create_context_state(
-            EnvironmentType::Social,
-            None,
-            HashMap::new(),
-            user_state,
-            None,
-            None,
-        ).unwrap();
+        let _social_context = manager
+            .create_context_state(
+                EnvironmentType::Social,
+                None,
+                HashMap::new(),
+                user_state,
+                None,
+                None,
+            )
+            .unwrap();
 
         let stats = manager.get_stats().unwrap();
         assert_eq!(stats.total_contexts, 2);
         assert_eq!(stats.active_contexts, 2);
         assert_eq!(stats.expired_contexts, 0);
-        assert!(stats.contexts_by_environment.contains_key(&EnvironmentType::Work));
-        assert!(stats.contexts_by_environment.contains_key(&EnvironmentType::Social));
+        assert!(stats
+            .contexts_by_environment
+            .contains_key(&EnvironmentType::Work));
+        assert!(stats
+            .contexts_by_environment
+            .contains_key(&EnvironmentType::Social));
         assert_eq!(stats.contexts_by_environment[&EnvironmentType::Work], 1);
         assert_eq!(stats.contexts_by_environment[&EnvironmentType::Social], 1);
     }

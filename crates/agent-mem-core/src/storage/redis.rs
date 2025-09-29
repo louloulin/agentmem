@@ -6,9 +6,9 @@ use redis::{AsyncCommands, Client, RedisResult};
 use serde_json;
 use std::collections::HashMap;
 
-use crate::{CoreResult, CoreError};
+use super::{CacheBackend, CacheStatistics, RedisConfig};
 use crate::hierarchy::HierarchicalMemory;
-use super::{CacheBackend, RedisConfig, CacheStatistics};
+use crate::{CoreError, CoreResult};
 
 /// Redis cache backend
 pub struct RedisCache {
@@ -23,9 +23,11 @@ impl RedisCache {
             .map_err(|e| CoreError::CacheError(format!("Failed to create Redis client: {}", e)))?;
 
         // Test connection
-        let mut conn = client.get_async_connection().await
+        let mut conn = client
+            .get_async_connection()
+            .await
             .map_err(|e| CoreError::CacheError(format!("Failed to connect to Redis: {}", e)))?;
-        
+
         let _: String = redis::cmd("PING")
             .query_async(&mut conn)
             .await
@@ -36,20 +38,24 @@ impl RedisCache {
 
     /// Get Redis connection
     async fn get_connection(&self) -> CoreResult<redis::aio::Connection> {
-        self.client.get_async_connection().await
+        self.client
+            .get_async_connection()
+            .await
             .map_err(|e| CoreError::CacheError(format!("Failed to get Redis connection: {}", e)))
     }
 
     /// Serialize memory to JSON string
     fn serialize_memory(&self, memory: &HierarchicalMemory) -> CoreResult<String> {
-        serde_json::to_string(memory)
-            .map_err(|e| CoreError::SerializationError(format!("Failed to serialize memory: {}", e)))
+        serde_json::to_string(memory).map_err(|e| {
+            CoreError::SerializationError(format!("Failed to serialize memory: {}", e))
+        })
     }
 
     /// Deserialize memory from JSON string
     fn deserialize_memory(&self, data: &str) -> CoreResult<HierarchicalMemory> {
-        serde_json::from_str(data)
-            .map_err(|e| CoreError::SerializationError(format!("Failed to deserialize memory: {}", e)))
+        serde_json::from_str(data).map_err(|e| {
+            CoreError::SerializationError(format!("Failed to deserialize memory: {}", e))
+        })
     }
 
     /// Generate cache key for memory
@@ -65,7 +71,7 @@ impl CacheBackend for RedisCache {
         let cache_key = self.cache_key(key);
 
         let result: RedisResult<String> = conn.get(&cache_key).await;
-        
+
         match result {
             Ok(data) => {
                 let memory = self.deserialize_memory(&data)?;
@@ -79,13 +85,20 @@ impl CacheBackend for RedisCache {
         }
     }
 
-    async fn set(&self, key: &str, memory: &HierarchicalMemory, ttl: Option<u64>) -> CoreResult<()> {
+    async fn set(
+        &self,
+        key: &str,
+        memory: &HierarchicalMemory,
+        ttl: Option<u64>,
+    ) -> CoreResult<()> {
         let mut conn = self.get_connection().await?;
         let cache_key = self.cache_key(key);
         let data = self.serialize_memory(memory)?;
         let ttl = ttl.unwrap_or(self.config.default_ttl);
 
-        let _: () = conn.set_ex(&cache_key, data, ttl).await
+        let _: () = conn
+            .set_ex(&cache_key, data, ttl)
+            .await
             .map_err(|e| CoreError::CacheError(format!("Redis set failed: {}", e)))?;
 
         Ok(())
@@ -95,7 +108,9 @@ impl CacheBackend for RedisCache {
         let mut conn = self.get_connection().await?;
         let cache_key = self.cache_key(key);
 
-        let result: i32 = conn.del(&cache_key).await
+        let result: i32 = conn
+            .del(&cache_key)
+            .await
             .map_err(|e| CoreError::CacheError(format!("Redis delete failed: {}", e)))?;
 
         Ok(result > 0)
@@ -105,7 +120,9 @@ impl CacheBackend for RedisCache {
         let mut conn = self.get_connection().await?;
         let cache_key = self.cache_key(key);
 
-        let result: bool = conn.exists(&cache_key).await
+        let result: bool = conn
+            .exists(&cache_key)
+            .await
             .map_err(|e| CoreError::CacheError(format!("Redis exists failed: {}", e)))?;
 
         Ok(result)
@@ -121,7 +138,9 @@ impl CacheBackend for RedisCache {
             pipe.set_ex(&cache_key, data, self.config.default_ttl);
         }
 
-        let _: () = pipe.query_async(&mut conn).await
+        let _: () = pipe
+            .query_async(&mut conn)
+            .await
             .map_err(|e| CoreError::CacheError(format!("Redis mset failed: {}", e)))?;
 
         Ok(())
@@ -131,7 +150,9 @@ impl CacheBackend for RedisCache {
         let mut conn = self.get_connection().await?;
         let cache_keys: Vec<String> = keys.iter().map(|k| self.cache_key(k)).collect();
 
-        let results: Vec<Option<String>> = conn.get(&cache_keys).await
+        let results: Vec<Option<String>> = conn
+            .get(&cache_keys)
+            .await
             .map_err(|e| CoreError::CacheError(format!("Redis mget failed: {}", e)))?;
 
         let mut memories = HashMap::new();
@@ -147,13 +168,17 @@ impl CacheBackend for RedisCache {
 
     async fn clear(&self) -> CoreResult<()> {
         let mut conn = self.get_connection().await?;
-        
+
         // Get all keys matching our pattern
-        let keys: Vec<String> = conn.keys("agentmem:memory:*").await
+        let keys: Vec<String> = conn
+            .keys("agentmem:memory:*")
+            .await
             .map_err(|e| CoreError::CacheError(format!("Redis keys failed: {}", e)))?;
 
         if !keys.is_empty() {
-            let _: i32 = conn.del(&keys).await
+            let _: i32 = conn
+                .del(&keys)
+                .await
                 .map_err(|e| CoreError::CacheError(format!("Redis clear failed: {}", e)))?;
         }
 
@@ -179,7 +204,9 @@ impl CacheBackend for RedisCache {
             .unwrap_or(0);
 
         // Count our keys
-        let keys: Vec<String> = conn.keys("agentmem:memory:*").await
+        let keys: Vec<String> = conn
+            .keys("agentmem:memory:*")
+            .await
             .map_err(|e| CoreError::CacheError(format!("Redis keys failed: {}", e)))?;
 
         let total_entries = keys.len() as u64;
@@ -190,15 +217,14 @@ impl CacheBackend for RedisCache {
             // Sample a few keys to estimate average size
             let sample_size = std::cmp::min(10, keys.len());
             let sample_keys = &keys[0..sample_size];
-            
-            let values: Vec<Option<String>> = conn.get(sample_keys).await
+
+            let values: Vec<Option<String>> = conn
+                .get(sample_keys)
+                .await
                 .map_err(|e| CoreError::CacheError(format!("Redis sample get failed: {}", e)))?;
 
-            let total_sample_size: usize = values
-                .into_iter()
-                .filter_map(|v| v)
-                .map(|v| v.len())
-                .sum();
+            let total_sample_size: usize =
+                values.into_iter().filter_map(|v| v).map(|v| v.len()).sum();
 
             if sample_size > 0 {
                 let avg_size = total_sample_size / sample_size;
@@ -211,9 +237,9 @@ impl CacheBackend for RedisCache {
         // custom counters or use Redis modules like RedisInsight
         Ok(CacheStatistics {
             total_entries,
-            hit_rate: 0.0,  // Would need custom tracking
-            miss_rate: 0.0, // Would need custom tracking
-            total_hits: 0,  // Would need custom tracking
+            hit_rate: 0.0,   // Would need custom tracking
+            miss_rate: 0.0,  // Would need custom tracking
+            total_hits: 0,   // Would need custom tracking
             total_misses: 0, // Would need custom tracking
             cache_size,
             memory_usage,

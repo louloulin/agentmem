@@ -7,11 +7,15 @@
 #![warn(missing_docs)]
 #![warn(clippy::all)]
 
+/// Specialized memory agents for different cognitive memory types
+pub mod agents;
 pub mod client;
 pub mod collaboration;
 pub mod compression;
 pub mod conflict;
 pub mod context;
+/// Multi-agent coordination and orchestration
+pub mod coordination;
 pub mod engine;
 /// Graph-based memory management and reasoning capabilities
 pub mod graph_memory;
@@ -33,12 +37,12 @@ pub mod types;
 pub use engine::{MemoryEngine, MemoryEngineConfig};
 pub use hierarchy::{HierarchyManager, MemoryLevel};
 pub use managers::{
-    CoreMemoryManager, CoreMemoryBlock, CoreMemoryBlockType, CoreMemoryConfig, CoreMemoryStats,
-    ResourceMemoryManager, ResourceMetadata, ResourceType, ResourceStorageConfig, ResourceStorageStats,
-    ContextualMemoryManager, ContextualMemoryConfig, ContextState, EnvironmentType,
-    LocationInfo, TemporalInfo, TimeOfDay, Season, UserState, ActivityState,
-    DeviceInfo, NetworkInfo, ContextCorrelation, CorrelationType,
-    EnvironmentChangeEvent, ChangeType, ContextualMemoryStats
+    ActivityState, ChangeType, ContextCorrelation, ContextState, ContextualMemoryConfig,
+    ContextualMemoryManager, ContextualMemoryStats, CoreMemoryBlock, CoreMemoryBlockType,
+    CoreMemoryConfig, CoreMemoryManager, CoreMemoryStats, CorrelationType, DeviceInfo,
+    EnvironmentChangeEvent, EnvironmentType, LocationInfo, NetworkInfo, ResourceMemoryManager,
+    ResourceMetadata, ResourceStorageConfig, ResourceStorageStats, ResourceType, Season,
+    TemporalInfo, TimeOfDay, UserState,
 };
 
 // Re-export from traits

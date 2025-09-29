@@ -1,6 +1,6 @@
 //! Core memory types and data structures
 
-use agent_mem_traits::{AgentMemError, MemoryItem, Result, Vector, Session, Entity, Relation};
+use agent_mem_traits::{AgentMemError, Entity, MemoryItem, Relation, Result, Session, Vector};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -82,7 +82,10 @@ impl MemoryType {
     pub fn is_basic_type(&self) -> bool {
         matches!(
             self,
-            MemoryType::Episodic | MemoryType::Semantic | MemoryType::Procedural | MemoryType::Working
+            MemoryType::Episodic
+                | MemoryType::Semantic
+                | MemoryType::Procedural
+                | MemoryType::Working
         )
     }
 
@@ -90,7 +93,10 @@ impl MemoryType {
     pub fn is_advanced_type(&self) -> bool {
         matches!(
             self,
-            MemoryType::Core | MemoryType::Resource | MemoryType::Knowledge | MemoryType::Contextual
+            MemoryType::Core
+                | MemoryType::Resource
+                | MemoryType::Knowledge
+                | MemoryType::Contextual
         )
     }
 
@@ -529,14 +535,23 @@ mod tests {
         // Test basic cognitive memory types
         assert_eq!(MemoryType::from_str("episodic"), Some(MemoryType::Episodic));
         assert_eq!(MemoryType::from_str("semantic"), Some(MemoryType::Semantic));
-        assert_eq!(MemoryType::from_str("procedural"), Some(MemoryType::Procedural));
+        assert_eq!(
+            MemoryType::from_str("procedural"),
+            Some(MemoryType::Procedural)
+        );
         assert_eq!(MemoryType::from_str("working"), Some(MemoryType::Working));
 
         // Test advanced cognitive memory types (AgentMem 7.0)
         assert_eq!(MemoryType::from_str("core"), Some(MemoryType::Core));
         assert_eq!(MemoryType::from_str("resource"), Some(MemoryType::Resource));
-        assert_eq!(MemoryType::from_str("knowledge"), Some(MemoryType::Knowledge));
-        assert_eq!(MemoryType::from_str("contextual"), Some(MemoryType::Contextual));
+        assert_eq!(
+            MemoryType::from_str("knowledge"),
+            Some(MemoryType::Knowledge)
+        );
+        assert_eq!(
+            MemoryType::from_str("contextual"),
+            Some(MemoryType::Contextual)
+        );
 
         // Test invalid type
         assert_eq!(MemoryType::from_str("invalid"), None);
@@ -588,7 +603,11 @@ mod tests {
         // Test that all memory types have descriptions
         for memory_type in MemoryType::all_types() {
             let description = memory_type.description();
-            assert!(!description.is_empty(), "Memory type {:?} should have a description", memory_type);
+            assert!(
+                !description.is_empty(),
+                "Memory type {:?} should have a description",
+                memory_type
+            );
         }
     }
 

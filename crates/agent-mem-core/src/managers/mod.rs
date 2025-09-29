@@ -2,29 +2,28 @@
 //!
 //! 专门的记忆管理器，实现不同类型记忆的特化管理
 
-pub mod core_memory;
-pub mod resource_memory;
-pub mod knowledge_vault;
 pub mod contextual_memory;
+pub mod core_memory;
+pub mod knowledge_vault;
+pub mod resource_memory;
 
 pub use core_memory::{
-    CoreMemoryManager, CoreMemoryBlock, CoreMemoryBlockType,
-    CoreMemoryConfig, CoreMemoryStats
+    CoreMemoryBlock, CoreMemoryBlockType, CoreMemoryConfig, CoreMemoryManager, CoreMemoryStats,
 };
 
 pub use resource_memory::{
-    ResourceMemoryManager, ResourceMetadata, ResourceType,
-    ResourceStorageConfig, ResourceStorageStats
+    ResourceMemoryManager, ResourceMetadata, ResourceStorageConfig, ResourceStorageStats,
+    ResourceType,
 };
 
 pub use knowledge_vault::{
-    KnowledgeVaultManager, KnowledgeVaultConfig, KnowledgeEntry, SensitivityLevel,
-    AccessPermission, UserPermissions, AuditLogEntry, AuditAction, KnowledgeVaultStats
+    AccessPermission, AuditAction, AuditLogEntry, KnowledgeEntry, KnowledgeVaultConfig,
+    KnowledgeVaultManager, KnowledgeVaultStats, SensitivityLevel, UserPermissions,
 };
 
 pub use contextual_memory::{
-    ContextualMemoryManager, ContextualMemoryConfig, ContextState, EnvironmentType,
-    LocationInfo, TemporalInfo, TimeOfDay, Season, UserState, ActivityState,
-    DeviceInfo, NetworkInfo, ContextCorrelation, CorrelationType,
-    EnvironmentChangeEvent, ChangeType, ContextualMemoryStats
+    ActivityState, ChangeType, ContextCorrelation, ContextState, ContextualMemoryConfig,
+    ContextualMemoryManager, ContextualMemoryStats, CorrelationType, DeviceInfo,
+    EnvironmentChangeEvent, EnvironmentType, LocationInfo, NetworkInfo, Season, TemporalInfo,
+    TimeOfDay, UserState,
 };

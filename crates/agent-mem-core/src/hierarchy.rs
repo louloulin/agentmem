@@ -58,7 +58,7 @@ pub enum MemoryScope {
         /// Agent identifier
         agent_id: String,
         /// User identifier
-        user_id: String
+        user_id: String,
     },
     /// Session-specific memories
     Session {
@@ -692,7 +692,9 @@ impl HierarchyManager for DefaultHierarchyManager {
         };
 
         // Determine scope from memory metadata or default to Global
-        let scope = memory.metadata.get("scope")
+        let scope = memory
+            .metadata
+            .get("scope")
             .and_then(|v| serde_json::from_value(v.clone()).ok())
             .unwrap_or(MemoryScope::Global);
 
@@ -714,13 +716,19 @@ impl HierarchyManager for DefaultHierarchyManager {
         // Update scope index
         {
             let mut scope_index = self.scope_index.write().await;
-            scope_index.entry(scope).or_insert_with(Vec::new).push(memory_id.clone());
+            scope_index
+                .entry(scope)
+                .or_insert_with(Vec::new)
+                .push(memory_id.clone());
         }
 
         // Update level index
         {
             let mut level_index = self.level_index.write().await;
-            level_index.entry(level).or_insert_with(Vec::new).push(memory_id);
+            level_index
+                .entry(level)
+                .or_insert_with(Vec::new)
+                .push(memory_id);
         }
 
         Ok(hierarchical_memory)
@@ -807,22 +815,33 @@ impl HierarchyManager for DefaultHierarchyManager {
             let count = memory_ids.len();
             memories_by_level.insert(level.clone(), count);
 
-            let total_importance: f64 = memory_ids.iter()
+            let total_importance: f64 = memory_ids
+                .iter()
                 .filter_map(|id| memories.get(id))
                 .map(|memory| memory.memory.score.unwrap_or(0.0) as f64)
                 .sum();
 
-            let avg_importance = if count > 0 { total_importance / count as f64 } else { 0.0 };
+            let avg_importance = if count > 0 {
+                total_importance / count as f64
+            } else {
+                0.0
+            };
             avg_importance_by_level.insert(level.clone(), avg_importance);
 
             // Calculate utilization (simplified as memory count / max capacity)
-            let max_capacity = self.config.level_capacities.get(level).copied().unwrap_or(1000) as f64;
+            let max_capacity = self
+                .config
+                .level_capacities
+                .get(level)
+                .copied()
+                .unwrap_or(1000) as f64;
             let utilization = (count as f64 / max_capacity).min(1.0);
             level_utilization.insert(level.clone(), utilization);
         }
 
         // Count inheritance relationships
-        let inheritance_relationships = memories.values()
+        let inheritance_relationships = memories
+            .values()
             .filter(|memory| memory.hierarchy_metadata.inheritance.inherited)
             .count();
 
@@ -864,7 +883,9 @@ impl HierarchyManager for DefaultHierarchyManager {
         results.sort_by(|a, b| {
             let score_a = a.memory.score.unwrap_or(0.0);
             let score_b = b.memory.score.unwrap_or(0.0);
-            score_b.partial_cmp(&score_a).unwrap_or(std::cmp::Ordering::Equal)
+            score_b
+                .partial_cmp(&score_a)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         // Apply limit
@@ -986,7 +1007,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_default_hierarchy_manager() {
-        use agent_mem_traits::{Session, MemoryType as TraitMemoryType};
+        use agent_mem_traits::{MemoryType as TraitMemoryType, Session};
         use chrono::Utc;
 
         let config = HierarchyConfig::default();

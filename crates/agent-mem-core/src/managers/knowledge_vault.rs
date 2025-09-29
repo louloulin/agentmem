@@ -1,16 +1,16 @@
 //! Knowledge Vault 安全存储管理器
-//! 
+//!
 //! 提供敏感信息的加密存储、访问控制和权限管理功能。
 //! 支持多级敏感度分类和完整的审计日志记录。
 
+use crate::{CoreError, CoreResult};
+use aes_gcm::{aead::Aead, Aes256Gcm, Key, KeyInit, Nonce};
+use chrono::{DateTime, Utc};
+use rand::{thread_rng, Rng};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-use sha2::{Sha256, Digest};
-use aes_gcm::{Aes256Gcm, Key, Nonce, aead::Aead, KeyInit};
-use rand::{Rng, thread_rng};
-use crate::{CoreResult, CoreError};
 
 /// Knowledge Vault 配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -285,10 +285,11 @@ impl KnowledgeVaultManager {
         let cipher = Aes256Gcm::new(&self.encryption_key);
         let nonce_bytes = Self::generate_nonce();
         let nonce = Nonce::from_slice(&nonce_bytes);
-        
-        let encrypted = cipher.encrypt(nonce, content.as_bytes())
+
+        let encrypted = cipher
+            .encrypt(nonce, content.as_bytes())
             .map_err(|e| CoreError::InvalidInput(format!("加密失败: {}", e)))?;
-        
+
         Ok((encrypted, nonce_bytes.to_vec()))
     }
 
@@ -297,7 +298,8 @@ impl KnowledgeVaultManager {
         let cipher = Aes256Gcm::new(&self.encryption_key);
         let nonce = Nonce::from_slice(nonce);
 
-        let decrypted = cipher.decrypt(nonce, encrypted_content)
+        let decrypted = cipher
+            .decrypt(nonce, encrypted_content)
             .map_err(|e| CoreError::InvalidInput(format!("解密失败: {}", e)))?;
 
         String::from_utf8(decrypted)
@@ -308,7 +310,9 @@ impl KnowledgeVaultManager {
     pub fn add_user_permissions(&self, permissions: UserPermissions) -> CoreResult<()> {
         let user_id = permissions.user_id.clone();
 
-        let mut user_perms = self.user_permissions.write()
+        let mut user_perms = self
+            .user_permissions
+            .write()
             .map_err(|_| CoreError::InvalidInput("获取用户权限写锁失败".to_string()))?;
 
         user_perms.insert(user_id.clone(), permissions);
@@ -341,10 +345,13 @@ impl KnowledgeVaultManager {
         required_permission: &AccessPermission,
         required_sensitivity: SensitivityLevel,
     ) -> CoreResult<bool> {
-        let user_perms = self.user_permissions.read()
+        let user_perms = self
+            .user_permissions
+            .read()
             .map_err(|_| CoreError::InvalidInput("获取用户权限读锁失败".to_string()))?;
 
-        let permissions = user_perms.get(user_id)
+        let permissions = user_perms
+            .get(user_id)
             .ok_or_else(|| CoreError::InvalidInput(format!("用户 {} 不存在", user_id)))?;
 
         // 检查用户是否激活
@@ -365,8 +372,8 @@ impl KnowledgeVaultManager {
         }
 
         // 检查具体权限
-        let has_permission = permissions.permissions.contains(required_permission) ||
-            permissions.permissions.contains(&AccessPermission::Admin);
+        let has_permission = permissions.permissions.contains(required_permission)
+            || permissions.permissions.contains(&AccessPermission::Admin);
 
         // 记录权限检查审计日志
         if self.config.audit_logging_enabled {
@@ -375,7 +382,11 @@ impl KnowledgeVaultManager {
                 AuditAction::PermissionCheck,
                 None,
                 has_permission,
-                if has_permission { None } else { Some("权限不足".to_string()) },
+                if has_permission {
+                    None
+                } else {
+                    Some("权限不足".to_string())
+                },
                 None,
                 None,
                 HashMap::new(),
@@ -395,20 +406,45 @@ impl KnowledgeVaultManager {
 
         // 绝密关键词
         let top_secret_keywords = [
-            "密码", "password", "secret", "private_key", "api_key", "token",
-            "机密", "绝密", "confidential", "classified", "restricted"
+            "密码",
+            "password",
+            "secret",
+            "private_key",
+            "api_key",
+            "token",
+            "机密",
+            "绝密",
+            "confidential",
+            "classified",
+            "restricted",
         ];
 
         // 机密关键词
         let confidential_keywords = [
-            "内部", "internal", "proprietary", "sensitive", "personal",
-            "财务", "financial", "salary", "revenue", "profit"
+            "内部",
+            "internal",
+            "proprietary",
+            "sensitive",
+            "personal",
+            "财务",
+            "financial",
+            "salary",
+            "revenue",
+            "profit",
         ];
 
         // 内部关键词
         let internal_keywords = [
-            "员工", "employee", "staff", "team", "department",
-            "项目", "project", "plan", "strategy", "roadmap"
+            "员工",
+            "employee",
+            "staff",
+            "team",
+            "department",
+            "项目",
+            "project",
+            "plan",
+            "strategy",
+            "roadmap",
         ];
 
         // 检查绝密关键词
@@ -448,7 +484,8 @@ impl KnowledgeVaultManager {
     ) -> CoreResult<String> {
         // 检查创建权限
         if self.config.access_control_enabled {
-            let required_sensitivity = sensitivity_level.unwrap_or_else(|| self.auto_classify_sensitivity(&content));
+            let required_sensitivity =
+                sensitivity_level.unwrap_or_else(|| self.auto_classify_sensitivity(&content));
             if !self.check_permission(user_id, &AccessPermission::Write, required_sensitivity)? {
                 return Err(CoreError::InvalidInput("用户没有创建权限".to_string()));
             }
@@ -458,7 +495,8 @@ impl KnowledgeVaultManager {
         let id = uuid::Uuid::new_v4().to_string();
 
         // 确定敏感度级别
-        let final_sensitivity = sensitivity_level.unwrap_or_else(|| self.auto_classify_sensitivity(&content));
+        let final_sensitivity =
+            sensitivity_level.unwrap_or_else(|| self.auto_classify_sensitivity(&content));
 
         // 加密内容
         let (encrypted_content, nonce) = self.encrypt_content(&content)?;
@@ -480,7 +518,9 @@ impl KnowledgeVaultManager {
         };
 
         // 存储条目
-        let mut entries = self.knowledge_entries.write()
+        let mut entries = self
+            .knowledge_entries
+            .write()
             .map_err(|_| CoreError::InvalidInput("获取知识条目写锁失败".to_string()))?;
 
         // 检查容量限制
@@ -512,11 +552,18 @@ impl KnowledgeVaultManager {
     }
 
     /// 读取知识条目
-    pub fn read_knowledge_entry(&self, user_id: &str, knowledge_id: &str) -> CoreResult<(String, String)> {
-        let mut entries = self.knowledge_entries.write()
+    pub fn read_knowledge_entry(
+        &self,
+        user_id: &str,
+        knowledge_id: &str,
+    ) -> CoreResult<(String, String)> {
+        let mut entries = self
+            .knowledge_entries
+            .write()
             .map_err(|_| CoreError::InvalidInput("获取知识条目写锁失败".to_string()))?;
 
-        let entry = entries.get_mut(knowledge_id)
+        let entry = entries
+            .get_mut(knowledge_id)
             .ok_or_else(|| CoreError::InvalidInput(format!("知识条目 {} 不存在", knowledge_id)))?;
 
         // 检查读取权限
@@ -566,10 +613,13 @@ impl KnowledgeVaultManager {
         tags: Option<Vec<String>>,
         metadata: Option<HashMap<String, String>>,
     ) -> CoreResult<()> {
-        let mut entries = self.knowledge_entries.write()
+        let mut entries = self
+            .knowledge_entries
+            .write()
             .map_err(|_| CoreError::InvalidInput("获取知识条目写锁失败".to_string()))?;
 
-        let entry = entries.get_mut(knowledge_id)
+        let entry = entries
+            .get_mut(knowledge_id)
             .ok_or_else(|| CoreError::InvalidInput(format!("知识条目 {} 不存在", knowledge_id)))?;
 
         // 检查写入权限
@@ -626,15 +676,22 @@ impl KnowledgeVaultManager {
 
     /// 删除知识条目
     pub fn delete_knowledge_entry(&self, user_id: &str, knowledge_id: &str) -> CoreResult<()> {
-        let mut entries = self.knowledge_entries.write()
+        let mut entries = self
+            .knowledge_entries
+            .write()
             .map_err(|_| CoreError::InvalidInput("获取知识条目写锁失败".to_string()))?;
 
-        let entry = entries.get(knowledge_id)
+        let entry = entries
+            .get(knowledge_id)
             .ok_or_else(|| CoreError::InvalidInput(format!("知识条目 {} 不存在", knowledge_id)))?;
 
         // 检查删除权限
         if self.config.access_control_enabled {
-            if !self.check_permission(user_id, &AccessPermission::Delete, entry.sensitivity_level)? {
+            if !self.check_permission(
+                user_id,
+                &AccessPermission::Delete,
+                entry.sensitivity_level,
+            )? {
                 return Err(CoreError::InvalidInput("用户没有删除权限".to_string()));
             }
         }
@@ -671,7 +728,9 @@ impl KnowledgeVaultManager {
         tag_filter: Option<&str>,
         limit: Option<usize>,
     ) -> CoreResult<Vec<(String, String, SensitivityLevel)>> {
-        let entries = self.knowledge_entries.read()
+        let entries = self
+            .knowledge_entries
+            .read()
             .map_err(|_| CoreError::InvalidInput("获取知识条目读锁失败".to_string()))?;
 
         let mut results = Vec::new();
@@ -680,7 +739,11 @@ impl KnowledgeVaultManager {
         for (id, entry) in entries.iter() {
             // 检查读取权限
             if self.config.access_control_enabled {
-                if !self.check_permission(user_id, &AccessPermission::Read, entry.sensitivity_level)? {
+                if !self.check_permission(
+                    user_id,
+                    &AccessPermission::Read,
+                    entry.sensitivity_level,
+                )? {
                     continue;
                 }
             }
@@ -701,7 +764,10 @@ impl KnowledgeVaultManager {
 
             // 搜索标题和标签
             let title_match = entry.title.to_lowercase().contains(&query_lower);
-            let tag_match = entry.tags.iter().any(|tag| tag.to_lowercase().contains(&query_lower));
+            let tag_match = entry
+                .tags
+                .iter()
+                .any(|tag| tag.to_lowercase().contains(&query_lower));
 
             if title_match || tag_match {
                 results.push((id.clone(), entry.title.clone(), entry.sensitivity_level));
@@ -750,7 +816,9 @@ impl KnowledgeVaultManager {
         user_agent: Option<String>,
         metadata: HashMap<String, String>,
     ) -> CoreResult<()> {
-        let mut logs = self.audit_logs.write()
+        let mut logs = self
+            .audit_logs
+            .write()
             .map_err(|_| CoreError::InvalidInput("获取审计日志写锁失败".to_string()))?;
 
         let log_entry = AuditLogEntry {
@@ -769,7 +837,9 @@ impl KnowledgeVaultManager {
         logs.push(log_entry);
 
         // 更新统计信息
-        let mut stats = self.stats.write()
+        let mut stats = self
+            .stats
+            .write()
             .map_err(|_| CoreError::InvalidInput("获取统计信息写锁失败".to_string()))?;
         stats.audit_log_entries = logs.len();
 
@@ -778,10 +848,14 @@ impl KnowledgeVaultManager {
 
     /// 更新知识统计信息
     fn update_knowledge_stats(&self) -> CoreResult<()> {
-        let entries = self.knowledge_entries.read()
+        let entries = self
+            .knowledge_entries
+            .read()
             .map_err(|_| CoreError::InvalidInput("获取知识条目读锁失败".to_string()))?;
 
-        let mut stats = self.stats.write()
+        let mut stats = self
+            .stats
+            .write()
             .map_err(|_| CoreError::InvalidInput("获取统计信息写锁失败".to_string()))?;
 
         stats.total_entries = entries.len();
@@ -792,10 +866,16 @@ impl KnowledgeVaultManager {
 
         for entry in entries.values() {
             // 按敏感度统计
-            *stats.entries_by_sensitivity.entry(entry.sensitivity_level).or_insert(0) += 1;
+            *stats
+                .entries_by_sensitivity
+                .entry(entry.sensitivity_level)
+                .or_insert(0) += 1;
 
             // 按创建者统计
-            *stats.entries_by_creator.entry(entry.creator_id.clone()).or_insert(0) += 1;
+            *stats
+                .entries_by_creator
+                .entry(entry.creator_id.clone())
+                .or_insert(0) += 1;
 
             // 累计访问次数
             total_accesses += entry.access_count;
@@ -814,10 +894,14 @@ impl KnowledgeVaultManager {
 
     /// 更新用户统计信息
     fn update_user_stats(&self) -> CoreResult<()> {
-        let user_perms = self.user_permissions.read()
+        let user_perms = self
+            .user_permissions
+            .read()
             .map_err(|_| CoreError::InvalidInput("获取用户权限读锁失败".to_string()))?;
 
-        let mut stats = self.stats.write()
+        let mut stats = self
+            .stats
+            .write()
             .map_err(|_| CoreError::InvalidInput("获取统计信息写锁失败".to_string()))?;
 
         stats.total_users = user_perms.len();
@@ -828,10 +912,14 @@ impl KnowledgeVaultManager {
 
     /// 更新访问统计信息
     fn update_access_stats(&self) -> CoreResult<()> {
-        let entries = self.knowledge_entries.read()
+        let entries = self
+            .knowledge_entries
+            .read()
             .map_err(|_| CoreError::InvalidInput("获取知识条目读锁失败".to_string()))?;
 
-        let mut stats = self.stats.write()
+        let mut stats = self
+            .stats
+            .write()
             .map_err(|_| CoreError::InvalidInput("获取统计信息写锁失败".to_string()))?;
 
         let total_accesses: u64 = entries.values().map(|e| e.access_count).sum();
@@ -847,7 +935,9 @@ impl KnowledgeVaultManager {
 
     /// 获取统计信息
     pub fn get_stats(&self) -> CoreResult<KnowledgeVaultStats> {
-        let stats = self.stats.read()
+        let stats = self
+            .stats
+            .read()
             .map_err(|_| CoreError::InvalidInput("获取统计信息读锁失败".to_string()))?;
         Ok(stats.clone())
     }
@@ -859,10 +949,13 @@ impl KnowledgeVaultManager {
         action_filter: Option<AuditAction>,
         limit: Option<usize>,
     ) -> CoreResult<Vec<AuditLogEntry>> {
-        let logs = self.audit_logs.read()
+        let logs = self
+            .audit_logs
+            .read()
             .map_err(|_| CoreError::InvalidInput("获取审计日志读锁失败".to_string()))?;
 
-        let mut filtered_logs: Vec<AuditLogEntry> = logs.iter()
+        let mut filtered_logs: Vec<AuditLogEntry> = logs
+            .iter()
             .filter(|log| {
                 if let Some(user_filter) = user_id {
                     if log.user_id != user_filter {
@@ -871,7 +964,8 @@ impl KnowledgeVaultManager {
                 }
 
                 if let Some(action_filter) = &action_filter {
-                    if std::mem::discriminant(&log.action) != std::mem::discriminant(action_filter) {
+                    if std::mem::discriminant(&log.action) != std::mem::discriminant(action_filter)
+                    {
                         return false;
                     }
                 }
@@ -894,7 +988,9 @@ impl KnowledgeVaultManager {
 
     /// 列出用户权限
     pub fn list_user_permissions(&self) -> CoreResult<Vec<UserPermissions>> {
-        let user_perms = self.user_permissions.read()
+        let user_perms = self
+            .user_permissions
+            .read()
             .map_err(|_| CoreError::InvalidInput("获取用户权限读锁失败".to_string()))?;
 
         Ok(user_perms.values().cloned().collect())
@@ -906,7 +1002,9 @@ impl KnowledgeVaultManager {
         user_id: &str,
         sensitivity_filter: Option<SensitivityLevel>,
     ) -> CoreResult<Vec<(String, String, SensitivityLevel, DateTime<Utc>)>> {
-        let entries = self.knowledge_entries.read()
+        let entries = self
+            .knowledge_entries
+            .read()
             .map_err(|_| CoreError::InvalidInput("获取知识条目读锁失败".to_string()))?;
 
         let mut results = Vec::new();
@@ -914,7 +1012,11 @@ impl KnowledgeVaultManager {
         for (id, entry) in entries.iter() {
             // 检查读取权限
             if self.config.access_control_enabled {
-                if !self.check_permission(user_id, &AccessPermission::Read, entry.sensitivity_level)? {
+                if !self.check_permission(
+                    user_id,
+                    &AccessPermission::Read,
+                    entry.sensitivity_level,
+                )? {
                     continue;
                 }
             }
@@ -987,17 +1089,21 @@ mod tests {
         manager.add_user_permissions(permissions.clone()).unwrap();
 
         // 检查权限
-        assert!(manager.check_permission(
-            "test_user",
-            &AccessPermission::Read,
-            SensitivityLevel::Confidential
-        ).unwrap());
+        assert!(manager
+            .check_permission(
+                "test_user",
+                &AccessPermission::Read,
+                SensitivityLevel::Confidential
+            )
+            .unwrap());
 
-        assert!(manager.check_permission(
-            "test_user",
-            &AccessPermission::Write,
-            SensitivityLevel::TopSecret
-        ).unwrap());
+        assert!(manager
+            .check_permission(
+                "test_user",
+                &AccessPermission::Write,
+                SensitivityLevel::TopSecret
+            )
+            .unwrap());
 
         // 列出用户权限
         let user_list = manager.list_user_permissions().unwrap();
@@ -1057,40 +1163,52 @@ mod tests {
         manager.add_user_permissions(permissions).unwrap();
 
         // 创建知识条目
-        let entry_id = manager.create_knowledge_entry(
-            "test_user",
-            "测试标题".to_string(),
-            "测试内容".to_string(),
-            vec!["tag1".to_string(), "tag2".to_string()],
-            HashMap::new(),
-            Some(SensitivityLevel::Internal),
-        ).unwrap();
+        let entry_id = manager
+            .create_knowledge_entry(
+                "test_user",
+                "测试标题".to_string(),
+                "测试内容".to_string(),
+                vec!["tag1".to_string(), "tag2".to_string()],
+                HashMap::new(),
+                Some(SensitivityLevel::Internal),
+            )
+            .unwrap();
 
         // 读取知识条目
-        let (title, content) = manager.read_knowledge_entry("test_user", &entry_id).unwrap();
+        let (title, content) = manager
+            .read_knowledge_entry("test_user", &entry_id)
+            .unwrap();
         assert_eq!(title, "测试标题");
         assert_eq!(content, "测试内容");
 
         // 更新知识条目
-        manager.update_knowledge_entry(
-            "test_user",
-            &entry_id,
-            Some("更新标题".to_string()),
-            Some("更新内容".to_string()),
-            None,
-            None,
-        ).unwrap();
+        manager
+            .update_knowledge_entry(
+                "test_user",
+                &entry_id,
+                Some("更新标题".to_string()),
+                Some("更新内容".to_string()),
+                None,
+                None,
+            )
+            .unwrap();
 
         // 验证更新
-        let (updated_title, updated_content) = manager.read_knowledge_entry("test_user", &entry_id).unwrap();
+        let (updated_title, updated_content) = manager
+            .read_knowledge_entry("test_user", &entry_id)
+            .unwrap();
         assert_eq!(updated_title, "更新标题");
         assert_eq!(updated_content, "更新内容");
 
         // 删除知识条目
-        manager.delete_knowledge_entry("test_user", &entry_id).unwrap();
+        manager
+            .delete_knowledge_entry("test_user", &entry_id)
+            .unwrap();
 
         // 验证删除
-        assert!(manager.read_knowledge_entry("test_user", &entry_id).is_err());
+        assert!(manager
+            .read_knowledge_entry("test_user", &entry_id)
+            .is_err());
     }
 
     #[test]
@@ -1100,53 +1218,45 @@ mod tests {
         manager.add_user_permissions(permissions).unwrap();
 
         // 创建多个知识条目
-        let _id1 = manager.create_knowledge_entry(
-            "test_user",
-            "Rust编程指南".to_string(),
-            "关于Rust的内容".to_string(),
-            vec!["rust".to_string(), "programming".to_string()],
-            HashMap::new(),
-            Some(SensitivityLevel::Public),
-        ).unwrap();
+        let _id1 = manager
+            .create_knowledge_entry(
+                "test_user",
+                "Rust编程指南".to_string(),
+                "关于Rust的内容".to_string(),
+                vec!["rust".to_string(), "programming".to_string()],
+                HashMap::new(),
+                Some(SensitivityLevel::Public),
+            )
+            .unwrap();
 
-        let _id2 = manager.create_knowledge_entry(
-            "test_user",
-            "Python教程".to_string(),
-            "关于Python的内容".to_string(),
-            vec!["python".to_string(), "tutorial".to_string()],
-            HashMap::new(),
-            Some(SensitivityLevel::Internal),
-        ).unwrap();
+        let _id2 = manager
+            .create_knowledge_entry(
+                "test_user",
+                "Python教程".to_string(),
+                "关于Python的内容".to_string(),
+                vec!["python".to_string(), "tutorial".to_string()],
+                HashMap::new(),
+                Some(SensitivityLevel::Internal),
+            )
+            .unwrap();
 
         // 搜索测试
-        let results = manager.search_knowledge_entries(
-            "test_user",
-            "rust",
-            None,
-            None,
-            None,
-        ).unwrap();
+        let results = manager
+            .search_knowledge_entries("test_user", "rust", None, None, None)
+            .unwrap();
         assert_eq!(results.len(), 1);
         assert!(results[0].1.contains("Rust"));
 
         // 按敏感度过滤搜索
-        let public_results = manager.search_knowledge_entries(
-            "test_user",
-            "",
-            Some(SensitivityLevel::Public),
-            None,
-            None,
-        ).unwrap();
+        let public_results = manager
+            .search_knowledge_entries("test_user", "", Some(SensitivityLevel::Public), None, None)
+            .unwrap();
         assert_eq!(public_results.len(), 1);
 
         // 按标签过滤搜索
-        let tag_results = manager.search_knowledge_entries(
-            "test_user",
-            "",
-            None,
-            Some("python"),
-            None,
-        ).unwrap();
+        let tag_results = manager
+            .search_knowledge_entries("test_user", "", None, Some("python"), None)
+            .unwrap();
         assert_eq!(tag_results.len(), 1);
     }
 
@@ -1171,27 +1281,33 @@ mod tests {
         manager.add_user_permissions(admin_permissions).unwrap();
 
         // 管理员创建绝密条目
-        let entry_id = manager.create_knowledge_entry(
-            "test_user",
-            "绝密文档".to_string(),
-            "这是绝密内容".to_string(),
-            vec![],
-            HashMap::new(),
-            Some(SensitivityLevel::TopSecret),
-        ).unwrap();
+        let entry_id = manager
+            .create_knowledge_entry(
+                "test_user",
+                "绝密文档".to_string(),
+                "这是绝密内容".to_string(),
+                vec![],
+                HashMap::new(),
+                Some(SensitivityLevel::TopSecret),
+            )
+            .unwrap();
 
         // 受限用户无法读取绝密条目
-        assert!(manager.read_knowledge_entry("limited_user", &entry_id).is_err());
+        assert!(manager
+            .read_knowledge_entry("limited_user", &entry_id)
+            .is_err());
 
         // 受限用户无法写入
-        assert!(manager.create_knowledge_entry(
-            "limited_user",
-            "测试".to_string(),
-            "测试".to_string(),
-            vec![],
-            HashMap::new(),
-            Some(SensitivityLevel::Internal),
-        ).is_err());
+        assert!(manager
+            .create_knowledge_entry(
+                "limited_user",
+                "测试".to_string(),
+                "测试".to_string(),
+                vec![],
+                HashMap::new(),
+                Some(SensitivityLevel::Internal),
+            )
+            .is_err());
     }
 
     #[test]
@@ -1201,27 +1317,35 @@ mod tests {
         manager.add_user_permissions(permissions).unwrap();
 
         // 执行一些操作
-        let entry_id = manager.create_knowledge_entry(
-            "test_user",
-            "审计测试".to_string(),
-            "测试内容".to_string(),
-            vec![],
-            HashMap::new(),
-            None,
-        ).unwrap();
+        let entry_id = manager
+            .create_knowledge_entry(
+                "test_user",
+                "审计测试".to_string(),
+                "测试内容".to_string(),
+                vec![],
+                HashMap::new(),
+                None,
+            )
+            .unwrap();
 
-        let _ = manager.read_knowledge_entry("test_user", &entry_id).unwrap();
+        let _ = manager
+            .read_knowledge_entry("test_user", &entry_id)
+            .unwrap();
 
         // 检查审计日志
         let logs = manager.get_audit_logs(None, None, None).unwrap();
         assert!(logs.len() >= 3); // 权限变更 + 创建 + 读取
 
         // 按用户过滤
-        let user_logs = manager.get_audit_logs(Some("test_user"), None, None).unwrap();
+        let user_logs = manager
+            .get_audit_logs(Some("test_user"), None, None)
+            .unwrap();
         assert!(user_logs.len() >= 2); // 创建 + 读取
 
         // 按操作类型过滤
-        let create_logs = manager.get_audit_logs(None, Some(AuditAction::CreateKnowledge), None).unwrap();
+        let create_logs = manager
+            .get_audit_logs(None, Some(AuditAction::CreateKnowledge), None)
+            .unwrap();
         assert_eq!(create_logs.len(), 1);
     }
 
@@ -1232,31 +1356,43 @@ mod tests {
         manager.add_user_permissions(permissions).unwrap();
 
         // 创建不同敏感度的条目
-        let _id1 = manager.create_knowledge_entry(
-            "test_user",
-            "公开文档".to_string(),
-            "公开内容".to_string(),
-            vec![],
-            HashMap::new(),
-            Some(SensitivityLevel::Public),
-        ).unwrap();
+        let _id1 = manager
+            .create_knowledge_entry(
+                "test_user",
+                "公开文档".to_string(),
+                "公开内容".to_string(),
+                vec![],
+                HashMap::new(),
+                Some(SensitivityLevel::Public),
+            )
+            .unwrap();
 
-        let _id2 = manager.create_knowledge_entry(
-            "test_user",
-            "内部文档".to_string(),
-            "内部内容".to_string(),
-            vec![],
-            HashMap::new(),
-            Some(SensitivityLevel::Internal),
-        ).unwrap();
+        let _id2 = manager
+            .create_knowledge_entry(
+                "test_user",
+                "内部文档".to_string(),
+                "内部内容".to_string(),
+                vec![],
+                HashMap::new(),
+                Some(SensitivityLevel::Internal),
+            )
+            .unwrap();
 
         // 检查统计信息
         let stats = manager.get_stats().unwrap();
         assert_eq!(stats.total_entries, 2);
         assert_eq!(stats.total_users, 1);
         assert_eq!(stats.active_users, 1);
-        assert_eq!(stats.entries_by_sensitivity.get(&SensitivityLevel::Public), Some(&1));
-        assert_eq!(stats.entries_by_sensitivity.get(&SensitivityLevel::Internal), Some(&1));
+        assert_eq!(
+            stats.entries_by_sensitivity.get(&SensitivityLevel::Public),
+            Some(&1)
+        );
+        assert_eq!(
+            stats
+                .entries_by_sensitivity
+                .get(&SensitivityLevel::Internal),
+            Some(&1)
+        );
         assert_eq!(stats.entries_by_creator.get("test_user"), Some(&2));
     }
 }

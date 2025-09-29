@@ -1,17 +1,17 @@
 //! Resource Memory Manager - 资源记忆管理器
-//! 
+//!
 //! 实现多媒体文件存储和检索，支持文档、图像、音频、视频处理
 //! 基于 AgentMem 7.0 认知记忆架构
 
-use crate::{CoreResult, CoreError};
+use crate::{CoreError, CoreResult};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
-use sha2::{Sha256, Digest};
 
 /// 资源类型枚举
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -101,7 +101,7 @@ impl ResourceMetadata {
         storage_path: PathBuf,
     ) -> Self {
         let now = Utc::now();
-        
+
         Self {
             id: Uuid::new_v4().to_string(),
             original_filename,
@@ -219,8 +219,9 @@ impl ResourceMemoryManager {
     pub fn with_config(config: ResourceStorageConfig) -> CoreResult<Self> {
         // 确保存储目录存在
         if !config.storage_root.exists() {
-            std::fs::create_dir_all(&config.storage_root)
-                .map_err(|e| CoreError::IoError(format!("Failed to create storage directory: {}", e)))?;
+            std::fs::create_dir_all(&config.storage_root).map_err(|e| {
+                CoreError::IoError(format!("Failed to create storage directory: {}", e))
+            })?;
         }
 
         Ok(Self {
@@ -233,13 +234,14 @@ impl ResourceMemoryManager {
 
     /// 计算文件哈希
     async fn calculate_file_hash(file_path: &Path) -> CoreResult<String> {
-        let content = tokio::fs::read(file_path).await
+        let content = tokio::fs::read(file_path)
+            .await
             .map_err(|e| CoreError::IoError(format!("Failed to read file: {}", e)))?;
-        
+
         let mut hasher = Sha256::new();
         hasher.update(&content);
         let hash = hasher.finalize();
-        
+
         Ok(format!("{:x}", hash))
     }
 
@@ -264,7 +266,8 @@ impl ResourceMemoryManager {
             }
         } else {
             "application/octet-stream"
-        }.to_string()
+        }
+        .to_string()
     }
 
     /// 生成存储路径
@@ -292,11 +295,15 @@ impl ResourceMemoryManager {
     ) -> CoreResult<String> {
         // 检查文件是否存在
         if !file_path.exists() {
-            return Err(CoreError::NotFound(format!("File not found: {:?}", file_path)));
+            return Err(CoreError::NotFound(format!(
+                "File not found: {:?}",
+                file_path
+            )));
         }
 
         // 获取文件信息
-        let metadata = tokio::fs::metadata(file_path).await
+        let metadata = tokio::fs::metadata(file_path)
+            .await
             .map_err(|e| CoreError::IoError(format!("Failed to read file metadata: {}", e)))?;
 
         let file_size = metadata.len();
@@ -367,7 +374,8 @@ impl ResourceMemoryManager {
         }
 
         // 复制文件到存储位置
-        tokio::fs::copy(file_path, &storage_path).await
+        tokio::fs::copy(file_path, &storage_path)
+            .await
             .map_err(|e| CoreError::IoError(format!("Failed to copy file to storage: {}", e)))?;
 
         // 如果启用压缩且文件大小超过阈值，进行压缩
@@ -396,7 +404,10 @@ impl ResourceMemoryManager {
     }
 
     /// 获取资源元数据
-    pub async fn get_resource_metadata(&self, resource_id: &str) -> CoreResult<Option<ResourceMetadata>> {
+    pub async fn get_resource_metadata(
+        &self,
+        resource_id: &str,
+    ) -> CoreResult<Option<ResourceMetadata>> {
         let mut resources = self.resources.write().await;
 
         if let Some(resource) = resources.get_mut(resource_id) {
@@ -430,7 +441,8 @@ impl ResourceMemoryManager {
         if let Some(resource) = resources.remove(resource_id) {
             // 删除物理文件
             if resource.storage_path.exists() {
-                tokio::fs::remove_file(&resource.storage_path).await
+                tokio::fs::remove_file(&resource.storage_path)
+                    .await
                     .map_err(|e| CoreError::IoError(format!("Failed to delete file: {}", e)))?;
             }
 
@@ -443,12 +455,18 @@ impl ResourceMemoryManager {
 
             Ok(())
         } else {
-            Err(CoreError::NotFound(format!("Resource {} not found", resource_id)))
+            Err(CoreError::NotFound(format!(
+                "Resource {} not found",
+                resource_id
+            )))
         }
     }
 
     /// 按类型搜索资源
-    pub async fn search_by_type(&self, resource_type: ResourceType) -> CoreResult<Vec<ResourceMetadata>> {
+    pub async fn search_by_type(
+        &self,
+        resource_type: ResourceType,
+    ) -> CoreResult<Vec<ResourceMetadata>> {
         let resources = self.resources.read().await;
 
         let results = resources
@@ -466,9 +484,7 @@ impl ResourceMemoryManager {
 
         let results = resources
             .values()
-            .filter(|resource| {
-                tags.iter().any(|tag| resource.tags.contains(tag))
-            })
+            .filter(|resource| tags.iter().any(|tag| resource.tags.contains(tag)))
             .cloned()
             .collect();
 
@@ -483,7 +499,10 @@ impl ResourceMemoryManager {
         let results = resources
             .values()
             .filter(|resource| {
-                resource.original_filename.to_lowercase().contains(&pattern_lower)
+                resource
+                    .original_filename
+                    .to_lowercase()
+                    .contains(&pattern_lower)
             })
             .cloned()
             .collect();
@@ -498,14 +517,21 @@ impl ResourceMemoryManager {
     }
 
     /// 更新资源标签
-    pub async fn update_resource_tags(&self, resource_id: &str, tags: Vec<String>) -> CoreResult<()> {
+    pub async fn update_resource_tags(
+        &self,
+        resource_id: &str,
+        tags: Vec<String>,
+    ) -> CoreResult<()> {
         let mut resources = self.resources.write().await;
 
         if let Some(resource) = resources.get_mut(resource_id) {
             resource.tags = tags;
             Ok(())
         } else {
-            Err(CoreError::NotFound(format!("Resource {} not found", resource_id)))
+            Err(CoreError::NotFound(format!(
+                "Resource {} not found",
+                resource_id
+            )))
         }
     }
 
@@ -521,7 +547,10 @@ impl ResourceMemoryManager {
             resource.custom_metadata = custom_metadata;
             Ok(())
         } else {
-            Err(CoreError::NotFound(format!("Resource {} not found", resource_id)))
+            Err(CoreError::NotFound(format!(
+                "Resource {} not found",
+                resource_id
+            )))
         }
     }
 
@@ -546,7 +575,10 @@ impl ResourceMemoryManager {
 
         for resource in resources.values() {
             // 按类型统计
-            *stats.resources_by_type.entry(resource.resource_type.clone()).or_insert(0) += 1;
+            *stats
+                .resources_by_type
+                .entry(resource.resource_type.clone())
+                .or_insert(0) += 1;
 
             // 存储大小统计
             stats.total_storage_size += resource.file_size;
@@ -599,14 +631,21 @@ impl ResourceMemoryManager {
         for (resource_id, resource) in resources.iter() {
             // 检查文件是否存在
             if !resource.storage_path.exists() {
-                issues.push(format!("Missing file for resource {}: {:?}", resource_id, resource.storage_path));
+                issues.push(format!(
+                    "Missing file for resource {}: {:?}",
+                    resource_id, resource.storage_path
+                ));
             }
 
             // 检查文件大小是否匹配
             if let Ok(metadata) = tokio::fs::metadata(&resource.storage_path).await {
                 if metadata.len() != resource.file_size {
-                    issues.push(format!("File size mismatch for resource {}: expected {}, found {}",
-                        resource_id, resource.file_size, metadata.len()));
+                    issues.push(format!(
+                        "File size mismatch for resource {}: expected {}, found {}",
+                        resource_id,
+                        resource.file_size,
+                        metadata.len()
+                    ));
                 }
             }
         }
@@ -674,17 +713,28 @@ mod tests {
         let test_file = create_test_file(temp_dir.path(), "test.txt", test_content).await;
 
         // 存储资源
-        let resource_id = manager.store_resource(&test_file, None, None).await.unwrap();
+        let resource_id = manager
+            .store_resource(&test_file, None, None)
+            .await
+            .unwrap();
 
         // 获取资源元数据
-        let metadata = manager.get_resource_metadata(&resource_id).await.unwrap().unwrap();
+        let metadata = manager
+            .get_resource_metadata(&resource_id)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(metadata.original_filename, "test.txt");
         assert_eq!(metadata.resource_type, ResourceType::Document);
         assert_eq!(metadata.file_size, test_content.len() as u64);
         assert_eq!(metadata.access_count, 1);
 
         // 获取资源路径
-        let storage_path = manager.get_resource_path(&resource_id).await.unwrap().unwrap();
+        let storage_path = manager
+            .get_resource_path(&resource_id)
+            .await
+            .unwrap()
+            .unwrap();
         assert!(storage_path.exists());
 
         // 验证文件内容
@@ -709,10 +759,16 @@ mod tests {
         let test_file2 = create_test_file(temp_dir.path(), "file2.txt", test_content).await;
 
         // 存储第一个文件
-        let resource_id1 = manager.store_resource(&test_file1, None, None).await.unwrap();
+        let resource_id1 = manager
+            .store_resource(&test_file1, None, None)
+            .await
+            .unwrap();
 
         // 存储第二个文件 (应该返回相同的资源ID)
-        let resource_id2 = manager.store_resource(&test_file2, None, None).await.unwrap();
+        let resource_id2 = manager
+            .store_resource(&test_file2, None, None)
+            .await
+            .unwrap();
 
         assert_eq!(resource_id1, resource_id2);
 
@@ -740,10 +796,16 @@ mod tests {
         // 存储资源
         manager.store_resource(&doc_file, None, None).await.unwrap();
         manager.store_resource(&img_file, None, None).await.unwrap();
-        manager.store_resource(&audio_file, None, None).await.unwrap();
+        manager
+            .store_resource(&audio_file, None, None)
+            .await
+            .unwrap();
 
         // 按类型搜索
-        let documents = manager.search_by_type(ResourceType::Document).await.unwrap();
+        let documents = manager
+            .search_by_type(ResourceType::Document)
+            .await
+            .unwrap();
         let images = manager.search_by_type(ResourceType::Image).await.unwrap();
         let audio = manager.search_by_type(ResourceType::Audio).await.unwrap();
 
@@ -767,18 +829,32 @@ mod tests {
         let manager = ResourceMemoryManager::with_config(config).unwrap();
 
         // 创建测试文件
-        let test_file = create_test_file(temp_dir.path(), "tagged_file.txt", b"Tagged content").await;
+        let test_file =
+            create_test_file(temp_dir.path(), "tagged_file.txt", b"Tagged content").await;
 
         // 存储带标签的资源
-        let tags = vec!["important".to_string(), "document".to_string(), "test".to_string()];
-        manager.store_resource(&test_file, Some(tags.clone()), None).await.unwrap();
+        let tags = vec![
+            "important".to_string(),
+            "document".to_string(),
+            "test".to_string(),
+        ];
+        manager
+            .store_resource(&test_file, Some(tags.clone()), None)
+            .await
+            .unwrap();
 
         // 按标签搜索
-        let results = manager.search_by_tags(&["important".to_string()]).await.unwrap();
+        let results = manager
+            .search_by_tags(&["important".to_string()])
+            .await
+            .unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].tags, tags);
 
-        let no_results = manager.search_by_tags(&["nonexistent".to_string()]).await.unwrap();
+        let no_results = manager
+            .search_by_tags(&["nonexistent".to_string()])
+            .await
+            .unwrap();
         assert_eq!(no_results.len(), 0);
     }
 
@@ -825,14 +901,24 @@ mod tests {
         let test_file = create_test_file(temp_dir.path(), "test.txt", b"Test content").await;
 
         // 存储资源
-        let resource_id = manager.store_resource(&test_file, None, None).await.unwrap();
+        let resource_id = manager
+            .store_resource(&test_file, None, None)
+            .await
+            .unwrap();
 
         // 更新标签
         let new_tags = vec!["updated".to_string(), "new_tag".to_string()];
-        manager.update_resource_tags(&resource_id, new_tags.clone()).await.unwrap();
+        manager
+            .update_resource_tags(&resource_id, new_tags.clone())
+            .await
+            .unwrap();
 
         // 验证标签更新
-        let metadata = manager.get_resource_metadata(&resource_id).await.unwrap().unwrap();
+        let metadata = manager
+            .get_resource_metadata(&resource_id)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(metadata.tags, new_tags);
     }
 
@@ -850,18 +936,33 @@ mod tests {
         let test_file = create_test_file(temp_dir.path(), "to_delete.txt", b"Delete me").await;
 
         // 存储资源
-        let resource_id = manager.store_resource(&test_file, None, None).await.unwrap();
+        let resource_id = manager
+            .store_resource(&test_file, None, None)
+            .await
+            .unwrap();
 
         // 验证资源存在
-        assert!(manager.get_resource_metadata(&resource_id).await.unwrap().is_some());
-        let storage_path = manager.get_resource_path(&resource_id).await.unwrap().unwrap();
+        assert!(manager
+            .get_resource_metadata(&resource_id)
+            .await
+            .unwrap()
+            .is_some());
+        let storage_path = manager
+            .get_resource_path(&resource_id)
+            .await
+            .unwrap()
+            .unwrap();
         assert!(storage_path.exists());
 
         // 删除资源
         manager.delete_resource(&resource_id).await.unwrap();
 
         // 验证资源已删除
-        assert!(manager.get_resource_metadata(&resource_id).await.unwrap().is_none());
+        assert!(manager
+            .get_resource_metadata(&resource_id)
+            .await
+            .unwrap()
+            .is_none());
         assert!(!storage_path.exists());
     }
 
@@ -917,8 +1018,14 @@ mod tests {
         // 检查统计信息
         let stats = manager.get_stats().await.unwrap();
         assert_eq!(stats.total_resources, 2);
-        assert_eq!(stats.total_storage_size, (doc_content.len() + img_content.len()) as u64);
-        assert_eq!(stats.resources_by_type.get(&ResourceType::Document), Some(&1));
+        assert_eq!(
+            stats.total_storage_size,
+            (doc_content.len() + img_content.len()) as u64
+        );
+        assert_eq!(
+            stats.resources_by_type.get(&ResourceType::Document),
+            Some(&1)
+        );
         assert_eq!(stats.resources_by_type.get(&ResourceType::Image), Some(&1));
 
         let expected_avg = (doc_content.len() + img_content.len()) as f64 / 2.0;
@@ -939,14 +1046,21 @@ mod tests {
         let test_file = create_test_file(temp_dir.path(), "health_test.txt", b"Health check").await;
 
         // 存储资源
-        let resource_id = manager.store_resource(&test_file, None, None).await.unwrap();
+        let resource_id = manager
+            .store_resource(&test_file, None, None)
+            .await
+            .unwrap();
 
         // 健康检查应该没有问题
         let issues = manager.check_storage_health().await.unwrap();
         assert_eq!(issues.len(), 0);
 
         // 删除物理文件但保留元数据
-        let storage_path = manager.get_resource_path(&resource_id).await.unwrap().unwrap();
+        let storage_path = manager
+            .get_resource_path(&resource_id)
+            .await
+            .unwrap()
+            .unwrap();
         tokio::fs::remove_file(&storage_path).await.unwrap();
 
         // 健康检查应该发现问题
@@ -969,7 +1083,10 @@ mod tests {
         let test_file = create_test_file(temp_dir.path(), "clear_test.txt", b"Clear me").await;
 
         // 存储资源
-        manager.store_resource(&test_file, None, None).await.unwrap();
+        manager
+            .store_resource(&test_file, None, None)
+            .await
+            .unwrap();
 
         // 验证资源存在
         let stats_before = manager.get_stats().await.unwrap();

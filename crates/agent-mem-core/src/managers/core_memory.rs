@@ -1,9 +1,9 @@
 //! Core Memory Manager - 核心记忆管理器
-//! 
+//!
 //! 实现 persona 和 human 块管理，支持自动重写机制
 //! 基于 AgentMem 7.0 认知记忆架构
 
-use crate::{CoreResult, CoreError};
+use crate::{CoreError, CoreResult};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -59,14 +59,10 @@ pub struct CoreMemoryBlock {
 
 impl CoreMemoryBlock {
     /// 创建新的 Core Memory 块
-    pub fn new(
-        block_type: CoreMemoryBlockType,
-        content: String,
-        max_capacity: usize,
-    ) -> Self {
+    pub fn new(block_type: CoreMemoryBlockType, content: String, max_capacity: usize) -> Self {
         let now = Utc::now();
         let current_size = content.len();
-        
+
         Self {
             id: Uuid::new_v4().to_string(),
             block_type,
@@ -85,7 +81,7 @@ impl CoreMemoryBlock {
     /// 更新块内容
     pub fn update_content(&mut self, new_content: String) -> CoreResult<()> {
         let new_size = new_content.len();
-        
+
         if new_size > self.max_capacity {
             return Err(CoreError::InvalidInput(format!(
                 "Content size {} exceeds max capacity {}",
@@ -96,7 +92,7 @@ impl CoreMemoryBlock {
         self.content = new_content;
         self.current_size = new_size;
         self.updated_at = Utc::now();
-        
+
         Ok(())
     }
 
@@ -142,11 +138,11 @@ pub struct CoreMemoryConfig {
 impl Default for CoreMemoryConfig {
     fn default() -> Self {
         Self {
-            persona_default_capacity: 2000,  // 2KB
-            human_default_capacity: 4000,    // 4KB
-            auto_rewrite_threshold: 0.9,     // 90%
+            persona_default_capacity: 2000, // 2KB
+            human_default_capacity: 4000,   // 4KB
+            auto_rewrite_threshold: 0.9,    // 90%
             enable_auto_rewrite: true,
-            rewrite_retention_ratio: 0.7,    // 保留70%重要内容
+            rewrite_retention_ratio: 0.7, // 保留70%重要内容
         }
     }
 }
@@ -238,14 +234,14 @@ impl CoreMemoryManager {
     /// 获取 Persona 块
     pub async fn get_persona_block(&self, block_id: &str) -> CoreResult<Option<CoreMemoryBlock>> {
         let mut persona_blocks = self.persona_blocks.write().await;
-        
+
         if let Some(block) = persona_blocks.get_mut(block_id) {
             block.record_access();
-            
+
             // 更新统计
             let mut stats = self.stats.write().await;
             stats.total_accesses += 1;
-            
+
             Ok(Some(block.clone()))
         } else {
             Ok(None)
@@ -291,16 +287,15 @@ impl CoreMemoryManager {
 
             Ok(())
         } else {
-            Err(CoreError::NotFound(format!("Persona block {} not found", block_id)))
+            Err(CoreError::NotFound(format!(
+                "Persona block {} not found",
+                block_id
+            )))
         }
     }
 
     /// 更新 Human 块内容
-    pub async fn update_human_block(
-        &self,
-        block_id: &str,
-        new_content: String,
-    ) -> CoreResult<()> {
+    pub async fn update_human_block(&self, block_id: &str, new_content: String) -> CoreResult<()> {
         let mut human_blocks = self.human_blocks.write().await;
 
         if let Some(block) = human_blocks.get_mut(block_id) {
@@ -317,7 +312,10 @@ impl CoreMemoryManager {
 
             Ok(())
         } else {
-            Err(CoreError::NotFound(format!("Human block {} not found", block_id)))
+            Err(CoreError::NotFound(format!(
+                "Human block {} not found",
+                block_id
+            )))
         }
     }
 
@@ -343,7 +341,10 @@ impl CoreMemoryManager {
 
             Ok(())
         } else {
-            Err(CoreError::NotFound(format!("Persona block {} not found", block_id)))
+            Err(CoreError::NotFound(format!(
+                "Persona block {} not found",
+                block_id
+            )))
         }
     }
 
@@ -369,7 +370,10 @@ impl CoreMemoryManager {
 
             Ok(())
         } else {
-            Err(CoreError::NotFound(format!("Human block {} not found", block_id)))
+            Err(CoreError::NotFound(format!(
+                "Human block {} not found",
+                block_id
+            )))
         }
     }
 
@@ -383,7 +387,10 @@ impl CoreMemoryManager {
             stats.persona_blocks_count = persona_blocks.len();
             Ok(())
         } else {
-            Err(CoreError::NotFound(format!("Persona block {} not found", block_id)))
+            Err(CoreError::NotFound(format!(
+                "Persona block {} not found",
+                block_id
+            )))
         }
     }
 
@@ -397,7 +404,10 @@ impl CoreMemoryManager {
             stats.human_blocks_count = human_blocks.len();
             Ok(())
         } else {
-            Err(CoreError::NotFound(format!("Human block {} not found", block_id)))
+            Err(CoreError::NotFound(format!(
+                "Human block {} not found",
+                block_id
+            )))
         }
     }
 
@@ -417,7 +427,8 @@ impl CoreMemoryManager {
     async fn auto_rewrite_block(&self, block: &mut CoreMemoryBlock) -> CoreResult<()> {
         // 简单的重写策略：保留最重要的内容
         let lines: Vec<&str> = block.content.lines().collect();
-        let target_size = (block.max_capacity as f32 * self.config.rewrite_retention_ratio) as usize;
+        let target_size =
+            (block.max_capacity as f32 * self.config.rewrite_retention_ratio) as usize;
 
         // 按重要性排序（这里简化为按长度，实际应该使用更复杂的重要性评估）
         let mut important_lines: Vec<&str> = lines.clone();
@@ -482,7 +493,9 @@ impl CoreMemoryManager {
     }
 
     /// 检查所有块的容量状态
-    pub async fn check_capacity_status(&self) -> CoreResult<Vec<(String, CoreMemoryBlockType, f32)>> {
+    pub async fn check_capacity_status(
+        &self,
+    ) -> CoreResult<Vec<(String, CoreMemoryBlockType, f32)>> {
         let mut status = Vec::new();
 
         let persona_blocks = self.persona_blocks.read().await;
@@ -594,7 +607,10 @@ mod tests {
         let manager = CoreMemoryManager::new();
 
         let content = "I am a helpful AI assistant with a friendly personality.".to_string();
-        let block_id = manager.create_persona_block(content.clone(), None).await.unwrap();
+        let block_id = manager
+            .create_persona_block(content.clone(), None)
+            .await
+            .unwrap();
 
         let retrieved_block = manager.get_persona_block(&block_id).await.unwrap().unwrap();
         assert_eq!(retrieved_block.content, content);
@@ -607,7 +623,10 @@ mod tests {
         let manager = CoreMemoryManager::new();
 
         let content = "User prefers concise responses and technical details.".to_string();
-        let block_id = manager.create_human_block(content.clone(), None).await.unwrap();
+        let block_id = manager
+            .create_human_block(content.clone(), None)
+            .await
+            .unwrap();
 
         let retrieved_block = manager.get_human_block(&block_id).await.unwrap().unwrap();
         assert_eq!(retrieved_block.content, content);
@@ -620,10 +639,16 @@ mod tests {
         let manager = CoreMemoryManager::new();
 
         let initial_content = "Initial content".to_string();
-        let block_id = manager.create_persona_block(initial_content, None).await.unwrap();
+        let block_id = manager
+            .create_persona_block(initial_content, None)
+            .await
+            .unwrap();
 
         let new_content = "Updated content with more information".to_string();
-        manager.update_persona_block(&block_id, new_content.clone()).await.unwrap();
+        manager
+            .update_persona_block(&block_id, new_content.clone())
+            .await
+            .unwrap();
 
         let updated_block = manager.get_persona_block(&block_id).await.unwrap().unwrap();
         assert_eq!(updated_block.content, new_content);
@@ -635,10 +660,16 @@ mod tests {
         let manager = CoreMemoryManager::new();
 
         let initial_content = "Initial content".to_string();
-        let block_id = manager.create_persona_block(initial_content.clone(), None).await.unwrap();
+        let block_id = manager
+            .create_persona_block(initial_content.clone(), None)
+            .await
+            .unwrap();
 
         let additional_content = "Additional information";
-        manager.append_to_persona_block(&block_id, additional_content).await.unwrap();
+        manager
+            .append_to_persona_block(&block_id, additional_content)
+            .await
+            .unwrap();
 
         let updated_block = manager.get_persona_block(&block_id).await.unwrap().unwrap();
         assert!(updated_block.content.contains(&initial_content));
@@ -652,7 +683,10 @@ mod tests {
         // 创建一个小容量的块
         let small_capacity = 50;
         let content = "Short content".to_string();
-        let block_id = manager.create_persona_block(content, Some(small_capacity)).await.unwrap();
+        let block_id = manager
+            .create_persona_block(content, Some(small_capacity))
+            .await
+            .unwrap();
 
         let block = manager.get_persona_block(&block_id).await.unwrap().unwrap();
         assert_eq!(block.max_capacity, small_capacity);
@@ -675,10 +709,16 @@ mod tests {
         // 创建一个小容量的块
         let small_capacity = 100;
         let content = "x".repeat(85); // 85% 容量使用
-        let block_id = manager.create_persona_block(content, Some(small_capacity)).await.unwrap();
+        let block_id = manager
+            .create_persona_block(content, Some(small_capacity))
+            .await
+            .unwrap();
 
         // 添加更多内容触发重写
-        manager.append_to_persona_block(&block_id, "more content").await.unwrap();
+        manager
+            .append_to_persona_block(&block_id, "more content")
+            .await
+            .unwrap();
 
         let stats = manager.get_stats().await.unwrap();
         assert!(stats.auto_rewrites > 0);
@@ -692,13 +732,21 @@ mod tests {
         let block_id = manager.create_persona_block(content, None).await.unwrap();
 
         // 确认块存在
-        assert!(manager.get_persona_block(&block_id).await.unwrap().is_some());
+        assert!(manager
+            .get_persona_block(&block_id)
+            .await
+            .unwrap()
+            .is_some());
 
         // 删除块
         manager.delete_persona_block(&block_id).await.unwrap();
 
         // 确认块已删除
-        assert!(manager.get_persona_block(&block_id).await.unwrap().is_none());
+        assert!(manager
+            .get_persona_block(&block_id)
+            .await
+            .unwrap()
+            .is_none());
 
         let stats = manager.get_stats().await.unwrap();
         assert_eq!(stats.persona_blocks_count, 0);
@@ -709,9 +757,18 @@ mod tests {
         let manager = CoreMemoryManager::new();
 
         // 创建多个块
-        manager.create_persona_block("Persona 1".to_string(), None).await.unwrap();
-        manager.create_persona_block("Persona 2".to_string(), None).await.unwrap();
-        manager.create_human_block("Human 1".to_string(), None).await.unwrap();
+        manager
+            .create_persona_block("Persona 1".to_string(), None)
+            .await
+            .unwrap();
+        manager
+            .create_persona_block("Persona 2".to_string(), None)
+            .await
+            .unwrap();
+        manager
+            .create_human_block("Human 1".to_string(), None)
+            .await
+            .unwrap();
 
         let persona_blocks = manager.list_persona_blocks().await.unwrap();
         let human_blocks = manager.list_human_blocks().await.unwrap();
@@ -724,7 +781,10 @@ mod tests {
     async fn test_capacity_status_check() {
         let manager = CoreMemoryManager::new();
 
-        let block_id = manager.create_persona_block("Test content".to_string(), Some(100)).await.unwrap();
+        let block_id = manager
+            .create_persona_block("Test content".to_string(), Some(100))
+            .await
+            .unwrap();
 
         let status = manager.check_capacity_status().await.unwrap();
         assert_eq!(status.len(), 1);
@@ -748,6 +808,8 @@ mod tests {
         assert_eq!(stats.auto_rewrites, 1);
 
         let block = manager.get_persona_block(&block_id).await.unwrap().unwrap();
-        assert!(block.content.contains("[Auto-rewritten to manage capacity]"));
+        assert!(block
+            .content
+            .contains("[Auto-rewritten to manage capacity]"));
     }
 }

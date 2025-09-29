@@ -5,11 +5,11 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tokio::time::{sleep, Duration};
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
 
-use crate::{CoreResult, CoreError};
-use crate::hierarchy::{HierarchicalMemory, MemoryScope, MemoryLevel};
-use super::{StorageBackend, CacheBackend};
+use super::{CacheBackend, StorageBackend};
+use crate::hierarchy::{HierarchicalMemory, MemoryLevel, MemoryScope};
+use crate::{CoreError, CoreResult};
 
 /// Migration progress information
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -98,13 +98,18 @@ impl MigrationManager {
             errors: Vec::new(),
         };
 
-        info!("Starting migration of {} items to persistent storage", total_items);
+        info!(
+            "Starting migration of {} items to persistent storage",
+            total_items
+        );
 
         // Initialize target storage
         if let Err(e) = target.initialize().await {
             error!("Failed to initialize target storage: {}", e);
             progress.status = MigrationStatus::Failed;
-            progress.errors.push(format!("Storage initialization failed: {}", e));
+            progress
+                .errors
+                .push(format!("Storage initialization failed: {}", e));
             return Ok(progress);
         }
 
@@ -124,23 +129,32 @@ impl MigrationManager {
                         Ok(_) => {
                             progress.migrated_items += 1;
                             success = true;
-                            
+
                             // Verify data if enabled
                             if self.config.verify_data {
                                 match target.get_memory(id).await {
                                     Ok(Some(retrieved)) => {
-                                        if retrieved.memory.id != memory.memory.id || retrieved.memory.content != memory.memory.content {
+                                        if retrieved.memory.id != memory.memory.id
+                                            || retrieved.memory.content != memory.memory.content
+                                        {
                                             warn!("Data verification failed for memory {}", id);
-                                            progress.errors.push(format!("Verification failed for {}", id));
+                                            progress
+                                                .errors
+                                                .push(format!("Verification failed for {}", id));
                                         }
                                     }
                                     Ok(None) => {
                                         warn!("Memory {} not found after migration", id);
-                                        progress.errors.push(format!("Memory {} not found after migration", id));
+                                        progress.errors.push(format!(
+                                            "Memory {} not found after migration",
+                                            id
+                                        ));
                                     }
                                     Err(e) => {
                                         warn!("Failed to verify memory {}: {}", id, e);
-                                        progress.errors.push(format!("Verification error for {}: {}", id, e));
+                                        progress
+                                            .errors
+                                            .push(format!("Verification error for {}: {}", id, e));
                                     }
                                 }
                             }
@@ -148,10 +162,15 @@ impl MigrationManager {
                         Err(e) => {
                             retries += 1;
                             if retries > self.config.max_retries {
-                                error!("Failed to migrate memory {} after {} retries: {}", id, self.config.max_retries, e);
+                                error!(
+                                    "Failed to migrate memory {} after {} retries: {}",
+                                    id, self.config.max_retries, e
+                                );
                                 progress.failed_items += 1;
-                                progress.errors.push(format!("Failed to migrate {}: {}", id, e));
-                                
+                                progress
+                                    .errors
+                                    .push(format!("Failed to migrate {}: {}", id, e));
+
                                 if !self.config.continue_on_error {
                                     progress.status = MigrationStatus::Failed;
                                     return Ok(progress);
@@ -199,7 +218,10 @@ impl MigrationManager {
         // Initialize target storage
         if let Err(e) = target.initialize().await {
             error!("Failed to initialize target storage: {}", e);
-            return Err(CoreError::MigrationError(format!("Target initialization failed: {}", e)));
+            return Err(CoreError::MigrationError(format!(
+                "Target initialization failed: {}",
+                e
+            )));
         }
 
         // Get statistics from source to estimate total items
@@ -219,12 +241,14 @@ impl MigrationManager {
         // For now, we'll implement a simple approach
         // In a production system, you'd want to implement pagination
         // and more sophisticated batching strategies
-        
+
         // This is a simplified implementation - in practice you'd need
         // to implement proper pagination for large datasets
         warn!("Backend-to-backend migration is not fully implemented yet");
         progress.status = MigrationStatus::Failed;
-        progress.errors.push("Backend-to-backend migration not implemented".to_string());
+        progress
+            .errors
+            .push("Backend-to-backend migration not implemented".to_string());
 
         Ok(progress)
     }
@@ -251,9 +275,9 @@ impl MigrationManager {
         // Get recent memories to warm the cache
         // This is a simplified implementation - you might want to implement
         // more sophisticated cache warming strategies based on access patterns
-        
+
         // For now, we'll get memories by different scopes and levels
-        
+
         let scopes = [
             MemoryScope::Global,
             MemoryScope::Agent("default".to_string()),
@@ -267,26 +291,35 @@ impl MigrationManager {
                 session_id: "default".to_string(),
             },
         ];
-        let levels = [MemoryLevel::Strategic, MemoryLevel::Tactical, MemoryLevel::Operational];
+        let levels = [
+            MemoryLevel::Strategic,
+            MemoryLevel::Tactical,
+            MemoryLevel::Operational,
+        ];
 
         for scope in &scopes {
             match storage.get_memories_by_scope(scope.clone(), limit).await {
                 Ok(memories) => {
                     progress.total_items += memories.len() as u64;
-                    
+
                     for memory in memories {
                         match cache.set(&memory.memory.id, &memory, None).await {
                             Ok(_) => progress.migrated_items += 1,
                             Err(e) => {
                                 progress.failed_items += 1;
-                                progress.errors.push(format!("Failed to cache {}: {}", memory.memory.id, e));
+                                progress
+                                    .errors
+                                    .push(format!("Failed to cache {}: {}", memory.memory.id, e));
                             }
                         }
                     }
                 }
                 Err(e) => {
                     warn!("Failed to get memories for scope {:?}: {}", scope, e);
-                    progress.errors.push(format!("Failed to get memories for scope {:?}: {}", scope, e));
+                    progress.errors.push(format!(
+                        "Failed to get memories for scope {:?}: {}",
+                        scope, e
+                    ));
                 }
             }
         }
@@ -303,7 +336,10 @@ impl MigrationManager {
                                     Ok(_) => progress.migrated_items += 1,
                                     Err(e) => {
                                         progress.failed_items += 1;
-                                        progress.errors.push(format!("Failed to cache {}: {}", memory.memory.id, e));
+                                        progress.errors.push(format!(
+                                            "Failed to cache {}: {}",
+                                            memory.memory.id, e
+                                        ));
                                     }
                                 }
                             }
@@ -311,14 +347,20 @@ impl MigrationManager {
                                 // Already cached, skip
                             }
                             Err(e) => {
-                                warn!("Failed to check cache existence for {}: {}", memory.memory.id, e);
+                                warn!(
+                                    "Failed to check cache existence for {}: {}",
+                                    memory.memory.id, e
+                                );
                             }
                         }
                     }
                 }
                 Err(e) => {
                     warn!("Failed to get memories for level {:?}: {}", level, e);
-                    progress.errors.push(format!("Failed to get memories for level {:?}: {}", level, e));
+                    progress.errors.push(format!(
+                        "Failed to get memories for level {:?}: {}",
+                        level, e
+                    ));
                 }
             }
         }
@@ -366,20 +408,24 @@ impl MigrationManager {
         progress.total_items = stats.total_memories;
 
         // Create output file
-        let mut file = File::create(file_path).await
+        let mut file = File::create(file_path)
+            .await
             .map_err(|e| CoreError::IoError(format!("Failed to create export file: {}", e)))?;
 
         // Write JSON array start
-        file.write_all(b"[\n").await
+        file.write_all(b"[\n")
+            .await
             .map_err(|e| CoreError::IoError(format!("Failed to write to export file: {}", e)))?;
 
         // This is a simplified implementation
         // In practice, you'd want to implement proper streaming export
         // for large datasets to avoid memory issues
-        
+
         warn!("JSON export is not fully implemented yet");
         progress.status = MigrationStatus::Failed;
-        progress.errors.push("JSON export not implemented".to_string());
+        progress
+            .errors
+            .push("JSON export not implemented".to_string());
 
         Ok(progress)
     }

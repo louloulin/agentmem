@@ -6,9 +6,12 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
 
-use crate::{CoreResult, CoreError, types::*};
-use crate::hierarchy::{HierarchyManager, HierarchyConfig, HierarchicalMemory, MemoryLevel, MemoryScope, HierarchyStatistics};
-use super::{HybridStorageManager, StorageConfig, postgres::PostgresStorage, redis::RedisCache};
+use super::{postgres::PostgresStorage, redis::RedisCache, HybridStorageManager, StorageConfig};
+use crate::hierarchy::{
+    HierarchicalMemory, HierarchyConfig, HierarchyManager, HierarchyStatistics, MemoryLevel,
+    MemoryScope,
+};
+use crate::{types::*, CoreError, CoreResult};
 
 /// Storage-enabled hierarchy manager that combines in-memory, PostgreSQL, and Redis
 pub struct HybridHierarchyManager {
@@ -48,7 +51,7 @@ impl HybridHierarchyManager {
 
         // Create PostgreSQL backend
         let postgres = PostgresStorage::new(self.storage_config.postgres.clone()).await?;
-        
+
         // Create Redis cache backend
         let redis = RedisCache::new(self.storage_config.redis.clone()).await?;
 
@@ -63,7 +66,7 @@ impl HybridHierarchyManager {
         storage.initialize().await?;
 
         self.storage = Some(storage);
-        
+
         // Mark as initialized
         {
             let mut initialized = self.storage_initialized.write().await;
@@ -78,14 +81,17 @@ impl HybridHierarchyManager {
     async fn ensure_storage_initialized(&self) -> CoreResult<()> {
         let initialized = self.storage_initialized.read().await;
         if !*initialized {
-            return Err(CoreError::Storage("Storage not initialized. Call initialize_storage() first.".to_string()));
+            return Err(CoreError::Storage(
+                "Storage not initialized. Call initialize_storage() first.".to_string(),
+            ));
         }
         Ok(())
     }
 
     /// Get storage reference
     fn get_storage(&self) -> CoreResult<&HybridStorageManager> {
-        self.storage.as_ref()
+        self.storage
+            .as_ref()
             .ok_or_else(|| CoreError::Storage("Storage not initialized".to_string()))
     }
 
@@ -113,7 +119,12 @@ impl HybridHierarchyManager {
     }
 
     /// Remove from in-memory indexes
-    async fn remove_from_indexes(&self, memory_id: &str, scope: &MemoryScope, level: MemoryLevel) -> CoreResult<()> {
+    async fn remove_from_indexes(
+        &self,
+        memory_id: &str,
+        scope: &MemoryScope,
+        level: MemoryLevel,
+    ) -> CoreResult<()> {
         // Remove from scope index
         {
             let mut scope_index = self.scope_index.write().await;
@@ -198,14 +209,17 @@ impl HybridHierarchyManager {
         // Remove from indexes if we had the memory
         let had_memory = memory_info.is_some();
         if let Some(memory) = memory_info {
-            self.remove_from_indexes(id, &memory.scope, memory.level).await?;
+            self.remove_from_indexes(id, &memory.scope, memory.level)
+                .await?;
         }
 
         Ok(storage_removed || had_memory)
     }
 
     /// Get health status of storage backends
-    pub async fn get_storage_health(&self) -> CoreResult<(super::HealthStatus, super::HealthStatus)> {
+    pub async fn get_storage_health(
+        &self,
+    ) -> CoreResult<(super::HealthStatus, super::HealthStatus)> {
         self.ensure_storage_initialized().await?;
         let storage = self.get_storage()?;
         storage.health_check().await
@@ -226,19 +240,19 @@ impl HybridHierarchyManager {
     }
 
     /// Warm up cache from storage
-    pub async fn warm_cache(&self, limit: Option<usize>) -> CoreResult<super::migration::MigrationProgress> {
+    pub async fn warm_cache(
+        &self,
+        limit: Option<usize>,
+    ) -> CoreResult<super::migration::MigrationProgress> {
         self.ensure_storage_initialized().await?;
         let storage = self.get_storage()?;
-        
-        let migration_manager = super::migration::MigrationManager::new(
-            super::migration::MigrationConfig::default()
-        );
-        
-        migration_manager.warm_cache(
-            storage.postgres.as_ref(),
-            storage.redis.as_ref(),
-            limit
-        ).await
+
+        let migration_manager =
+            super::migration::MigrationManager::new(super::migration::MigrationConfig::default());
+
+        migration_manager
+            .warm_cache(storage.postgres.as_ref(), storage.redis.as_ref(), limit)
+            .await
     }
 }
 
@@ -261,7 +275,8 @@ impl HierarchyManager for HybridHierarchyManager {
             MemoryScope::Global
         } else if let Some(agent_id) = memory.metadata.get("agent_id").and_then(|v| v.as_str()) {
             if let Some(user_id) = memory.metadata.get("user_id").and_then(|v| v.as_str()) {
-                if let Some(session_id) = memory.metadata.get("session_id").and_then(|v| v.as_str()) {
+                if let Some(session_id) = memory.metadata.get("session_id").and_then(|v| v.as_str())
+                {
                     MemoryScope::Session {
                         agent_id: agent_id.to_string(),
                         user_id: user_id.to_string(),
@@ -281,7 +296,8 @@ impl HierarchyManager for HybridHierarchyManager {
         };
 
         // Convert MemoryItem to types::Memory
-        let types_memory: crate::types::Memory = memory.try_into()
+        let types_memory: crate::types::Memory = memory
+            .try_into()
             .map_err(|e| CoreError::Storage(format!("Failed to convert memory: {}", e)))?;
 
         use crate::hierarchy::HierarchyMetadata;
@@ -296,8 +312,10 @@ impl HierarchyManager for HybridHierarchyManager {
         // Store the memory
         self.store_memory_internal(&hierarchical_memory).await?;
 
-        info!("Added memory {} at level {:?} in scope {:?}",
-              hierarchical_memory.memory.id, hierarchical_memory.level, hierarchical_memory.scope);
+        info!(
+            "Added memory {} at level {:?} in scope {:?}",
+            hierarchical_memory.memory.id, hierarchical_memory.level, hierarchical_memory.scope
+        );
 
         Ok(hierarchical_memory)
     }
@@ -318,7 +336,7 @@ impl HierarchyManager for HybridHierarchyManager {
 
     async fn remove_memory(&self, id: &str) -> CoreResult<bool> {
         let removed = self.remove_memory_internal(id).await?;
-        
+
         if removed {
             info!("Removed memory {}", id);
         } else {
@@ -328,7 +346,10 @@ impl HierarchyManager for HybridHierarchyManager {
         Ok(removed)
     }
 
-    async fn get_memories_at_level(&self, level: MemoryLevel) -> CoreResult<Vec<HierarchicalMemory>> {
+    async fn get_memories_at_level(
+        &self,
+        level: MemoryLevel,
+    ) -> CoreResult<Vec<HierarchicalMemory>> {
         // Get IDs from level index
         let memory_ids = {
             let level_index = self.level_index.read().await;
@@ -359,7 +380,7 @@ impl HierarchyManager for HybridHierarchyManager {
         // Get statistics from storage if available
         if let Ok(storage) = self.get_storage() {
             let storage_stats = storage.get_statistics().await?;
-            
+
             // Convert storage statistics to hierarchy statistics
             let mut memories_by_level = HashMap::new();
             let mut avg_importance_by_level = HashMap::new();
@@ -369,7 +390,12 @@ impl HierarchyManager for HybridHierarchyManager {
                 memories_by_level.insert(level.clone(), count as usize);
                 avg_importance_by_level.insert(level.clone(), 0.5); // Simplified
 
-                let max_capacity = self.config.level_capacities.get(&level).copied().unwrap_or(1000) as f64;
+                let max_capacity = self
+                    .config
+                    .level_capacities
+                    .get(&level)
+                    .copied()
+                    .unwrap_or(1000) as f64;
                 let utilization = (count as f64 / max_capacity).min(1.0);
                 level_utilization.insert(level, utilization);
             }
@@ -393,7 +419,8 @@ impl HierarchyManager for HybridHierarchyManager {
         }
 
         for (level, count) in &memories_by_level {
-            let total_importance: f32 = cache.values()
+            let total_importance: f32 = cache
+                .values()
                 .filter(|m| m.level == *level)
                 .map(|m| m.memory.importance)
                 .sum();
@@ -404,7 +431,12 @@ impl HierarchyManager for HybridHierarchyManager {
             };
             avg_importance_by_level.insert(level.clone(), avg_importance as f64);
 
-            let max_capacity = self.config.level_capacities.get(level).copied().unwrap_or(1000) as f64;
+            let max_capacity = self
+                .config
+                .level_capacities
+                .get(level)
+                .copied()
+                .unwrap_or(1000) as f64;
             let utilization = (*count as f64 / max_capacity).min(1.0);
             level_utilization.insert(level.clone(), utilization);
         }
@@ -431,7 +463,7 @@ impl HierarchyManager for HybridHierarchyManager {
         // Fallback to in-memory search
         let cache = self.memory_cache.read().await;
         let query_lower = query.to_lowercase();
-        
+
         let mut results: Vec<HierarchicalMemory> = cache
             .values()
             .filter(|memory| {
@@ -450,7 +482,10 @@ impl HierarchyManager for HybridHierarchyManager {
 
         // Sort by importance (descending)
         results.sort_by(|a, b| {
-            b.memory.importance.partial_cmp(&a.memory.importance).unwrap_or(std::cmp::Ordering::Equal)
+            b.memory
+                .importance
+                .partial_cmp(&a.memory.importance)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         // Apply limit

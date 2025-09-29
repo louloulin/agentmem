@@ -3,13 +3,13 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde_json;
-use sqlx::{PgPool, Row, postgres::PgPoolOptions};
+use sqlx::{postgres::PgPoolOptions, PgPool, Row};
 use std::collections::HashMap;
 use std::time::Instant;
 
-use crate::{CoreResult, CoreError, types::*};
-use crate::hierarchy::{HierarchicalMemory, MemoryScope, MemoryLevel};
-use super::{StorageBackend, PostgresConfig, StorageStatistics, HealthStatus};
+use super::{HealthStatus, PostgresConfig, StorageBackend, StorageStatistics};
+use crate::hierarchy::{HierarchicalMemory, MemoryLevel, MemoryScope};
+use crate::{types::*, CoreError, CoreResult};
 
 /// PostgreSQL storage backend
 pub struct PostgresStorage {
@@ -24,7 +24,9 @@ impl PostgresStorage {
             .max_connections(config.max_connections)
             .connect(&config.url)
             .await
-            .map_err(|e| CoreError::DatabaseError(format!("Failed to connect to PostgreSQL: {}", e)))?;
+            .map_err(|e| {
+                CoreError::DatabaseError(format!("Failed to connect to PostgreSQL: {}", e))
+            })?;
 
         Ok(Self { pool, config })
     }
@@ -59,22 +61,34 @@ impl PostgresStorage {
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_memories_scope ON memories(scope)")
             .execute(&self.pool)
             .await
-            .map_err(|e| CoreError::DatabaseError(format!("Failed to create scope index: {}", e)))?;
+            .map_err(|e| {
+                CoreError::DatabaseError(format!("Failed to create scope index: {}", e))
+            })?;
 
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_memories_level ON memories(level)")
             .execute(&self.pool)
             .await
-            .map_err(|e| CoreError::DatabaseError(format!("Failed to create level index: {}", e)))?;
+            .map_err(|e| {
+                CoreError::DatabaseError(format!("Failed to create level index: {}", e))
+            })?;
 
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_memories_importance ON memories(importance DESC)")
-            .execute(&self.pool)
-            .await
-            .map_err(|e| CoreError::DatabaseError(format!("Failed to create importance index: {}", e)))?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_memories_importance ON memories(importance DESC)",
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| {
+            CoreError::DatabaseError(format!("Failed to create importance index: {}", e))
+        })?;
 
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_memories_created_at ON memories(created_at DESC)")
-            .execute(&self.pool)
-            .await
-            .map_err(|e| CoreError::DatabaseError(format!("Failed to create created_at index: {}", e)))?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_memories_created_at ON memories(created_at DESC)",
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| {
+            CoreError::DatabaseError(format!("Failed to create created_at index: {}", e))
+        })?;
 
         // Create full-text search index
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_memories_content_fts ON memories USING gin(to_tsvector('english', content))")
@@ -87,33 +101,42 @@ impl PostgresStorage {
 
     /// Convert database row to HierarchicalMemory
     fn row_to_memory(&self, row: &sqlx::postgres::PgRow) -> CoreResult<HierarchicalMemory> {
-        let metadata_json: serde_json::Value = row.try_get("metadata")
+        let metadata_json: serde_json::Value = row
+            .try_get("metadata")
             .map_err(|e| CoreError::DatabaseError(format!("Failed to get metadata: {}", e)))?;
 
         let metadata: HashMap<String, serde_json::Value> = serde_json::from_value(metadata_json)
-            .map_err(|e| CoreError::SerializationError(format!("Failed to deserialize metadata: {}", e)))?;
+            .map_err(|e| {
+                CoreError::SerializationError(format!("Failed to deserialize metadata: {}", e))
+            })?;
 
-        let memory_type_str: String = row.try_get("memory_type")
+        let memory_type_str: String = row
+            .try_get("memory_type")
             .map_err(|e| CoreError::DatabaseError(format!("Failed to get memory_type: {}", e)))?;
-        
-        let scope_str: String = row.try_get("scope")
+
+        let scope_str: String = row
+            .try_get("scope")
             .map_err(|e| CoreError::DatabaseError(format!("Failed to get scope: {}", e)))?;
-        
-        let level_str: String = row.try_get("level")
+
+        let level_str: String = row
+            .try_get("level")
             .map_err(|e| CoreError::DatabaseError(format!("Failed to get level: {}", e)))?;
 
-        let memory_type = MemoryType::from_str(&memory_type_str)
-            .ok_or_else(|| CoreError::ValidationError(format!("Invalid memory type: {}", memory_type_str)))?;
-        
+        let memory_type = MemoryType::from_str(&memory_type_str).ok_or_else(|| {
+            CoreError::ValidationError(format!("Invalid memory type: {}", memory_type_str))
+        })?;
+
         let scope = MemoryScope::from_str(&scope_str)
             .ok_or_else(|| CoreError::ValidationError(format!("Invalid scope: {}", scope_str)))?;
-        
+
         let level = MemoryLevel::from_str(&level_str)
             .ok_or_else(|| CoreError::ValidationError(format!("Invalid level: {}", level_str)))?;
 
-        let created_at: chrono::DateTime<chrono::Utc> = row.try_get("created_at")
+        let created_at: chrono::DateTime<chrono::Utc> = row
+            .try_get("created_at")
             .map_err(|e| CoreError::DatabaseError(format!("Failed to get created_at: {}", e)))?;
-        let last_accessed: Option<chrono::DateTime<chrono::Utc>> = row.try_get("last_accessed").ok();
+        let last_accessed: Option<chrono::DateTime<chrono::Utc>> =
+            row.try_get("last_accessed").ok();
 
         // Convert metadata from JSONB to HashMap<String, String>
         let metadata_map: HashMap<String, String> = metadata
@@ -125,19 +148,25 @@ impl PostgresStorage {
             .collect();
 
         let memory = crate::types::Memory {
-            id: row.try_get("id")
+            id: row
+                .try_get("id")
                 .map_err(|e| CoreError::DatabaseError(format!("Failed to get id: {}", e)))?,
             agent_id: "default".to_string(), // TODO: Store agent_id in DB
-            user_id: None, // TODO: Store user_id in DB
+            user_id: None,                   // TODO: Store user_id in DB
             memory_type,
-            content: row.try_get("content")
+            content: row
+                .try_get("content")
                 .map_err(|e| CoreError::DatabaseError(format!("Failed to get content: {}", e)))?,
-            importance: row.try_get("importance")
-                .map_err(|e| CoreError::DatabaseError(format!("Failed to get importance: {}", e)))?,
+            importance: row.try_get("importance").map_err(|e| {
+                CoreError::DatabaseError(format!("Failed to get importance: {}", e))
+            })?,
             embedding: None, // TODO: Store embedding in DB
             created_at: created_at.timestamp(),
-            last_accessed_at: last_accessed.map(|dt| dt.timestamp()).unwrap_or_else(|| chrono::Utc::now().timestamp()),
-            access_count: row.try_get::<i64, _>("access_count")
+            last_accessed_at: last_accessed
+                .map(|dt| dt.timestamp())
+                .unwrap_or_else(|| chrono::Utc::now().timestamp()),
+            access_count: row
+                .try_get::<i64, _>("access_count")
                 .map(|v| v as u32)
                 .unwrap_or(0),
             expires_at: None, // TODO: Store expires_at in DB
@@ -169,8 +198,9 @@ impl StorageBackend for PostgresStorage {
     }
 
     async fn store_memory(&self, memory: &HierarchicalMemory) -> CoreResult<()> {
-        let metadata_json = serde_json::to_value(&memory.memory.metadata)
-            .map_err(|e| CoreError::SerializationError(format!("Failed to serialize metadata: {}", e)))?;
+        let metadata_json = serde_json::to_value(&memory.memory.metadata).map_err(|e| {
+            CoreError::SerializationError(format!("Failed to serialize metadata: {}", e))
+        })?;
 
         sqlx::query(
             r#"
@@ -213,18 +243,16 @@ impl StorageBackend for PostgresStorage {
     }
 
     async fn get_memory(&self, id: &str) -> CoreResult<Option<HierarchicalMemory>> {
-        let row = sqlx::query(
-            "SELECT * FROM memories WHERE id = $1"
-        )
-        .bind(id)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to get memory: {}", e)))?;
+        let row = sqlx::query("SELECT * FROM memories WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| CoreError::DatabaseError(format!("Failed to get memory: {}", e)))?;
 
         match row {
             Some(row) => {
                 let memory = self.row_to_memory(&row)?;
-                
+
                 // Update access count and last accessed time
                 let _ = sqlx::query(
                     "UPDATE memories SET access_count = access_count + 1, last_accessed = NOW() WHERE id = $1"
@@ -240,8 +268,9 @@ impl StorageBackend for PostgresStorage {
     }
 
     async fn update_memory(&self, memory: &HierarchicalMemory) -> CoreResult<()> {
-        let metadata_json = serde_json::to_value(&memory.memory.metadata)
-            .map_err(|e| CoreError::SerializationError(format!("Failed to serialize metadata: {}", e)))?;
+        let metadata_json = serde_json::to_value(&memory.memory.metadata).map_err(|e| {
+            CoreError::SerializationError(format!("Failed to serialize metadata: {}", e))
+        })?;
 
         let result = sqlx::query(
             r#"
@@ -272,7 +301,10 @@ impl StorageBackend for PostgresStorage {
         .map_err(|e| CoreError::DatabaseError(format!("Failed to update memory: {}", e)))?;
 
         if result.rows_affected() == 0 {
-            return Err(CoreError::NotFound(format!("Memory with id {} not found", memory.memory.id)));
+            return Err(CoreError::NotFound(format!(
+                "Memory with id {} not found",
+                memory.memory.id
+            )));
         }
 
         Ok(())
@@ -349,22 +381,23 @@ impl StorageBackend for PostgresStorage {
         scope: MemoryScope,
         limit: Option<usize>,
     ) -> CoreResult<Vec<HierarchicalMemory>> {
-        let mut sql = String::from("SELECT * FROM memories WHERE scope = $1 ORDER BY importance DESC, created_at DESC");
-        
+        let mut sql = String::from(
+            "SELECT * FROM memories WHERE scope = $1 ORDER BY importance DESC, created_at DESC",
+        );
+
         if limit.is_some() {
             sql.push_str(" LIMIT $2");
         }
 
         let mut query_builder = sqlx::query(&sql).bind(scope.as_str());
-        
+
         if let Some(limit) = limit {
             query_builder = query_builder.bind(limit as i64);
         }
 
-        let rows = query_builder
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| CoreError::DatabaseError(format!("Failed to get memories by scope: {}", e)))?;
+        let rows = query_builder.fetch_all(&self.pool).await.map_err(|e| {
+            CoreError::DatabaseError(format!("Failed to get memories by scope: {}", e))
+        })?;
 
         let mut memories = Vec::new();
         for row in rows {
@@ -379,22 +412,23 @@ impl StorageBackend for PostgresStorage {
         level: MemoryLevel,
         limit: Option<usize>,
     ) -> CoreResult<Vec<HierarchicalMemory>> {
-        let mut sql = String::from("SELECT * FROM memories WHERE level = $1 ORDER BY importance DESC, created_at DESC");
-        
+        let mut sql = String::from(
+            "SELECT * FROM memories WHERE level = $1 ORDER BY importance DESC, created_at DESC",
+        );
+
         if limit.is_some() {
             sql.push_str(" LIMIT $2");
         }
 
         let mut query_builder = sqlx::query(&sql).bind(level.as_str());
-        
+
         if let Some(limit) = limit {
             query_builder = query_builder.bind(limit as i64);
         }
 
-        let rows = query_builder
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| CoreError::DatabaseError(format!("Failed to get memories by level: {}", e)))?;
+        let rows = query_builder.fetch_all(&self.pool).await.map_err(|e| {
+            CoreError::DatabaseError(format!("Failed to get memories by level: {}", e))
+        })?;
 
         let mut memories = Vec::new();
         for row in rows {
@@ -413,42 +447,54 @@ impl StorageBackend for PostgresStorage {
         .await
         .map_err(|e| CoreError::DatabaseError(format!("Failed to get total statistics: {}", e)))?;
 
-        let total_memories: i64 = total_row.try_get("total_memories")
-            .map_err(|e| CoreError::DatabaseError(format!("Failed to get total_memories: {}", e)))?;
-        let storage_size: i64 = total_row.try_get("storage_size")
+        let total_memories: i64 = total_row.try_get("total_memories").map_err(|e| {
+            CoreError::DatabaseError(format!("Failed to get total_memories: {}", e))
+        })?;
+        let storage_size: i64 = total_row
+            .try_get("storage_size")
             .map_err(|e| CoreError::DatabaseError(format!("Failed to get storage_size: {}", e)))?;
 
         // Get statistics by level
-        let level_rows = sqlx::query("SELECT level, COUNT(*) as count FROM memories GROUP BY level")
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| CoreError::DatabaseError(format!("Failed to get level statistics: {}", e)))?;
+        let level_rows =
+            sqlx::query("SELECT level, COUNT(*) as count FROM memories GROUP BY level")
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| {
+                    CoreError::DatabaseError(format!("Failed to get level statistics: {}", e))
+                })?;
 
         let mut memories_by_level = HashMap::new();
         for row in level_rows {
-            let level_str: String = row.try_get("level")
+            let level_str: String = row
+                .try_get("level")
                 .map_err(|e| CoreError::DatabaseError(format!("Failed to get level: {}", e)))?;
-            let count: i64 = row.try_get("count")
+            let count: i64 = row
+                .try_get("count")
                 .map_err(|e| CoreError::DatabaseError(format!("Failed to get count: {}", e)))?;
-            
+
             if let Some(level) = MemoryLevel::from_str(&level_str) {
                 memories_by_level.insert(level, count as u64);
             }
         }
 
         // Get statistics by scope
-        let scope_rows = sqlx::query("SELECT scope, COUNT(*) as count FROM memories GROUP BY scope")
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| CoreError::DatabaseError(format!("Failed to get scope statistics: {}", e)))?;
+        let scope_rows =
+            sqlx::query("SELECT scope, COUNT(*) as count FROM memories GROUP BY scope")
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| {
+                    CoreError::DatabaseError(format!("Failed to get scope statistics: {}", e))
+                })?;
 
         let mut memories_by_scope = HashMap::new();
         for row in scope_rows {
-            let scope_str: String = row.try_get("scope")
+            let scope_str: String = row
+                .try_get("scope")
                 .map_err(|e| CoreError::DatabaseError(format!("Failed to get scope: {}", e)))?;
-            let count: i64 = row.try_get("count")
+            let count: i64 = row
+                .try_get("count")
                 .map_err(|e| CoreError::DatabaseError(format!("Failed to get count: {}", e)))?;
-            
+
             if let Some(scope) = MemoryScope::from_str(&scope_str) {
                 memories_by_scope.insert(scope, count as u64);
             }
@@ -472,7 +518,7 @@ impl StorageBackend for PostgresStorage {
 
     async fn health_check(&self) -> CoreResult<HealthStatus> {
         let start = Instant::now();
-        
+
         match sqlx::query("SELECT 1").fetch_one(&self.pool).await {
             Ok(_) => Ok(HealthStatus {
                 healthy: true,

@@ -1,37 +1,37 @@
 // Storage module for AgentMem
 // Provides different storage backends for persistent memory storage
 
+pub mod hybrid_manager;
+pub mod migration;
 pub mod postgres;
 pub mod redis;
-pub mod migration;
-pub mod hybrid_manager;
 
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use chrono::{DateTime, Utc};
 
-use crate::{CoreResult, types::*};
-use crate::hierarchy::{HierarchicalMemory, MemoryScope, MemoryLevel};
+use crate::hierarchy::{HierarchicalMemory, MemoryLevel, MemoryScope};
+use crate::{types::*, CoreResult};
 
 /// Storage backend trait for persistent memory storage
 #[async_trait]
 pub trait StorageBackend: Send + Sync {
     /// Initialize the storage backend
     async fn initialize(&self) -> CoreResult<()>;
-    
+
     /// Store a memory in the backend
     async fn store_memory(&self, memory: &HierarchicalMemory) -> CoreResult<()>;
-    
+
     /// Retrieve a memory by ID
     async fn get_memory(&self, id: &str) -> CoreResult<Option<HierarchicalMemory>>;
-    
+
     /// Update an existing memory
     async fn update_memory(&self, memory: &HierarchicalMemory) -> CoreResult<()>;
-    
+
     /// Delete a memory by ID
     async fn delete_memory(&self, id: &str) -> CoreResult<bool>;
-    
+
     /// Search memories by query
     async fn search_memories(
         &self,
@@ -40,24 +40,24 @@ pub trait StorageBackend: Send + Sync {
         level: Option<MemoryLevel>,
         limit: Option<usize>,
     ) -> CoreResult<Vec<HierarchicalMemory>>;
-    
+
     /// Get memories by scope
     async fn get_memories_by_scope(
         &self,
         scope: MemoryScope,
         limit: Option<usize>,
     ) -> CoreResult<Vec<HierarchicalMemory>>;
-    
+
     /// Get memories by level
     async fn get_memories_by_level(
         &self,
         level: MemoryLevel,
         limit: Option<usize>,
     ) -> CoreResult<Vec<HierarchicalMemory>>;
-    
+
     /// Get memory statistics
     async fn get_statistics(&self) -> CoreResult<StorageStatistics>;
-    
+
     /// Perform health check
     async fn health_check(&self) -> CoreResult<HealthStatus>;
 }
@@ -67,25 +67,26 @@ pub trait StorageBackend: Send + Sync {
 pub trait CacheBackend: Send + Sync {
     /// Get a memory from cache
     async fn get(&self, key: &str) -> CoreResult<Option<HierarchicalMemory>>;
-    
+
     /// Set a memory in cache
-    async fn set(&self, key: &str, memory: &HierarchicalMemory, ttl: Option<u64>) -> CoreResult<()>;
-    
+    async fn set(&self, key: &str, memory: &HierarchicalMemory, ttl: Option<u64>)
+        -> CoreResult<()>;
+
     /// Delete a memory from cache
     async fn delete(&self, key: &str) -> CoreResult<bool>;
-    
+
     /// Check if key exists in cache
     async fn exists(&self, key: &str) -> CoreResult<bool>;
-    
+
     /// Set multiple memories in cache
     async fn mset(&self, entries: HashMap<String, HierarchicalMemory>) -> CoreResult<()>;
-    
+
     /// Get multiple memories from cache
     async fn mget(&self, keys: &[String]) -> CoreResult<HashMap<String, HierarchicalMemory>>;
-    
+
     /// Clear all cache entries
     async fn clear(&self) -> CoreResult<()>;
-    
+
     /// Get cache statistics
     async fn get_cache_stats(&self) -> CoreResult<CacheStatistics>;
 }
@@ -276,26 +277,33 @@ impl HybridStorageManager {
             config,
         }
     }
-    
+
     /// Initialize both storage backends
     pub async fn initialize(&self) -> CoreResult<()> {
         self.postgres.initialize().await?;
         Ok(())
     }
-    
+
     /// Store memory with caching
     pub async fn store_memory(&self, memory: &HierarchicalMemory) -> CoreResult<()> {
         // Store in PostgreSQL first
         self.postgres.store_memory(memory).await?;
-        
+
         // Cache in Redis if enabled
         if self.config.cache.enabled {
-            let _ = self.redis.set(&memory.memory.id, memory, Some(self.config.cache.default_ttl)).await;
+            let _ = self
+                .redis
+                .set(
+                    &memory.memory.id,
+                    memory,
+                    Some(self.config.cache.default_ttl),
+                )
+                .await;
         }
-        
+
         Ok(())
     }
-    
+
     /// Get memory with cache-first strategy
     pub async fn get_memory(&self, id: &str) -> CoreResult<Option<HierarchicalMemory>> {
         // Try cache first if enabled
@@ -304,44 +312,54 @@ impl HybridStorageManager {
                 return Ok(Some(memory));
             }
         }
-        
+
         // Fallback to PostgreSQL
         let memory = self.postgres.get_memory(id).await?;
-        
+
         // Cache the result if found and caching is enabled
         if let (Some(ref mem), true) = (&memory, self.config.cache.enabled) {
-            let _ = self.redis.set(id, mem, Some(self.config.cache.default_ttl)).await;
+            let _ = self
+                .redis
+                .set(id, mem, Some(self.config.cache.default_ttl))
+                .await;
         }
-        
+
         Ok(memory)
     }
-    
+
     /// Update memory in both storage and cache
     pub async fn update_memory(&self, memory: &HierarchicalMemory) -> CoreResult<()> {
         // Update in PostgreSQL
         self.postgres.update_memory(memory).await?;
-        
+
         // Update cache if enabled
         if self.config.cache.enabled {
-            let _ = self.redis.set(&memory.memory.id, memory, Some(self.config.cache.default_ttl)).await;
+            let _ = self
+                .redis
+                .set(
+                    &memory.memory.id,
+                    memory,
+                    Some(self.config.cache.default_ttl),
+                )
+                .await;
         }
-        
+
         Ok(())
     }
-    
+
     /// Delete memory from both storage and cache
     pub async fn delete_memory(&self, id: &str) -> CoreResult<bool> {
         // Delete from PostgreSQL
         let deleted = self.postgres.delete_memory(id).await?;
-        
+
         // Delete from cache if enabled
         if self.config.cache.enabled {
             let _ = self.redis.delete(id).await;
         }
-        
+
         Ok(deleted)
     }
-    
+
     /// Search memories (no caching for search results)
     pub async fn search_memories(
         &self,
@@ -350,19 +368,21 @@ impl HybridStorageManager {
         level: Option<MemoryLevel>,
         limit: Option<usize>,
     ) -> CoreResult<Vec<HierarchicalMemory>> {
-        self.postgres.search_memories(query, scope, level, limit).await
+        self.postgres
+            .search_memories(query, scope, level, limit)
+            .await
     }
-    
+
     /// Get combined statistics
     pub async fn get_statistics(&self) -> CoreResult<StorageStatistics> {
         self.postgres.get_statistics().await
     }
-    
+
     /// Get cache statistics
     pub async fn get_cache_statistics(&self) -> CoreResult<CacheStatistics> {
         self.redis.get_cache_stats().await
     }
-    
+
     /// Perform health check on both backends
     pub async fn health_check(&self) -> CoreResult<(HealthStatus, HealthStatus)> {
         let postgres_health = self.postgres.health_check().await?;
@@ -380,7 +400,7 @@ impl HybridStorageManager {
                 last_check: Utc::now(),
             },
         };
-        
+
         Ok((postgres_health, redis_health))
     }
 }
