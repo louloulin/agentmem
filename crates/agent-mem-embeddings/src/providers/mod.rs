@@ -5,6 +5,9 @@ pub mod huggingface;
 pub mod local;
 pub mod openai;
 
+#[cfg(test)]
+mod local_test;
+
 pub use cohere::CohereEmbedder;
 pub use huggingface::HuggingFaceEmbedder;
 pub use local::LocalEmbedder;

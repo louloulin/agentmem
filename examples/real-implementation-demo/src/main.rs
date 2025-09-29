@@ -5,14 +5,12 @@
 
 use agent_mem_compat::client::Mem0Client;
 use agent_mem_compat::types::{AddMemoryRequest, MemoryFilter, SearchMemoryRequest};
-use agent_mem_embeddings::config::EmbeddingConfig;
 use agent_mem_embeddings::factory::EmbeddingFactory;
-use agent_mem_llm::config::LLMConfig;
 use agent_mem_llm::factory::LLMFactory;
-use agent_mem_performance::config::PerformanceConfig;
-use agent_mem_performance::monitor::PerformanceMonitor;
-use agent_mem_storage::config::VectorStoreConfig;
+use agent_mem_performance::{PerformanceConfig, PerformanceMonitor};
 use agent_mem_storage::factory::StorageFactory;
+use agent_mem_traits::{LLMConfig, VectorStoreConfig, Message, MessageRole};
+use agent_mem_embeddings::EmbeddingConfig;
 use std::collections::HashMap;
 use tracing::{error, info, warn};
 
@@ -61,7 +59,7 @@ async fn demo_real_llm_providers() -> anyhow::Result<()> {
         ..Default::default()
     };
 
-    match LLMFactory::create_provider(&deepseek_config).await {
+    match LLMFactory::create_provider(&deepseek_config) {
         Ok(provider) => {
             info!("✅ DeepSeek 提供商创建成功");
 

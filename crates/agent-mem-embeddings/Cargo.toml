@@ -37,6 +37,7 @@ tokenizers = { version = "0.19", optional = true }
 
 # ONNX Runtime 支持
 ort = { version = "2.0.0-rc.10", features = ["load-dynamic"], optional = true }
+ndarray = { version = "0.15", optional = true }
 
 # HuggingFace Hub集成（可选）
 hf-hub = { version = "0.3", optional = true }
@@ -57,7 +58,7 @@ default = ["openai", "local"]
 openai = []
 huggingface = ["dep:hf-hub"]
 local = ["dep:candle-core", "dep:candle-nn", "dep:candle-transformers", "dep:tokenizers"]
-onnx = ["dep:ort"]
+onnx = ["dep:ort", "dep:ndarray"]
 anthropic = []
 cohere = []
 
