@@ -68,6 +68,36 @@ pub enum AgentMemError {
     #[error("Not found: {0}")]
     NotFound(String),
 
+    #[error("System not running")]
+    SystemNotRunning,
+
+    #[error("Health checker already running")]
+    HealthCheckerAlreadyRunning,
+
+    #[error("Performance monitor already running")]
+    PerformanceMonitorAlreadyRunning,
+
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
+
+    #[error("Config file not found: {0}")]
+    ConfigFileNotFound(String),
+
+    #[error("Config load error: {0}")]
+    ConfigLoadError(String),
+
+    #[error("Config parse error: {0}")]
+    ConfigParseError(String),
+
+    #[error("Config serialize error: {0}")]
+    ConfigSerializeError(String),
+
+    #[error("Config save error: {0}")]
+    ConfigSaveError(String),
+
+    #[error("Config validation error: {0}")]
+    ConfigValidationError(String),
+
     #[error("Generic error: {0}")]
     Other(#[from] anyhow::Error),
 }

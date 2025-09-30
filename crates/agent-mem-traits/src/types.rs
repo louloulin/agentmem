@@ -257,7 +257,15 @@ impl MemoryType {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    /// Parse a memory type from a string
+    ///
+    /// # Arguments
+    /// * `s` - The string to parse
+    ///
+    /// # Returns
+    /// * `Some(MemoryType)` if the string matches a known type
+    /// * `None` if the string doesn't match any known type
+    pub fn parse_type(s: &str) -> Option<Self> {
         match s {
             "factual" => Some(MemoryType::Factual),
             "episodic" => Some(MemoryType::Episodic),

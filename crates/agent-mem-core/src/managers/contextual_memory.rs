@@ -322,7 +322,7 @@ pub enum ChangeType {
 }
 
 /// Contextual Memory 统计信息
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ContextualMemoryStats {
     /// 总上下文数
     pub total_contexts: usize,

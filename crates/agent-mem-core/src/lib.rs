@@ -21,6 +21,7 @@ pub mod engine;
 pub mod graph_memory;
 pub mod hierarchy;
 pub mod history;
+pub mod integration;
 pub mod intelligence;
 pub mod lifecycle;
 pub mod manager;
@@ -65,6 +66,12 @@ pub use retrieval::{
     RetrievalRouterConfig, RetrievalStats, RetrievalStrategy, RetrievedMemory, RouteDecision,
     RoutingResult, SynthesisResult, TopicCategory, TopicExtractor, TopicExtractorConfig,
     TopicHierarchy,
+};
+
+// Re-export integration modules
+pub use integration::{
+    ComponentHealth, HealthStatus, SystemConfig, SystemIntegrationManager, SystemState,
+    SystemStatus,
 };
 
 // Re-export from traits

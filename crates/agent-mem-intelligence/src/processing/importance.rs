@@ -287,6 +287,22 @@ impl ImportanceScorer {
                 // Factual memories: prioritize relevance and context
                 relevance * 0.4 + context * 0.3 + frequency * 0.2 + recency * 0.1
             }
+            MemoryType::Core => {
+                // Core memories: prioritize all factors equally with high base importance
+                (relevance + context + frequency + recency + emotional) / 5.0 * 1.2
+            }
+            MemoryType::Resource => {
+                // Resource memories: prioritize relevance and frequency
+                relevance * 0.4 + frequency * 0.3 + context * 0.2 + recency * 0.1
+            }
+            MemoryType::Knowledge => {
+                // Knowledge memories: prioritize relevance and context
+                relevance * 0.5 + context * 0.3 + frequency * 0.15 + recency * 0.05
+            }
+            MemoryType::Contextual => {
+                // Contextual memories: prioritize context and recency
+                context * 0.4 + recency * 0.3 + relevance * 0.2 + frequency * 0.1
+            }
         }
     }
 

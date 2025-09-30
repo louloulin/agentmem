@@ -194,7 +194,7 @@ pub enum AuditAction {
 }
 
 /// Knowledge Vault 统计信息
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct KnowledgeVaultStats {
     /// 总知识条目数
     pub total_entries: usize,
