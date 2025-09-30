@@ -19,6 +19,8 @@ pub mod coordination;
 pub mod engine;
 /// Graph-based memory management and reasoning capabilities
 pub mod graph_memory;
+/// Graph optimization with compression and query optimization
+pub mod graph_optimization;
 pub mod hierarchy;
 pub mod history;
 pub mod integration;
