@@ -41,7 +41,7 @@ impl MessageRepository {
         .bind(offset)
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to list messages: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to list messages: {}", e)))?;
 
         Ok(results)
     }
@@ -57,7 +57,7 @@ impl MessageRepository {
         .bind(agent_id)
         .fetch_one(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to count messages: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to count messages: {}", e)))?;
 
         Ok(result.try_get("count").unwrap_or(0))
     }
@@ -80,7 +80,7 @@ impl MessageRepository {
         .bind(limit)
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to get recent messages: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to get recent messages: {}", e)))?;
 
         // Reverse to get chronological order
         Ok(results.into_iter().rev().collect())
@@ -105,7 +105,7 @@ impl MessageRepository {
         .bind(keep_count)
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to get message IDs: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to get message IDs: {}", e)))?;
 
         if keep_ids.is_empty() {
             return Ok(0);
@@ -124,7 +124,7 @@ impl MessageRepository {
         .bind(Utc::now())
         .execute(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to delete old messages: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to delete old messages: {}", e)))?;
 
         Ok(result.rows_affected() as i64)
     }
@@ -170,7 +170,7 @@ impl Repository<Message> for MessageRepository {
         .bind(&message.last_updated_by_id)
         .fetch_one(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to create message: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to create message: {}", e)))?;
 
         Ok(result)
     }
@@ -185,7 +185,7 @@ impl Repository<Message> for MessageRepository {
         .bind(id)
         .fetch_optional(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to read message: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to read message: {}", e)))?;
 
         Ok(result)
     }
@@ -220,7 +220,7 @@ impl Repository<Message> for MessageRepository {
         .bind(&message.last_updated_by_id)
         .fetch_one(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to update message: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to update message: {}", e)))?;
 
         Ok(result)
     }
@@ -237,7 +237,7 @@ impl Repository<Message> for MessageRepository {
         .bind(Utc::now())
         .execute(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to delete message: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to delete message: {}", e)))?;
 
         Ok(result.rows_affected() > 0)
     }
@@ -251,7 +251,7 @@ impl Repository<Message> for MessageRepository {
         .bind(id)
         .execute(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to hard delete message: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to hard delete message: {}", e)))?;
 
         Ok(result.rows_affected() > 0)
     }
@@ -276,7 +276,7 @@ impl Repository<Message> for MessageRepository {
         .bind(offset)
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to list messages: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to list messages: {}", e)))?;
 
         Ok(results)
     }
@@ -290,7 +290,7 @@ impl Repository<Message> for MessageRepository {
         )
         .fetch_one(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to count messages: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to count messages: {}", e)))?;
 
         Ok(result.try_get("count").unwrap_or(0))
     }

@@ -38,7 +38,7 @@ async fn create_organizations_table(pool: &PgPool) -> CoreResult<()> {
     )
     .execute(pool)
     .await
-    .map_err(|e| CoreError::DatabaseError(format!("Failed to create organizations table: {}", e)))?;
+    .map_err(|e| CoreError::Database(format!("Failed to create organizations table: {}", e)))?;
 
     Ok(())
 }
@@ -63,7 +63,7 @@ async fn create_users_table(pool: &PgPool) -> CoreResult<()> {
     )
     .execute(pool)
     .await
-    .map_err(|e| CoreError::DatabaseError(format!("Failed to create users table: {}", e)))?;
+    .map_err(|e| CoreError::Database(format!("Failed to create users table: {}", e)))?;
 
     Ok(())
 }
@@ -96,7 +96,7 @@ async fn create_agents_table(pool: &PgPool) -> CoreResult<()> {
     )
     .execute(pool)
     .await
-    .map_err(|e| CoreError::DatabaseError(format!("Failed to create agents table: {}", e)))?;
+    .map_err(|e| CoreError::Database(format!("Failed to create agents table: {}", e)))?;
 
     Ok(())
 }
@@ -132,7 +132,7 @@ async fn create_messages_table(pool: &PgPool) -> CoreResult<()> {
     )
     .execute(pool)
     .await
-    .map_err(|e| CoreError::DatabaseError(format!("Failed to create messages table: {}", e)))?;
+    .map_err(|e| CoreError::Database(format!("Failed to create messages table: {}", e)))?;
 
     Ok(())
 }
@@ -163,7 +163,7 @@ async fn create_blocks_table(pool: &PgPool) -> CoreResult<()> {
     )
     .execute(pool)
     .await
-    .map_err(|e| CoreError::DatabaseError(format!("Failed to create blocks table: {}", e)))?;
+    .map_err(|e| CoreError::Database(format!("Failed to create blocks table: {}", e)))?;
 
     Ok(())
 }
@@ -192,7 +192,7 @@ async fn create_tools_table(pool: &PgPool) -> CoreResult<()> {
     )
     .execute(pool)
     .await
-    .map_err(|e| CoreError::DatabaseError(format!("Failed to create tools table: {}", e)))?;
+    .map_err(|e| CoreError::Database(format!("Failed to create tools table: {}", e)))?;
 
     Ok(())
 }
@@ -226,7 +226,7 @@ async fn create_memories_table(pool: &PgPool) -> CoreResult<()> {
     )
     .execute(pool)
     .await
-    .map_err(|e| CoreError::DatabaseError(format!("Failed to create memories table: {}", e)))?;
+    .map_err(|e| CoreError::Database(format!("Failed to create memories table: {}", e)))?;
 
     Ok(())
 }
@@ -247,7 +247,7 @@ async fn create_junction_tables(pool: &PgPool) -> CoreResult<()> {
     )
     .execute(pool)
     .await
-    .map_err(|e| CoreError::DatabaseError(format!("Failed to create blocks_agents table: {}", e)))?;
+    .map_err(|e| CoreError::Database(format!("Failed to create blocks_agents table: {}", e)))?;
 
     // tools_agents junction table
     sqlx::query(
@@ -261,7 +261,7 @@ async fn create_junction_tables(pool: &PgPool) -> CoreResult<()> {
     )
     .execute(pool)
     .await
-    .map_err(|e| CoreError::DatabaseError(format!("Failed to create tools_agents table: {}", e)))?;
+    .map_err(|e| CoreError::Database(format!("Failed to create tools_agents table: {}", e)))?;
 
     Ok(())
 }
@@ -272,72 +272,72 @@ async fn create_indexes(pool: &PgPool) -> CoreResult<()> {
     sqlx::query("CREATE INDEX IF NOT EXISTS idx_organizations_created_at ON organizations(created_at DESC)")
         .execute(pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to create index: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to create index: {}", e)))?;
 
     // Users indexes
     sqlx::query("CREATE INDEX IF NOT EXISTS idx_users_organization_id ON users(organization_id)")
         .execute(pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to create index: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to create index: {}", e)))?;
 
     // Agents indexes
     sqlx::query("CREATE INDEX IF NOT EXISTS idx_agents_organization_id ON agents(organization_id)")
         .execute(pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to create index: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to create index: {}", e)))?;
 
     sqlx::query("CREATE INDEX IF NOT EXISTS idx_agents_created_at ON agents(created_at DESC)")
         .execute(pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to create index: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to create index: {}", e)))?;
 
     // Messages indexes (critical for performance)
     sqlx::query("CREATE INDEX IF NOT EXISTS idx_messages_agent_created_at ON messages(agent_id, created_at)")
         .execute(pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to create index: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to create index: {}", e)))?;
 
     sqlx::query("CREATE INDEX IF NOT EXISTS idx_messages_created_at_id ON messages(created_at, id)")
         .execute(pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to create index: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to create index: {}", e)))?;
 
     // Memories indexes
     sqlx::query("CREATE INDEX IF NOT EXISTS idx_memories_agent_id ON memories(agent_id)")
         .execute(pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to create index: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to create index: {}", e)))?;
 
     sqlx::query("CREATE INDEX IF NOT EXISTS idx_memories_user_id ON memories(user_id)")
         .execute(pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to create index: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to create index: {}", e)))?;
 
     sqlx::query("CREATE INDEX IF NOT EXISTS idx_memories_scope ON memories(scope)")
         .execute(pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to create index: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to create index: {}", e)))?;
 
     sqlx::query("CREATE INDEX IF NOT EXISTS idx_memories_level ON memories(level)")
         .execute(pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to create index: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to create index: {}", e)))?;
 
     sqlx::query("CREATE INDEX IF NOT EXISTS idx_memories_importance ON memories(importance DESC)")
         .execute(pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to create index: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to create index: {}", e)))?;
 
     sqlx::query("CREATE INDEX IF NOT EXISTS idx_memories_created_at ON memories(created_at DESC)")
         .execute(pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to create index: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to create index: {}", e)))?;
 
     // Full-text search index for memories
     sqlx::query("CREATE INDEX IF NOT EXISTS idx_memories_content_fts ON memories USING gin(to_tsvector('english', content))")
         .execute(pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to create FTS index: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to create FTS index: {}", e)))?;
 
     Ok(())
 }

@@ -96,7 +96,7 @@ pub enum CoreError {
 
     /// Database error
     #[error("Database error: {0}")]
-    DatabaseError(String),
+    Database(String),
 
     /// Cache error
     #[error("Cache error: {0}")]

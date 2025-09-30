@@ -68,7 +68,7 @@ impl Repository<Organization> for OrganizationRepository {
         .bind(&org.is_deleted)
         .fetch_one(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to create organization: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to create organization: {}", e)))?;
 
         Ok(result)
     }
@@ -83,7 +83,7 @@ impl Repository<Organization> for OrganizationRepository {
         .bind(id)
         .fetch_optional(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to read organization: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to read organization: {}", e)))?;
 
         Ok(result)
     }
@@ -102,7 +102,7 @@ impl Repository<Organization> for OrganizationRepository {
         .bind(Utc::now())
         .fetch_one(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to update organization: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to update organization: {}", e)))?;
 
         Ok(result)
     }
@@ -119,7 +119,7 @@ impl Repository<Organization> for OrganizationRepository {
         .bind(Utc::now())
         .execute(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to delete organization: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to delete organization: {}", e)))?;
 
         Ok(result.rows_affected() > 0)
     }
@@ -133,7 +133,7 @@ impl Repository<Organization> for OrganizationRepository {
         .bind(id)
         .execute(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to hard delete organization: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to hard delete organization: {}", e)))?;
 
         Ok(result.rows_affected() > 0)
     }
@@ -158,7 +158,7 @@ impl Repository<Organization> for OrganizationRepository {
         .bind(offset)
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to list organizations: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to list organizations: {}", e)))?;
 
         Ok(results)
     }
@@ -172,7 +172,7 @@ impl Repository<Organization> for OrganizationRepository {
         )
         .fetch_one(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to count organizations: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to count organizations: {}", e)))?;
 
         Ok(result.get("count"))
     }
@@ -211,7 +211,7 @@ impl UserRepository {
         .bind(offset)
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to list users: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to list users: {}", e)))?;
 
         Ok(results)
     }
@@ -243,7 +243,7 @@ impl Repository<User> for UserRepository {
         .bind(&user.last_updated_by_id)
         .fetch_one(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to create user: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to create user: {}", e)))?;
 
         Ok(result)
     }
@@ -258,7 +258,7 @@ impl Repository<User> for UserRepository {
         .bind(id)
         .fetch_optional(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to read user: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to read user: {}", e)))?;
 
         Ok(result)
     }
@@ -281,7 +281,7 @@ impl Repository<User> for UserRepository {
         .bind(&user.last_updated_by_id)
         .fetch_one(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to update user: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to update user: {}", e)))?;
 
         Ok(result)
     }
@@ -298,7 +298,7 @@ impl Repository<User> for UserRepository {
         .bind(Utc::now())
         .execute(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to delete user: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to delete user: {}", e)))?;
 
         Ok(result.rows_affected() > 0)
     }
@@ -312,7 +312,7 @@ impl Repository<User> for UserRepository {
         .bind(id)
         .execute(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to hard delete user: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to hard delete user: {}", e)))?;
 
         Ok(result.rows_affected() > 0)
     }
@@ -337,7 +337,7 @@ impl Repository<User> for UserRepository {
         .bind(offset)
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to list users: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to list users: {}", e)))?;
 
         Ok(results)
     }
@@ -351,7 +351,7 @@ impl Repository<User> for UserRepository {
         )
         .fetch_one(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to count users: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to count users: {}", e)))?;
 
         Ok(result.get("count"))
     }

@@ -41,7 +41,7 @@ impl BlockRepository {
         .bind(offset)
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to list blocks: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to list blocks: {}", e)))?;
 
         Ok(results)
     }
@@ -63,7 +63,7 @@ impl BlockRepository {
         .bind(label)
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to list blocks by label: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to list blocks by label: {}", e)))?;
 
         Ok(results)
     }
@@ -79,7 +79,7 @@ impl BlockRepository {
         )
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to list template blocks: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to list template blocks: {}", e)))?;
 
         Ok(results)
     }
@@ -99,7 +99,7 @@ impl BlockRepository {
         .bind(template_name)
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to list blocks by template: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to list blocks by template: {}", e)))?;
 
         Ok(results)
     }
@@ -167,7 +167,7 @@ impl Repository<Block> for BlockRepository {
         .bind(&block.last_updated_by_id)
         .fetch_one(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to create block: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to create block: {}", e)))?;
 
         Ok(result)
     }
@@ -182,7 +182,7 @@ impl Repository<Block> for BlockRepository {
         .bind(id)
         .fetch_optional(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to read block: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to read block: {}", e)))?;
 
         Ok(result)
     }
@@ -210,7 +210,7 @@ impl Repository<Block> for BlockRepository {
         .bind(&block.last_updated_by_id)
         .fetch_one(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to update block: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to update block: {}", e)))?;
 
         Ok(result)
     }
@@ -227,7 +227,7 @@ impl Repository<Block> for BlockRepository {
         .bind(Utc::now())
         .execute(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to delete block: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to delete block: {}", e)))?;
 
         Ok(result.rows_affected() > 0)
     }
@@ -241,7 +241,7 @@ impl Repository<Block> for BlockRepository {
         .bind(id)
         .execute(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to hard delete block: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to hard delete block: {}", e)))?;
 
         Ok(result.rows_affected() > 0)
     }
@@ -266,7 +266,7 @@ impl Repository<Block> for BlockRepository {
         .bind(offset)
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to list blocks: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to list blocks: {}", e)))?;
 
         Ok(results)
     }
@@ -280,7 +280,7 @@ impl Repository<Block> for BlockRepository {
         )
         .fetch_one(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to count blocks: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to count blocks: {}", e)))?;
 
         Ok(result.try_get("count").unwrap_or(0))
     }

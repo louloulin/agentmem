@@ -41,7 +41,7 @@ impl AgentRepository {
         .bind(offset)
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to list agents: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to list agents: {}", e)))?;
 
         Ok(results)
     }
@@ -66,7 +66,7 @@ impl AgentRepository {
         .bind(agent_id)
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to get agent blocks: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to get agent blocks: {}", e)))?;
 
         Ok(Some((agent, blocks)))
     }
@@ -85,7 +85,7 @@ impl AgentRepository {
         .bind(agent_id)
         .execute(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to add block to agent: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to add block to agent: {}", e)))?;
 
         Ok(())
     }
@@ -103,7 +103,7 @@ impl AgentRepository {
         .bind(block_label)
         .execute(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to remove block from agent: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to remove block from agent: {}", e)))?;
 
         Ok(result.rows_affected() > 0)
     }
@@ -145,7 +145,7 @@ impl Repository<Agent> for AgentRepository {
         .bind(&agent.last_updated_by_id)
         .fetch_one(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to create agent: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to create agent: {}", e)))?;
 
         Ok(result)
     }
@@ -160,7 +160,7 @@ impl Repository<Agent> for AgentRepository {
         .bind(id)
         .fetch_optional(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to read agent: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to read agent: {}", e)))?;
 
         Ok(result)
     }
@@ -194,7 +194,7 @@ impl Repository<Agent> for AgentRepository {
         .bind(&agent.last_updated_by_id)
         .fetch_one(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to update agent: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to update agent: {}", e)))?;
 
         Ok(result)
     }
@@ -211,7 +211,7 @@ impl Repository<Agent> for AgentRepository {
         .bind(Utc::now())
         .execute(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to delete agent: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to delete agent: {}", e)))?;
 
         Ok(result.rows_affected() > 0)
     }
@@ -225,7 +225,7 @@ impl Repository<Agent> for AgentRepository {
         .bind(id)
         .execute(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to hard delete agent: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to hard delete agent: {}", e)))?;
 
         Ok(result.rows_affected() > 0)
     }
@@ -250,7 +250,7 @@ impl Repository<Agent> for AgentRepository {
         .bind(offset)
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to list agents: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to list agents: {}", e)))?;
 
         Ok(results)
     }
@@ -264,7 +264,7 @@ impl Repository<Agent> for AgentRepository {
         )
         .fetch_one(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to count agents: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to count agents: {}", e)))?;
 
         Ok(result.try_get("count").unwrap_or(0))
     }

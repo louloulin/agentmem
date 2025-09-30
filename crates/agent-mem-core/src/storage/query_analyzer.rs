@@ -73,13 +73,13 @@ impl QueryAnalyzer {
         let row = sqlx::query(&explain_query)
             .fetch_one(&self.pool)
             .await
-            .map_err(|e| CoreError::DatabaseError(format!("Failed to explain query: {}", e)))?;
+            .map_err(|e| CoreError::Database(format!("Failed to explain query: {}", e)))?;
 
         let plan_json: serde_json::Value = row.try_get(0)
-            .map_err(|e| CoreError::DatabaseError(format!("Failed to parse explain result: {}", e)))?;
+            .map_err(|e| CoreError::Database(format!("Failed to parse explain result: {}", e)))?;
 
         let plan_array = plan_json.as_array()
-            .ok_or_else(|| CoreError::DatabaseError("Invalid explain result format".to_string()))?;
+            .ok_or_else(|| CoreError::Database("Invalid explain result format".to_string()))?;
 
         let plan_obj = &plan_array[0];
         let plan_node = &plan_obj["Plan"];
@@ -207,7 +207,7 @@ impl QueryAnalyzer {
         )
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to get table stats: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to get table stats: {}", e)))?;
 
         let mut recommendations = Vec::new();
 
@@ -249,7 +249,7 @@ impl QueryAnalyzer {
         )
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to get index stats: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to get index stats: {}", e)))?;
 
         let unused: Vec<UnusedIndex> = rows
             .into_iter()

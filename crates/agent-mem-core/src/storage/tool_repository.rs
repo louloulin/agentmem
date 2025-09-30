@@ -41,7 +41,7 @@ impl ToolRepository {
         .bind(offset)
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to list tools: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to list tools: {}", e)))?;
 
         Ok(results)
     }
@@ -62,7 +62,7 @@ impl ToolRepository {
         .bind(name)
         .fetch_optional(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to find tool by name: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to find tool by name: {}", e)))?;
 
         Ok(result)
     }
@@ -102,7 +102,7 @@ impl ToolRepository {
             .bind(tags_json)
             .fetch_all(&self.pool)
             .await
-            .map_err(|e| CoreError::DatabaseError(format!("Failed to list tools by tags: {}", e)))?;
+            .map_err(|e| CoreError::Database(format!("Failed to list tools by tags: {}", e)))?;
 
         Ok(results)
     }
@@ -120,7 +120,7 @@ impl ToolRepository {
         .bind(agent_id)
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to list tools by agent: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to list tools by agent: {}", e)))?;
 
         Ok(results)
     }
@@ -138,7 +138,7 @@ impl ToolRepository {
         .bind(agent_id)
         .execute(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to add tool to agent: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to add tool to agent: {}", e)))?;
 
         Ok(())
     }
@@ -155,7 +155,7 @@ impl ToolRepository {
         .bind(agent_id)
         .execute(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to remove tool from agent: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to remove tool from agent: {}", e)))?;
 
         Ok(result.rows_affected() > 0)
     }
@@ -204,7 +204,7 @@ impl Repository<Tool> for ToolRepository {
         .bind(&tool.last_updated_by_id)
         .fetch_one(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to create tool: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to create tool: {}", e)))?;
 
         Ok(result)
     }
@@ -219,7 +219,7 @@ impl Repository<Tool> for ToolRepository {
         .bind(id)
         .fetch_optional(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to read tool: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to read tool: {}", e)))?;
 
         Ok(result)
     }
@@ -247,7 +247,7 @@ impl Repository<Tool> for ToolRepository {
         .bind(&tool.last_updated_by_id)
         .fetch_one(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to update tool: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to update tool: {}", e)))?;
 
         Ok(result)
     }
@@ -264,7 +264,7 @@ impl Repository<Tool> for ToolRepository {
         .bind(Utc::now())
         .execute(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to delete tool: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to delete tool: {}", e)))?;
 
         Ok(result.rows_affected() > 0)
     }
@@ -278,7 +278,7 @@ impl Repository<Tool> for ToolRepository {
         .bind(id)
         .execute(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to hard delete tool: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to hard delete tool: {}", e)))?;
 
         Ok(result.rows_affected() > 0)
     }
@@ -303,7 +303,7 @@ impl Repository<Tool> for ToolRepository {
         .bind(offset)
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to list tools: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to list tools: {}", e)))?;
 
         Ok(results)
     }
@@ -317,7 +317,7 @@ impl Repository<Tool> for ToolRepository {
         )
         .fetch_one(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to count tools: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to count tools: {}", e)))?;
 
         Ok(result.try_get("count").unwrap_or(0))
     }

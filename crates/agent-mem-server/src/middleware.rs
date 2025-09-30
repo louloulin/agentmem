@@ -3,10 +3,13 @@
 //! This module provides various middleware for the server:
 //! - Authentication (JWT and API Key)
 //! - Request logging
-//! - Rate limiting
+//! - Audit logging
+//! - Quota management
 //! - Tenant isolation
 
+pub mod audit;
 pub mod auth;
+pub mod quota;
 
 use axum::{extract::Request, middleware::Next, response::Response};
 
@@ -15,6 +18,12 @@ pub use auth::{
     api_key_auth_middleware, extract_auth_user, has_role, is_admin, jwt_auth_middleware,
     optional_auth_middleware, require_admin, require_role, tenant_isolation_middleware, AuthUser,
 };
+
+// Re-export audit middleware
+pub use audit::{audit_logging_middleware, log_security_event, SecurityEvent};
+
+// Re-export quota middleware
+pub use quota::{quota_middleware, QuotaLimits, QuotaManager, UsageStats};
 
 /// Request logging middleware
 pub async fn request_logging_middleware(request: Request, next: Next) -> Response {

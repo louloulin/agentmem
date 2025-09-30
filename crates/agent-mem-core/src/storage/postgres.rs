@@ -25,7 +25,7 @@ impl PostgresStorage {
             .connect(&config.url)
             .await
             .map_err(|e| {
-                CoreError::DatabaseError(format!("Failed to connect to PostgreSQL: {}", e))
+                CoreError::Database(format!("Failed to connect to PostgreSQL: {}", e))
             })?;
 
         Ok(Self { pool, config })
@@ -56,7 +56,7 @@ impl PostgresStorage {
     fn row_to_memory(&self, row: &sqlx::postgres::PgRow) -> CoreResult<HierarchicalMemory> {
         let metadata_json: serde_json::Value = row
             .try_get("metadata")
-            .map_err(|e| CoreError::DatabaseError(format!("Failed to get metadata: {}", e)))?;
+            .map_err(|e| CoreError::Database(format!("Failed to get metadata: {}", e)))?;
 
         let metadata: HashMap<String, serde_json::Value> = serde_json::from_value(metadata_json)
             .map_err(|e| {
@@ -65,15 +65,15 @@ impl PostgresStorage {
 
         let memory_type_str: String = row
             .try_get("memory_type")
-            .map_err(|e| CoreError::DatabaseError(format!("Failed to get memory_type: {}", e)))?;
+            .map_err(|e| CoreError::Database(format!("Failed to get memory_type: {}", e)))?;
 
         let scope_str: String = row
             .try_get("scope")
-            .map_err(|e| CoreError::DatabaseError(format!("Failed to get scope: {}", e)))?;
+            .map_err(|e| CoreError::Database(format!("Failed to get scope: {}", e)))?;
 
         let level_str: String = row
             .try_get("level")
-            .map_err(|e| CoreError::DatabaseError(format!("Failed to get level: {}", e)))?;
+            .map_err(|e| CoreError::Database(format!("Failed to get level: {}", e)))?;
 
         let memory_type = MemoryType::from_str(&memory_type_str).ok_or_else(|| {
             CoreError::ValidationError(format!("Invalid memory type: {}", memory_type_str))
@@ -87,7 +87,7 @@ impl PostgresStorage {
 
         let created_at: chrono::DateTime<chrono::Utc> = row
             .try_get("created_at")
-            .map_err(|e| CoreError::DatabaseError(format!("Failed to get created_at: {}", e)))?;
+            .map_err(|e| CoreError::Database(format!("Failed to get created_at: {}", e)))?;
         let last_accessed: Option<chrono::DateTime<chrono::Utc>> =
             row.try_get("last_accessed").ok();
 
@@ -103,15 +103,15 @@ impl PostgresStorage {
         let memory = crate::types::Memory {
             id: row
                 .try_get("id")
-                .map_err(|e| CoreError::DatabaseError(format!("Failed to get id: {}", e)))?,
+                .map_err(|e| CoreError::Database(format!("Failed to get id: {}", e)))?,
             agent_id: "default".to_string(), // TODO: Store agent_id in DB
             user_id: None,                   // TODO: Store user_id in DB
             memory_type,
             content: row
                 .try_get("content")
-                .map_err(|e| CoreError::DatabaseError(format!("Failed to get content: {}", e)))?,
+                .map_err(|e| CoreError::Database(format!("Failed to get content: {}", e)))?,
             importance: row.try_get("importance").map_err(|e| {
-                CoreError::DatabaseError(format!("Failed to get importance: {}", e))
+                CoreError::Database(format!("Failed to get importance: {}", e))
             })?,
             embedding: None, // TODO: Store embedding in DB
             created_at: created_at.timestamp(),
@@ -190,7 +190,7 @@ impl StorageBackend for PostgresStorage {
         .bind(&memory.memory.last_accessed_at) // updated_at mapped from last_accessed_at
         .execute(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to store memory: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to store memory: {}", e)))?;
 
         Ok(())
     }
@@ -200,7 +200,7 @@ impl StorageBackend for PostgresStorage {
             .bind(id)
             .fetch_optional(&self.pool)
             .await
-            .map_err(|e| CoreError::DatabaseError(format!("Failed to get memory: {}", e)))?;
+            .map_err(|e| CoreError::Database(format!("Failed to get memory: {}", e)))?;
 
         match row {
             Some(row) => {
@@ -251,7 +251,7 @@ impl StorageBackend for PostgresStorage {
         .bind(&memory.memory.importance)
         .execute(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to update memory: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to update memory: {}", e)))?;
 
         if result.rows_affected() == 0 {
             return Err(CoreError::NotFound(format!(
@@ -268,7 +268,7 @@ impl StorageBackend for PostgresStorage {
             .bind(id)
             .execute(&self.pool)
             .await
-            .map_err(|e| CoreError::DatabaseError(format!("Failed to delete memory: {}", e)))?;
+            .map_err(|e| CoreError::Database(format!("Failed to delete memory: {}", e)))?;
 
         Ok(result.rows_affected() > 0)
     }
@@ -319,7 +319,7 @@ impl StorageBackend for PostgresStorage {
         let rows = query_builder
             .fetch_all(&self.pool)
             .await
-            .map_err(|e| CoreError::DatabaseError(format!("Failed to search memories: {}", e)))?;
+            .map_err(|e| CoreError::Database(format!("Failed to search memories: {}", e)))?;
 
         let mut memories = Vec::new();
         for row in rows {
@@ -349,7 +349,7 @@ impl StorageBackend for PostgresStorage {
         }
 
         let rows = query_builder.fetch_all(&self.pool).await.map_err(|e| {
-            CoreError::DatabaseError(format!("Failed to get memories by scope: {}", e))
+            CoreError::Database(format!("Failed to get memories by scope: {}", e))
         })?;
 
         let mut memories = Vec::new();
@@ -380,7 +380,7 @@ impl StorageBackend for PostgresStorage {
         }
 
         let rows = query_builder.fetch_all(&self.pool).await.map_err(|e| {
-            CoreError::DatabaseError(format!("Failed to get memories by level: {}", e))
+            CoreError::Database(format!("Failed to get memories by level: {}", e))
         })?;
 
         let mut memories = Vec::new();
@@ -398,14 +398,14 @@ impl StorageBackend for PostgresStorage {
         )
         .fetch_one(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to get total statistics: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to get total statistics: {}", e)))?;
 
         let total_memories: i64 = total_row.try_get("total_memories").map_err(|e| {
-            CoreError::DatabaseError(format!("Failed to get total_memories: {}", e))
+            CoreError::Database(format!("Failed to get total_memories: {}", e))
         })?;
         let storage_size: i64 = total_row
             .try_get("storage_size")
-            .map_err(|e| CoreError::DatabaseError(format!("Failed to get storage_size: {}", e)))?;
+            .map_err(|e| CoreError::Database(format!("Failed to get storage_size: {}", e)))?;
 
         // Get statistics by level
         let level_rows =
@@ -413,17 +413,17 @@ impl StorageBackend for PostgresStorage {
                 .fetch_all(&self.pool)
                 .await
                 .map_err(|e| {
-                    CoreError::DatabaseError(format!("Failed to get level statistics: {}", e))
+                    CoreError::Database(format!("Failed to get level statistics: {}", e))
                 })?;
 
         let mut memories_by_level = HashMap::new();
         for row in level_rows {
             let level_str: String = row
                 .try_get("level")
-                .map_err(|e| CoreError::DatabaseError(format!("Failed to get level: {}", e)))?;
+                .map_err(|e| CoreError::Database(format!("Failed to get level: {}", e)))?;
             let count: i64 = row
                 .try_get("count")
-                .map_err(|e| CoreError::DatabaseError(format!("Failed to get count: {}", e)))?;
+                .map_err(|e| CoreError::Database(format!("Failed to get count: {}", e)))?;
 
             if let Some(level) = MemoryLevel::from_str(&level_str) {
                 memories_by_level.insert(level, count as u64);
@@ -436,17 +436,17 @@ impl StorageBackend for PostgresStorage {
                 .fetch_all(&self.pool)
                 .await
                 .map_err(|e| {
-                    CoreError::DatabaseError(format!("Failed to get scope statistics: {}", e))
+                    CoreError::Database(format!("Failed to get scope statistics: {}", e))
                 })?;
 
         let mut memories_by_scope = HashMap::new();
         for row in scope_rows {
             let scope_str: String = row
                 .try_get("scope")
-                .map_err(|e| CoreError::DatabaseError(format!("Failed to get scope: {}", e)))?;
+                .map_err(|e| CoreError::Database(format!("Failed to get scope: {}", e)))?;
             let count: i64 = row
                 .try_get("count")
-                .map_err(|e| CoreError::DatabaseError(format!("Failed to get count: {}", e)))?;
+                .map_err(|e| CoreError::Database(format!("Failed to get count: {}", e)))?;
 
             if let Some(scope) = MemoryScope::from_str(&scope_str) {
                 memories_by_scope.insert(scope, count as u64);

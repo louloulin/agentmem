@@ -27,6 +27,9 @@ pub enum ServerError {
     #[error("Access forbidden: {0}")]
     Forbidden(String),
 
+    #[error("Quota exceeded: {0}")]
+    QuotaExceeded(String),
+
     #[error("Validation failed: {0}")]
     ValidationError(String),
 
@@ -59,6 +62,7 @@ impl IntoResponse for ServerError {
             ServerError::BadRequest(msg) => (StatusCode::BAD_REQUEST, "BAD_REQUEST", msg),
             ServerError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, "UNAUTHORIZED", msg),
             ServerError::Forbidden(msg) => (StatusCode::FORBIDDEN, "FORBIDDEN", msg),
+            ServerError::QuotaExceeded(msg) => (StatusCode::TOO_MANY_REQUESTS, "QUOTA_EXCEEDED", msg),
             ServerError::ValidationError(msg) => (StatusCode::BAD_REQUEST, "VALIDATION_ERROR", msg),
             ServerError::BindError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, "BIND_ERROR", msg),
             ServerError::ServerError(msg) => {

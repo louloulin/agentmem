@@ -141,7 +141,7 @@ impl PoolManager {
     /// Create a connection pool
     async fn create_pool(config: &PoolConfig) -> CoreResult<PgPool> {
         let connect_options = PgConnectOptions::from_str(&config.url)
-            .map_err(|e| CoreError::DatabaseError(format!("Invalid database URL: {}", e)))?;
+            .map_err(|e| CoreError::Database(format!("Invalid database URL: {}", e)))?;
 
         let pool = PgPoolOptions::new()
             .min_connections(config.min_connections)
@@ -152,7 +152,7 @@ impl PoolManager {
             .test_before_acquire(true) // Always test connections before use
             .connect_with(connect_options)
             .await
-            .map_err(|e| CoreError::DatabaseError(format!("Failed to create pool: {}", e)))?;
+            .map_err(|e| CoreError::Database(format!("Failed to create pool: {}", e)))?;
 
         Ok(pool)
     }
@@ -235,7 +235,7 @@ impl PoolManager {
                     stats.total_timeouts += 1;
                 }
 
-                Err(CoreError::DatabaseError(format!("Failed to acquire connection: {}", e)))
+                Err(CoreError::Database(format!("Failed to acquire connection: {}", e)))
             }
         }
     }
@@ -274,7 +274,7 @@ impl PoolManager {
         }
 
         Err(last_error.unwrap_or_else(|| {
-            CoreError::DatabaseError("Operation failed after all retries".to_string())
+            CoreError::Database("Operation failed after all retries".to_string())
         }))
     }
 }

@@ -25,7 +25,7 @@ impl TransactionManager {
         self.pool
             .begin()
             .await
-            .map_err(|e| CoreError::DatabaseError(format!("Failed to begin transaction: {}", e)))
+            .map_err(|e| CoreError::Database(format!("Failed to begin transaction: {}", e)))
     }
 
     /// Execute a function within a transaction with automatic retry
@@ -81,7 +81,7 @@ impl TransactionManager {
         }
 
         Err(last_error.unwrap_or_else(|| {
-            CoreError::DatabaseError("Operation failed after all retries".to_string())
+            CoreError::Database("Operation failed after all retries".to_string())
         }))
     }
 
@@ -97,7 +97,7 @@ impl TransactionManager {
             Ok((tx, result)) => {
                 tx.commit()
                     .await
-                    .map_err(|e| CoreError::DatabaseError(format!("Failed to commit transaction: {}", e)))?;
+                    .map_err(|e| CoreError::Database(format!("Failed to commit transaction: {}", e)))?;
                 Ok(result)
             }
             Err(e) => {
@@ -111,7 +111,7 @@ impl TransactionManager {
 /// Check if an error is retryable
 fn is_retryable_error(error: &CoreError) -> bool {
     match error {
-        CoreError::DatabaseError(msg) => {
+        CoreError::Database(msg) => {
             let msg_lower = msg.to_lowercase();
             // Check for database locked errors (similar to MIRIX)
             msg_lower.contains("database is locked")
@@ -233,7 +233,7 @@ where
     }
 
     Err(last_error.unwrap_or_else(|| {
-        CoreError::DatabaseError("Operation failed after all retries".to_string())
+        CoreError::Database("Operation failed after all retries".to_string())
     }))
 }
 
@@ -278,13 +278,13 @@ mod tests {
     #[test]
     fn test_is_retryable_error() {
         // Retryable errors
-        assert!(is_retryable_error(&CoreError::DatabaseError(
+        assert!(is_retryable_error(&CoreError::Database(
             "database is locked".to_string()
         )));
-        assert!(is_retryable_error(&CoreError::DatabaseError(
+        assert!(is_retryable_error(&CoreError::Database(
             "could not obtain lock".to_string()
         )));
-        assert!(is_retryable_error(&CoreError::DatabaseError(
+        assert!(is_retryable_error(&CoreError::Database(
             "connection timeout".to_string()
         )));
 
@@ -292,7 +292,7 @@ mod tests {
         assert!(!is_retryable_error(&CoreError::ValidationError(
             "invalid input".to_string()
         )));
-        assert!(!is_retryable_error(&CoreError::DatabaseError(
+        assert!(!is_retryable_error(&CoreError::Database(
             "unique constraint violation".to_string()
         )));
     }

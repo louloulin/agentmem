@@ -2,6 +2,7 @@
 // Provides different storage backends for persistent memory storage
 
 pub mod agent_repository;
+pub mod api_key_repository;
 pub mod batch;
 pub mod block_repository;
 pub mod hybrid_manager;
@@ -18,6 +19,7 @@ pub mod redis;
 pub mod repository;
 pub mod tool_repository;
 pub mod transaction;
+pub mod user_repository;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};

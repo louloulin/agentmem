@@ -73,7 +73,7 @@ impl BatchOperations {
                     .bind(&agent.last_updated_by_id)
                     .execute(&pool)
                     .await
-                    .map_err(|e| CoreError::DatabaseError(format!("Failed to batch insert agent: {}", e)))?;
+                    .map_err(|e| CoreError::Database(format!("Failed to batch insert agent: {}", e)))?;
 
                     inserted += result.rows_affected();
                 }
@@ -137,7 +137,7 @@ impl BatchOperations {
                     .bind(&message.last_updated_by_id)
                     .execute(&pool)
                     .await
-                    .map_err(|e| CoreError::DatabaseError(format!("Failed to batch insert message: {}", e)))?;
+                    .map_err(|e| CoreError::Database(format!("Failed to batch insert message: {}", e)))?;
 
                     inserted += result.rows_affected();
                 }
@@ -198,7 +198,7 @@ impl BatchOperations {
                     .bind(&memory.last_updated_by_id)
                     .execute(&pool)
                     .await
-                    .map_err(|e| CoreError::DatabaseError(format!("Failed to batch insert memory: {}", e)))?;
+                    .map_err(|e| CoreError::Database(format!("Failed to batch insert memory: {}", e)))?;
 
                     inserted += result.rows_affected();
                 }
@@ -254,7 +254,7 @@ impl BatchOperations {
                     .bind(&block.last_updated_by_id)
                     .execute(&pool)
                     .await
-                    .map_err(|e| CoreError::DatabaseError(format!("Failed to batch insert block: {}", e)))?;
+                    .map_err(|e| CoreError::Database(format!("Failed to batch insert block: {}", e)))?;
 
                     inserted += result.rows_affected();
                 }
@@ -309,7 +309,7 @@ impl BatchOperations {
                     .bind(&tool.last_updated_by_id)
                     .execute(&pool)
                     .await
-                    .map_err(|e| CoreError::DatabaseError(format!("Failed to batch insert tool: {}", e)))?;
+                    .map_err(|e| CoreError::Database(format!("Failed to batch insert tool: {}", e)))?;
 
                     inserted += result.rows_affected();
                 }
@@ -349,7 +349,7 @@ impl BatchOperations {
                     .bind(&ids)
                     .execute(&pool)
                     .await
-                    .map_err(|e| CoreError::DatabaseError(format!("Failed to batch soft delete: {}", e)))?;
+                    .map_err(|e| CoreError::Database(format!("Failed to batch soft delete: {}", e)))?;
 
                 Ok(result.rows_affected())
             }

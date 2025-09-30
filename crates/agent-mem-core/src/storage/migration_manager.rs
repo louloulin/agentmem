@@ -45,7 +45,7 @@ impl MigrationManager {
         )
         .execute(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to create migrations table: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to create migrations table: {}", e)))?;
 
         Ok(())
     }
@@ -55,7 +55,7 @@ impl MigrationManager {
         let row = sqlx::query("SELECT MAX(version) as version FROM schema_migrations")
             .fetch_optional(&self.pool)
             .await
-            .map_err(|e| CoreError::DatabaseError(format!("Failed to get current version: {}", e)))?;
+            .map_err(|e| CoreError::Database(format!("Failed to get current version: {}", e)))?;
 
         Ok(row.and_then(|r| r.try_get("version").ok()))
     }
@@ -71,7 +71,7 @@ impl MigrationManager {
         )
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to get applied migrations: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to get applied migrations: {}", e)))?;
 
         let migrations = rows
             .into_iter()
@@ -92,7 +92,7 @@ impl MigrationManager {
             .bind(version)
             .fetch_one(&self.pool)
             .await
-            .map_err(|e| CoreError::DatabaseError(format!("Failed to check migration: {}", e)))?;
+            .map_err(|e| CoreError::Database(format!("Failed to check migration: {}", e)))?;
 
         let count: i64 = row.get("count");
         Ok(count > 0)
@@ -118,7 +118,7 @@ impl MigrationManager {
         .bind(execution_time_ms)
         .execute(&self.pool)
         .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to record migration: {}", e)))?;
+        .map_err(|e| CoreError::Database(format!("Failed to record migration: {}", e)))?;
 
         Ok(())
     }
@@ -129,7 +129,7 @@ impl MigrationManager {
             .bind(version)
             .execute(&self.pool)
             .await
-            .map_err(|e| CoreError::DatabaseError(format!("Failed to remove migration: {}", e)))?;
+            .map_err(|e| CoreError::Database(format!("Failed to remove migration: {}", e)))?;
 
         Ok(())
     }
@@ -304,7 +304,7 @@ impl MigrationManager {
                 .execute(&self.pool)
                 .await
                 .map_err(|e| {
-                    CoreError::DatabaseError(format!("Failed to drop table {}: {}", table, e))
+                    CoreError::Database(format!("Failed to drop table {}: {}", table, e))
                 })?;
         }
 
