@@ -78,7 +78,7 @@ members = [
     "examples/api-server-demo",
     "examples/multi-tenant-demo",
     "examples/cloud-native-demo",
-    "examples/performance-benchmark",
+    "examples/performance-benchmark", "crates/agent-mem-tools",
     # "examples/basic-usage",
     # "examples/advanced-features",
     # "examples/migration-from-agentmen",
