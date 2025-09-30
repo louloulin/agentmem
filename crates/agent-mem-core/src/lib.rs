@@ -35,6 +35,8 @@ pub mod security;
 pub mod storage;
 /// Temporal graph memory with time-aware knowledge graphs
 pub mod temporal_graph;
+/// Temporal reasoning engine with causal inference and multi-hop reasoning
+pub mod temporal_reasoning;
 pub mod tenant;
 pub mod types;
 
