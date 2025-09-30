@@ -15,6 +15,9 @@ pub mod real_image;
 pub mod cross_modal;
 pub mod unified_retrieval;
 
+// 性能优化模块
+pub mod optimization;
+
 use agent_mem_traits::{AgentMemError, Result};
 use async_trait::async_trait;
 use base64::{engine::general_purpose, Engine as _};
