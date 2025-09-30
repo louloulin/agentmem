@@ -1,8 +1,20 @@
 //! Middleware for the server
+//!
+//! This module provides various middleware for the server:
+//! - Authentication (JWT and API Key)
+//! - Request logging
+//! - Rate limiting
+//! - Tenant isolation
+
+pub mod auth;
 
 use axum::{extract::Request, middleware::Next, response::Response};
-// Middleware functionality is now handled directly in routes/mod.rs
-// This module is kept for future middleware implementations
+
+// Re-export auth middleware
+pub use auth::{
+    api_key_auth_middleware, extract_auth_user, has_role, is_admin, jwt_auth_middleware,
+    optional_auth_middleware, require_admin, require_role, tenant_isolation_middleware, AuthUser,
+};
 
 /// Request logging middleware
 pub async fn request_logging_middleware(request: Request, next: Next) -> Response {

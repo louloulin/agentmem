@@ -45,6 +45,10 @@ impl MemoryManager {
             MemoryType::Procedural => agent_mem_core::types::MemoryType::Procedural,
             MemoryType::Semantic => agent_mem_core::types::MemoryType::Semantic,
             MemoryType::Working => agent_mem_core::types::MemoryType::Working,
+            MemoryType::Core => agent_mem_core::types::MemoryType::Core,
+            MemoryType::Resource => agent_mem_core::types::MemoryType::Resource,
+            MemoryType::Knowledge => agent_mem_core::types::MemoryType::Knowledge,
+            MemoryType::Contextual => agent_mem_core::types::MemoryType::Contextual,
         });
 
         manager
@@ -385,6 +389,10 @@ pub async fn search_memories(
         MemoryType::Procedural => agent_mem_core::types::MemoryType::Procedural,
         MemoryType::Semantic => agent_mem_core::types::MemoryType::Semantic,
         MemoryType::Working => agent_mem_core::types::MemoryType::Working,
+        MemoryType::Core => agent_mem_core::types::MemoryType::Core,
+        MemoryType::Resource => agent_mem_core::types::MemoryType::Resource,
+        MemoryType::Knowledge => agent_mem_core::types::MemoryType::Knowledge,
+        MemoryType::Contextual => agent_mem_core::types::MemoryType::Contextual,
     });
 
     let query = MemoryQuery {

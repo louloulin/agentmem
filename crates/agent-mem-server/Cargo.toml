@@ -67,6 +67,7 @@ validator = { version = "0.18", features = ["derive"] }
 
 # CLI
 clap = { version = "4.0", features = ["derive"] }
+argon2 = "0.5.3"
 
 [dev-dependencies]
 tokio-test = "0.4"
