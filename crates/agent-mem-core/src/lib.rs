@@ -41,6 +41,8 @@ pub mod temporal_graph;
 pub mod temporal_reasoning;
 pub mod tenant;
 pub mod types;
+/// Vector storage ecosystem with capability detection and auto-selection
+pub mod vector_ecosystem;
 
 // Re-export core types
 pub use engine::{MemoryEngine, MemoryEngineConfig};
