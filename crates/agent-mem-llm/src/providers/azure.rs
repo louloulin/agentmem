@@ -263,11 +263,101 @@ impl LLMProvider for AzureProvider {
 
     async fn generate_stream(
         &self,
-        _messages: &[Message],
+        messages: &[Message],
     ) -> Result<Box<dyn Stream<Item = Result<String>> + Send + Unpin>> {
-        Err(AgentMemError::llm_error(
-            "Streaming not implemented for Azure provider",
-        ))
+        use futures::stream::StreamExt;
+
+        // 转换消息格式
+        let azure_messages = self.convert_messages(messages);
+
+        // 构建流式请求
+        let request = AzureRequest {
+            messages: azure_messages,
+            max_tokens: self.config.max_tokens,
+            temperature: self.config.temperature,
+            top_p: self.config.top_p,
+            frequency_penalty: self.config.frequency_penalty,
+            presence_penalty: self.config.presence_penalty,
+            stop: None,
+            stream: Some(true), // 启用流式处理
+        };
+
+        // 构建 API URL
+        let url = self.build_api_url();
+        let api_key = self.config.api_key.as_ref().unwrap().clone();
+
+        // 发送流式请求
+        let response = self
+            .client
+            .post(&url)
+            .header("Content-Type", "application/json")
+            .header("api-key", &api_key)
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| {
+                AgentMemError::network_error(&format!("Azure OpenAI API request failed: {}", e))
+            })?;
+
+        if !response.status().is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            return Err(AgentMemError::llm_error(&format!(
+                "Azure OpenAI API error: {}",
+                error_text
+            )));
+        }
+
+        // 创建流式响应处理器
+        let stream = response
+            .bytes_stream()
+            .map(|chunk_result| {
+                match chunk_result {
+                    Ok(chunk) => {
+                        // 解析 SSE 格式的数据
+                        let chunk_str = String::from_utf8_lossy(&chunk);
+
+                        // Azure OpenAI 使用与 OpenAI 相同的 SSE 格式
+                        if chunk_str.starts_with("data: ") {
+                            let json_str = chunk_str.strip_prefix("data: ").unwrap_or("");
+                            if json_str.trim() == "[DONE]" {
+                                return Ok("".to_string()); // 流结束
+                            }
+
+                            // 解析 JSON 响应
+                            match serde_json::from_str::<serde_json::Value>(json_str) {
+                                Ok(json) => {
+                                    if let Some(choices) = json["choices"].as_array() {
+                                        if let Some(choice) = choices.first() {
+                                            if let Some(delta) = choice["delta"].as_object() {
+                                                if let Some(content) = delta["content"].as_str() {
+                                                    return Ok(content.to_string());
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                Err(_) => {
+                                    // 忽略解析错误，继续处理下一个块
+                                }
+                            }
+                        }
+                        Ok("".to_string())
+                    }
+                    Err(e) => Err(AgentMemError::network_error(&format!(
+                        "Stream error: {}",
+                        e
+                    ))),
+                }
+            })
+            .filter(|result| {
+                // 过滤掉空字符串
+                futures::future::ready(match result {
+                    Ok(s) => !s.is_empty(),
+                    Err(_) => true,
+                })
+            });
+
+        Ok(Box::new(stream))
     }
 
     fn get_model_info(&self) -> ModelInfo {
@@ -275,7 +365,7 @@ impl LLMProvider for AzureProvider {
             provider: "azure".to_string(),
             model: self.config.model.clone(),
             max_tokens: self.config.max_tokens.unwrap_or(4096),
-            supports_streaming: false,
+            supports_streaming: true, // 现在支持流式处理
             supports_functions: true,
         }
     }

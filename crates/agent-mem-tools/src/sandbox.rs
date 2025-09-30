@@ -4,7 +4,9 @@
 //! inspired by MIRIX's tool_execution_sandbox.py.
 
 use crate::error::{ToolError, ToolResult};
+use std::collections::HashMap;
 use std::future::Future;
+use std::path::PathBuf;
 use std::time::Duration;
 use tokio::time::timeout;
 use tracing::{debug, warn};
@@ -14,18 +16,36 @@ use tracing::{debug, warn};
 pub struct SandboxConfig {
     /// Maximum memory usage (bytes)
     pub max_memory: usize,
+    /// Maximum CPU time (seconds)
+    pub max_cpu_time: Option<u64>,
     /// Default timeout duration
     pub default_timeout: Duration,
     /// Enable resource monitoring
     pub enable_monitoring: bool,
+    /// Enable network isolation
+    pub enable_network_isolation: bool,
+    /// Working directory for sandboxed execution
+    pub working_directory: Option<PathBuf>,
+    /// Environment variables for sandboxed execution
+    pub environment_variables: HashMap<String, String>,
+    /// Enable file system isolation
+    pub enable_filesystem_isolation: bool,
+    /// Allowed file system paths (when isolation is enabled)
+    pub allowed_paths: Vec<PathBuf>,
 }
 
 impl Default for SandboxConfig {
     fn default() -> Self {
         Self {
             max_memory: 512 * 1024 * 1024, // 512MB
+            max_cpu_time: Some(30),
             default_timeout: Duration::from_secs(30),
             enable_monitoring: true,
+            enable_network_isolation: false,
+            working_directory: None,
+            environment_variables: HashMap::new(),
+            enable_filesystem_isolation: false,
+            allowed_paths: Vec::new(),
         }
     }
 }
@@ -148,6 +168,80 @@ impl SandboxManager {
             default_timeout: self.config.default_timeout,
         }
     }
+
+    /// Execute a command in a sandboxed subprocess
+    ///
+    /// This provides process-level isolation similar to MIRIX's subprocess execution
+    pub async fn execute_command(
+        &self,
+        command: &str,
+        args: &[&str],
+        timeout_duration: Duration,
+    ) -> ToolResult<CommandOutput> {
+        use tokio::process::Command;
+
+        debug!(
+            "Executing command '{}' with args {:?} in sandbox",
+            command, args
+        );
+
+        // Build command with environment variables
+        let mut cmd = Command::new(command);
+        cmd.args(args);
+
+        // Set working directory if specified
+        if let Some(ref working_dir) = self.config.working_directory {
+            cmd.current_dir(working_dir);
+        }
+
+        // Set environment variables
+        if !self.config.environment_variables.is_empty() {
+            cmd.env_clear(); // Clear existing environment for isolation
+            for (key, value) in &self.config.environment_variables {
+                cmd.env(key, value);
+            }
+        }
+
+        // Execute with timeout
+        let child = cmd
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|e| ToolError::ExecutionFailed(format!("Failed to spawn process: {}", e)))?;
+
+        let output = timeout(timeout_duration, child.wait_with_output())
+            .await
+            .map_err(|_| ToolError::Timeout)?
+            .map_err(|e| ToolError::ExecutionFailed(format!("Process execution failed: {}", e)))?;
+
+        Ok(CommandOutput {
+            stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+            stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+            exit_code: output.status.code().unwrap_or(-1),
+            success: output.status.success(),
+        })
+    }
+
+    /// Validate file system access
+    ///
+    /// Checks if a path is allowed when filesystem isolation is enabled
+    pub fn validate_path_access(&self, path: &PathBuf) -> ToolResult<()> {
+        if !self.config.enable_filesystem_isolation {
+            return Ok(());
+        }
+
+        // Check if path is in allowed paths
+        for allowed_path in &self.config.allowed_paths {
+            if path.starts_with(allowed_path) {
+                return Ok(());
+            }
+        }
+
+        Err(ToolError::PermissionDenied(format!(
+            "Access to path {:?} is not allowed",
+            path
+        )))
+    }
 }
 
 /// Sandbox statistics
@@ -159,6 +253,19 @@ pub struct SandboxStats {
     pub current_memory: usize,
     /// Default timeout
     pub default_timeout: Duration,
+}
+
+/// Command execution output
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CommandOutput {
+    /// Standard output
+    pub stdout: String,
+    /// Standard error
+    pub stderr: String,
+    /// Exit code
+    pub exit_code: i32,
+    /// Whether the command succeeded
+    pub success: bool,
 }
 
 #[cfg(test)]
@@ -217,8 +324,14 @@ mod tests {
     fn test_sandbox_config() {
         let config = SandboxConfig {
             max_memory: 1024 * 1024 * 1024, // 1GB
+            max_cpu_time: Some(60),
             default_timeout: Duration::from_secs(60),
             enable_monitoring: true,
+            enable_network_isolation: false,
+            working_directory: None,
+            environment_variables: HashMap::new(),
+            enable_filesystem_isolation: false,
+            allowed_paths: Vec::new(),
         };
 
         let sandbox = SandboxManager::new(config.clone());
@@ -238,5 +351,69 @@ mod tests {
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "success");
+    }
+
+    #[tokio::test]
+    async fn test_command_execution() {
+        let sandbox = SandboxManager::default();
+
+        let result = sandbox
+            .execute_command("echo", &["hello"], Duration::from_secs(5))
+            .await;
+
+        assert!(result.is_ok());
+        let output = result.unwrap();
+        assert!(output.success);
+        assert!(output.stdout.contains("hello"));
+    }
+
+    #[tokio::test]
+    async fn test_command_timeout() {
+        let sandbox = SandboxManager::default();
+
+        let result = sandbox
+            .execute_command("sleep", &["10"], Duration::from_millis(100))
+            .await;
+
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ToolError::Timeout));
+    }
+
+    #[test]
+    fn test_filesystem_isolation() {
+        let mut config = SandboxConfig::default();
+        config.enable_filesystem_isolation = true;
+        config.allowed_paths = vec![PathBuf::from("/tmp")];
+
+        let sandbox = SandboxManager::new(config);
+
+        // Allowed path
+        assert!(sandbox
+            .validate_path_access(&PathBuf::from("/tmp/test.txt"))
+            .is_ok());
+
+        // Disallowed path
+        assert!(sandbox
+            .validate_path_access(&PathBuf::from("/etc/passwd"))
+            .is_err());
+    }
+
+    #[tokio::test]
+    async fn test_environment_variables() {
+        let mut config = SandboxConfig::default();
+        config
+            .environment_variables
+            .insert("TEST_VAR".to_string(), "test_value".to_string());
+
+        let sandbox = SandboxManager::new(config);
+
+        let result = sandbox
+            .execute_command("sh", &["-c", "echo $TEST_VAR"], Duration::from_secs(5))
+            .await;
+
+        assert!(result.is_ok());
+        let output = result.unwrap();
+        assert!(output.success);
+        assert!(output.stdout.contains("test_value"));
     }
 }

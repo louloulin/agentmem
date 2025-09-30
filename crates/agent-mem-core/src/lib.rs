@@ -16,6 +16,8 @@ pub mod conflict;
 pub mod context;
 /// Multi-agent coordination and orchestration
 pub mod coordination;
+/// Core Memory system with Block management, template engine, and auto-rewriter
+pub mod core_memory;
 pub mod engine;
 /// Graph-based memory management and reasoning capabilities
 pub mod graph_memory;

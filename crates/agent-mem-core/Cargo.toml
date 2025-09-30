@@ -34,6 +34,7 @@ futures = "0.3"
 sha2 = "0.10"
 aes-gcm = "0.10"
 rand = "0.8"
+regex = "1.10"
 
 # Database dependencies
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "json"] }
@@ -42,6 +43,7 @@ redis = { version = "0.24", features = ["tokio-comp", "connection-manager"] }
 [dev-dependencies]
 tempfile.workspace = true
 tokio-test = "0.4"
+agent-mem-storage = { path = "../agent-mem-storage", features = ["memory"] }
 
 [features]
 default = []

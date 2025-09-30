@@ -186,12 +186,113 @@ impl LLMProvider for OllamaProvider {
 
     async fn generate_stream(
         &self,
-        _messages: &[Message],
+        messages: &[Message],
     ) -> Result<Box<dyn futures::Stream<Item = Result<String>> + Send + Unpin>> {
-        // 流式生成的实现（简化版本）
-        Err(AgentMemError::llm_error(
-            "Streaming not implemented for Ollama provider",
-        ))
+        use futures::stream::StreamExt;
+
+        // 构建流式请求
+        let options = if self.config.temperature.is_some()
+            || self.config.top_p.is_some()
+            || self.config.max_tokens.is_some()
+        {
+            Some(OllamaOptions {
+                temperature: self.config.temperature,
+                top_p: self.config.top_p,
+                num_predict: self.config.max_tokens,
+            })
+        } else {
+            None
+        };
+
+        let request = OllamaRequest {
+            model: self.config.model.clone(),
+            messages: self.convert_messages(messages),
+            options,
+            stream: true, // 启用流式处理
+        };
+
+        let url = format!("{}/api/chat", self.base_url);
+
+        // 发送流式请求
+        let response = self
+            .client
+            .post(&url)
+            .header("Content-Type", "application/json")
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| {
+                AgentMemError::network_error(&format!("Ollama API request failed: {}", e))
+            })?;
+
+        if !response.status().is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            return Err(AgentMemError::llm_error(&format!(
+                "Ollama API error: {}",
+                error_text
+            )));
+        }
+
+        // 创建流式响应处理器
+        // Ollama 使用换行分隔的 JSON 格式 (NDJSON)
+        let stream = response
+            .bytes_stream()
+            .map(|chunk_result| {
+                match chunk_result {
+                    Ok(chunk) => {
+                        // 解析 NDJSON 格式的数据
+                        let chunk_str = String::from_utf8_lossy(&chunk);
+
+                        // Ollama 返回多行 JSON，每行是一个完整的响应
+                        for line in chunk_str.lines() {
+                            let line = line.trim();
+                            if line.is_empty() {
+                                continue;
+                            }
+
+                            // 解析 JSON 响应
+                            match serde_json::from_str::<OllamaResponse>(line) {
+                                Ok(response) => {
+                                    // 提取消息内容
+                                    let content = if !response.message.content.is_empty() {
+                                        response.message.content.clone()
+                                    } else if let Some(thinking) = response.message.thinking {
+                                        thinking
+                                    } else {
+                                        String::new()
+                                    };
+
+                                    if !content.is_empty() {
+                                        return Ok(content);
+                                    }
+
+                                    // 如果 done 为 true，流结束
+                                    if response.done {
+                                        return Ok("".to_string());
+                                    }
+                                }
+                                Err(_) => {
+                                    // 忽略解析错误，继续处理下一行
+                                }
+                            }
+                        }
+                        Ok("".to_string())
+                    }
+                    Err(e) => Err(AgentMemError::network_error(&format!(
+                        "Stream error: {}",
+                        e
+                    ))),
+                }
+            })
+            .filter(|result| {
+                // 过滤掉空字符串
+                futures::future::ready(match result {
+                    Ok(s) => !s.is_empty(),
+                    Err(_) => true,
+                })
+            });
+
+        Ok(Box::new(stream))
     }
 
     fn get_model_info(&self) -> ModelInfo {
@@ -199,7 +300,7 @@ impl LLMProvider for OllamaProvider {
             provider: "ollama".to_string(),
             model: self.config.model.clone(),
             max_tokens: self.config.max_tokens.unwrap_or(2048),
-            supports_streaming: false, // 暂时不支持
+            supports_streaming: true, // 现在支持流式处理
             supports_functions: false, // 大多数本地模型不支持函数调用
         }
     }

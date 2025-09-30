@@ -104,6 +104,24 @@ impl BlockRepository {
         Ok(results)
     }
 
+    /// List blocks associated with an agent
+    pub async fn list_by_agent(&self, agent_id: &str) -> CoreResult<Vec<Block>> {
+        let results = sqlx::query_as::<_, Block>(
+            r#"
+            SELECT b.* FROM blocks b
+            INNER JOIN blocks_agents ba ON b.id = ba.block_id
+            WHERE ba.agent_id = $1 AND b.is_deleted = FALSE
+            ORDER BY ba.block_label, b.created_at DESC
+            "#,
+        )
+        .bind(agent_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| CoreError::Database(format!("Failed to list blocks by agent: {}", e)))?;
+
+        Ok(results)
+    }
+
     /// Validate block value length before insert/update
     fn validate_value_length(value: &str, limit: i64) -> CoreResult<()> {
         if value.len() as i64 > limit {

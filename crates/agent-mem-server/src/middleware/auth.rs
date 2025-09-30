@@ -4,12 +4,14 @@
 
 use crate::auth::AuthService;
 use crate::error::{ServerError, ServerResult};
+use agent_mem_core::storage::api_key_repository::ApiKeyRepository;
 use axum::{
     extract::Request,
     http::header,
     middleware::Next,
     response::Response,
 };
+use sha2::{Digest, Sha256};
 use std::sync::Arc;
 
 /// Authenticated user information
@@ -68,23 +70,44 @@ pub async fn api_key_auth_middleware(
         .and_then(|h| h.to_str().ok())
         .ok_or_else(|| ServerError::Unauthorized("Missing API key".to_string()))?;
 
-    // TODO: Validate API key against database
-    // For now, just check if it starts with "agm_"
+    // Check format
     if !api_key.starts_with("agm_") {
         return Err(ServerError::Unauthorized("Invalid API key format".to_string()));
     }
 
-    // TODO: Extract user info from API key
-    // For now, use placeholder
+    // Get ApiKeyRepository from extensions (added by router)
+    let api_key_repo = request
+        .extensions()
+        .get::<Arc<ApiKeyRepository>>()
+        .ok_or_else(|| ServerError::Internal("ApiKeyRepository not found".to_string()))?;
+
+    // Hash the API key for lookup
+    let key_hash = hash_api_key(api_key);
+
+    // Validate API key against database
+    let api_key_model = api_key_repo
+        .validate(&key_hash)
+        .await
+        .map_err(|e| ServerError::Internal(format!("API key validation failed: {}", e)))?
+        .ok_or_else(|| ServerError::Unauthorized("Invalid or expired API key".to_string()))?;
+
+    // Extract user info from API key
     let auth_user = AuthUser {
-        user_id: "api_user".to_string(),
-        org_id: "api_org".to_string(),
-        roles: vec!["user".to_string()],
+        user_id: api_key_model.user_id.clone(),
+        org_id: api_key_model.organization_id.clone(),
+        roles: vec!["user".to_string()], // API keys have basic user role
     };
 
     request.extensions_mut().insert(auth_user);
 
     Ok(next.run(request).await)
+}
+
+/// Hash an API key using SHA-256
+fn hash_api_key(api_key: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(api_key.as_bytes());
+    format!("{:x}", hasher.finalize())
 }
 
 /// Optional authentication middleware (allows unauthenticated requests)

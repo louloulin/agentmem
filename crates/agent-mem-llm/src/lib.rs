@@ -11,11 +11,15 @@
 
 pub mod client;
 pub mod factory;
+pub mod metrics;
 pub mod prompts;
 pub mod providers;
+pub mod retry;
 
 pub use client::LLMClient;
 pub use factory::LLMFactory;
+pub use metrics::{LLMMetrics, LLMMonitor, LLMStats};
+pub use retry::{ErrorType, RetryConfig, RetryExecutor};
 
 // 重新导出常用类型
 pub use agent_mem_traits::{AgentMemError, LLMConfig, LLMProvider, Message, ModelInfo, Result};
