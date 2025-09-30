@@ -213,15 +213,15 @@ impl ImportanceEvaluator {
     /// 计算记忆类型分数
     fn calculate_type_score(&self, memory: &MemoryInfo) -> f32 {
         match memory.memory_type {
-            MemoryType::Factual => 0.8,      // 事实记忆重要性较高
-            MemoryType::Episodic => 0.7,     // 情节记忆中等重要
-            MemoryType::Procedural => 0.9,   // 程序记忆非常重要
-            MemoryType::Semantic => 0.8,     // 语义记忆重要性较高
-            MemoryType::Working => 0.5,      // 工作记忆重要性较低
-            MemoryType::Core => 1.0,         // 核心记忆最重要
-            MemoryType::Resource => 0.6,     // 资源记忆中等重要
-            MemoryType::Knowledge => 0.85,   // 知识记忆重要性高
-            MemoryType::Contextual => 0.7,   // 上下文记忆中等重要
+            MemoryType::Factual => 0.8,    // 事实记忆重要性较高
+            MemoryType::Episodic => 0.7,   // 情节记忆中等重要
+            MemoryType::Procedural => 0.9, // 程序记忆非常重要
+            MemoryType::Semantic => 0.8,   // 语义记忆重要性较高
+            MemoryType::Working => 0.5,    // 工作记忆重要性较低
+            MemoryType::Core => 1.0,       // 核心记忆最重要
+            MemoryType::Resource => 0.6,   // 资源记忆中等重要
+            MemoryType::Knowledge => 0.85, // 知识记忆重要性高
+            MemoryType::Contextual => 0.7, // 上下文记忆中等重要
         }
     }
 

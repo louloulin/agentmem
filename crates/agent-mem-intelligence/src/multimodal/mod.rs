@@ -11,6 +11,10 @@ pub mod video;
 pub mod real_audio;
 pub mod real_image;
 
+// 跨模态关联模块
+pub mod cross_modal;
+pub mod unified_retrieval;
+
 use agent_mem_traits::{AgentMemError, Result};
 use async_trait::async_trait;
 use base64::{engine::general_purpose, Engine as _};

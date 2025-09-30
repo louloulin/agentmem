@@ -628,7 +628,9 @@ mod tests {
         }];
 
         // 创建处理器实例进行测试
-        let processor = IntelligentMemoryProcessor::new("test-key".to_string());
+        let processor = IntelligentMemoryProcessor::new("test-key".to_string())
+            .await
+            .unwrap();
         let recommendations = processor.generate_recommendations(&facts, &decisions);
 
         // 验证推荐生成
