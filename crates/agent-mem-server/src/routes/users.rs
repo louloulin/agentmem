@@ -6,9 +6,9 @@
 //! - User profile management
 //! - Password management
 
-use crate::auth::PasswordService;
+use crate::auth::{AuthService, PasswordService};
 use crate::error::{ServerError, ServerResult};
-use crate::middleware::AuthUser;
+use crate::middleware::{log_security_event, AuthUser, SecurityEvent};
 use axum::{
     extract::{Extension, Path},
     http::StatusCode,
@@ -16,6 +16,7 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
+use sqlx::PgPool;
 use utoipa::ToSchema;
 use validator::Validate;
 
@@ -87,6 +88,7 @@ pub struct ChangePasswordRequest {
     tag = "users"
 )]
 pub async fn register_user(
+    Extension(db_pool): Extension<PgPool>,
     Json(request): Json<RegisterRequest>,
 ) -> ServerResult<impl IntoResponse> {
     // Validate request
@@ -94,26 +96,54 @@ pub async fn register_user(
         .validate()
         .map_err(|e| ServerError::BadRequest(format!("Validation error: {}", e)))?;
 
-    // TODO: Check if user already exists in database
+    // Create user repository
+    let user_repo = agent_mem_core::storage::user_repository::UserRepository::new(db_pool);
+
+    // Check if user already exists
+    let exists = user_repo
+        .email_exists(&request.email, &request.organization_id)
+        .await
+        .map_err(|e| ServerError::Internal(format!("Database error: {}", e)))?;
+
+    if exists {
+        return Err(ServerError::BadRequest(format!(
+            "User with email {} already exists",
+            request.email
+        )));
+    }
 
     // Hash password
     let password_hash = PasswordService::hash_password(&request.password)?;
 
-    // TODO: Save user to database
-    // For now, return a mock response
-    let user_id = uuid::Uuid::new_v4().to_string();
-    let now = chrono::Utc::now().timestamp();
+    // Save user to database
+    let user = user_repo
+        .create(
+            &request.organization_id,
+            &request.email,
+            &password_hash,
+            &request.name,
+            vec!["user".to_string()],
+            None,
+        )
+        .await
+        .map_err(|e| ServerError::Internal(format!("Failed to create user: {}", e)))?;
 
-    let user = UserResponse {
-        id: user_id,
-        email: request.email,
-        name: request.name,
-        organization_id: request.organization_id,
-        roles: vec!["user".to_string()],
-        created_at: now,
+    // Log security event
+    log_security_event(SecurityEvent::LoginSuccess {
+        user_id: user.id.clone(),
+        ip_address: None,
+    });
+
+    let response = UserResponse {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        organization_id: user.organization_id,
+        roles: user.roles,
+        created_at: user.created_at.timestamp(),
     };
 
-    Ok((StatusCode::CREATED, Json(user)))
+    Ok((StatusCode::CREATED, Json(response)))
 }
 
 /// Login user
@@ -128,6 +158,7 @@ pub async fn register_user(
     tag = "users"
 )]
 pub async fn login_user(
+    Extension(db_pool): Extension<PgPool>,
     Json(request): Json<LoginRequest>,
 ) -> ServerResult<impl IntoResponse> {
     // Validate request
@@ -135,26 +166,60 @@ pub async fn login_user(
         .validate()
         .map_err(|e| ServerError::BadRequest(format!("Validation error: {}", e)))?;
 
-    // TODO: Fetch user from database and verify password
-    // For now, use mock data
-    let user_id = uuid::Uuid::new_v4().to_string();
-    let org_id = "org123".to_string();
-    let roles = vec!["user".to_string()];
+    // Create user repository
+    let user_repo = agent_mem_core::storage::user_repository::UserRepository::new(db_pool);
+
+    // Fetch user from database
+    let user = user_repo
+        .find_by_email(&request.email)
+        .await
+        .map_err(|e| ServerError::Internal(format!("Database error: {}", e)))?
+        .ok_or_else(|| {
+            log_security_event(SecurityEvent::LoginFailure {
+                email: request.email.clone(),
+                ip_address: None,
+                reason: "User not found".to_string(),
+            });
+            ServerError::Unauthorized("Invalid email or password".to_string())
+        })?;
+
+    // Verify password
+    let valid = PasswordService::verify_password(&request.password, &user.password_hash)?;
+    if !valid {
+        log_security_event(SecurityEvent::LoginFailure {
+            email: request.email.clone(),
+            ip_address: None,
+            reason: "Invalid password".to_string(),
+        });
+        return Err(ServerError::Unauthorized(
+            "Invalid email or password".to_string(),
+        ));
+    }
 
     // Generate JWT token
-    // TODO: Get JWT secret from config
-    let auth_service = crate::auth::AuthService::new("default-secret-key-change-in-production");
-    let token = auth_service.generate_token(&user_id, org_id.clone(), roles.clone(), None)?;
+    let auth_service = AuthService::new("default-secret-key-change-in-production");
+    let token = auth_service.generate_token(
+        &user.id,
+        user.organization_id.clone(),
+        user.roles.clone(),
+        None,
+    )?;
+
+    // Log successful login
+    log_security_event(SecurityEvent::LoginSuccess {
+        user_id: user.id.clone(),
+        ip_address: None,
+    });
 
     let response = LoginResponse {
         token,
         user: UserResponse {
-            id: user_id,
-            email: request.email,
-            name: "Test User".to_string(),
-            organization_id: org_id,
-            roles,
-            created_at: chrono::Utc::now().timestamp(),
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            organization_id: user.organization_id,
+            roles: user.roles,
+            created_at: user.created_at.timestamp(),
         },
     };
 
@@ -175,20 +240,29 @@ pub async fn login_user(
     )
 )]
 pub async fn get_current_user(
+    Extension(db_pool): Extension<PgPool>,
     Extension(auth_user): Extension<AuthUser>,
 ) -> ServerResult<impl IntoResponse> {
-    // TODO: Fetch user from database
-    // For now, return mock data
-    let user = UserResponse {
-        id: auth_user.user_id.clone(),
-        email: "user@example.com".to_string(),
-        name: "Test User".to_string(),
-        organization_id: auth_user.org_id.clone(),
-        roles: auth_user.roles.clone(),
-        created_at: chrono::Utc::now().timestamp(),
+    // Create user repository
+    let user_repo = agent_mem_core::storage::user_repository::UserRepository::new(db_pool);
+
+    // Fetch user from database
+    let user = user_repo
+        .find_by_id(&auth_user.user_id)
+        .await
+        .map_err(|e| ServerError::Internal(format!("Database error: {}", e)))?
+        .ok_or_else(|| ServerError::NotFound("User not found".to_string()))?;
+
+    let response = UserResponse {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        organization_id: user.organization_id,
+        roles: user.roles,
+        created_at: user.created_at.timestamp(),
     };
 
-    Ok(Json(user))
+    Ok(Json(response))
 }
 
 /// Update user profile
@@ -207,6 +281,7 @@ pub async fn get_current_user(
     )
 )]
 pub async fn update_current_user(
+    Extension(db_pool): Extension<PgPool>,
     Extension(auth_user): Extension<AuthUser>,
     Json(request): Json<UpdateUserRequest>,
 ) -> ServerResult<impl IntoResponse> {
@@ -215,18 +290,32 @@ pub async fn update_current_user(
         .validate()
         .map_err(|e| ServerError::BadRequest(format!("Validation error: {}", e)))?;
 
-    // TODO: Update user in database
-    // For now, return mock data
-    let user = UserResponse {
-        id: auth_user.user_id.clone(),
-        email: request.email.unwrap_or_else(|| "user@example.com".to_string()),
-        name: request.name.unwrap_or_else(|| "Test User".to_string()),
-        organization_id: auth_user.org_id.clone(),
-        roles: auth_user.roles.clone(),
-        created_at: chrono::Utc::now().timestamp(),
+    // Create user repository
+    let user_repo = agent_mem_core::storage::user_repository::UserRepository::new(db_pool);
+
+    // Update user in database
+    let user = user_repo
+        .update(
+            &auth_user.user_id,
+            request.name.as_deref(),
+            request.email.as_deref(),
+            None, // Don't update roles here
+            None, // Don't update status here
+            Some(&auth_user.user_id),
+        )
+        .await
+        .map_err(|e| ServerError::Internal(format!("Failed to update user: {}", e)))?;
+
+    let response = UserResponse {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        organization_id: user.organization_id,
+        roles: user.roles,
+        created_at: user.created_at.timestamp(),
     };
 
-    Ok(Json(user))
+    Ok(Json(response))
 }
 
 /// Change user password
@@ -245,7 +334,8 @@ pub async fn update_current_user(
     )
 )]
 pub async fn change_password(
-    Extension(_auth_user): Extension<AuthUser>,
+    Extension(db_pool): Extension<PgPool>,
+    Extension(auth_user): Extension<AuthUser>,
     Json(request): Json<ChangePasswordRequest>,
 ) -> ServerResult<impl IntoResponse> {
     // Validate request
@@ -253,9 +343,37 @@ pub async fn change_password(
         .validate()
         .map_err(|e| ServerError::BadRequest(format!("Validation error: {}", e)))?;
 
-    // TODO: Verify current password and update in database
-    // For now, just hash the new password
-    let _new_password_hash = PasswordService::hash_password(&request.new_password)?;
+    // Create user repository
+    let user_repo = agent_mem_core::storage::user_repository::UserRepository::new(db_pool);
+
+    // Fetch user to verify current password
+    let user = user_repo
+        .find_by_id(&auth_user.user_id)
+        .await
+        .map_err(|e| ServerError::Internal(format!("Database error: {}", e)))?
+        .ok_or_else(|| ServerError::NotFound("User not found".to_string()))?;
+
+    // Verify current password
+    let valid = PasswordService::verify_password(&request.current_password, &user.password_hash)?;
+    if !valid {
+        return Err(ServerError::Unauthorized(
+            "Current password is incorrect".to_string(),
+        ));
+    }
+
+    // Hash new password
+    let new_password_hash = PasswordService::hash_password(&request.new_password)?;
+
+    // Update password in database
+    user_repo
+        .update_password(&auth_user.user_id, &new_password_hash, Some(&auth_user.user_id))
+        .await
+        .map_err(|e| ServerError::Internal(format!("Failed to update password: {}", e)))?;
+
+    // Log security event
+    log_security_event(SecurityEvent::PasswordChanged {
+        user_id: auth_user.user_id.clone(),
+    });
 
     Ok((
         StatusCode::OK,

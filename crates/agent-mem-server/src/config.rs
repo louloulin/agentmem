@@ -32,6 +32,8 @@ pub struct ServerConfig {
     pub multi_tenant: bool,
     /// Rate limiting
     pub rate_limit_requests_per_minute: u32,
+    /// Database URL
+    pub database_url: String,
 }
 
 impl Default for ServerConfig {
@@ -81,6 +83,8 @@ impl Default for ServerConfig {
                 .unwrap_or_else(|_| "100".to_string())
                 .parse()
                 .unwrap_or(100),
+            database_url: env::var("DATABASE_URL")
+                .unwrap_or_else(|_| "postgresql://agentmem:password@localhost:5432/agentmem".to_string()),
         }
     }
 }
@@ -107,6 +111,10 @@ impl ServerConfig {
 
         if self.max_body_size == 0 {
             return Err("Max body size must be greater than 0".to_string());
+        }
+
+        if self.database_url.is_empty() {
+            return Err("Database URL cannot be empty".to_string());
         }
 
         Ok(())

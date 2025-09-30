@@ -8,6 +8,7 @@ use crate::{
     telemetry::setup_telemetry,
 };
 use axum::Router;
+use sqlx::PgPool;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpListener;
@@ -17,6 +18,7 @@ use tracing::info;
 pub struct MemoryServer {
     config: ServerConfig,
     memory_manager: Arc<MemoryManager>,
+    db_pool: PgPool,
     router: Router,
 }
 
@@ -26,17 +28,26 @@ impl MemoryServer {
         // Setup telemetry
         setup_telemetry(&config)?;
 
+        // Create database connection pool
+        info!("Connecting to database: {}", config.database_url);
+        let db_pool = PgPool::connect(&config.database_url)
+            .await
+            .map_err(|e| ServerError::ServerError(format!("Failed to connect to database: {}", e)))?;
+
+        info!("Database connection established");
+
         // Create memory manager
         let memory_manager = Arc::new(MemoryManager::new());
 
         // Create router with all routes and middleware
-        let router = create_router(memory_manager.clone()).await?;
+        let router = create_router(memory_manager.clone(), db_pool.clone()).await?;
 
         info!("Memory server initialized successfully");
 
         Ok(Self {
             config,
             memory_manager,
+            db_pool,
             router,
         })
     }

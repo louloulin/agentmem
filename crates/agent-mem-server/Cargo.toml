@@ -65,6 +65,9 @@ chrono = { version = "0.4", features = ["serde"] }
 # Validation
 validator = { version = "0.18", features = ["derive"] }
 
+# Database
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono"] }
+
 # CLI
 clap = { version = "4.0", features = ["derive"] }
 argon2 = "0.5.3"

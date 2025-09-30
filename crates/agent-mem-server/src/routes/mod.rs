@@ -13,13 +13,14 @@ use axum::{
     routing::{delete, get, post, put},
     Extension, Router,
 };
+use sqlx::PgPool;
 use std::sync::Arc;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 /// Create the main router with all routes
-pub async fn create_router(memory_manager: Arc<MemoryManager>) -> ServerResult<Router> {
+pub async fn create_router(memory_manager: Arc<MemoryManager>, db_pool: PgPool) -> ServerResult<Router> {
     let app = Router::new()
         // Memory management routes
         .route("/api/v1/memories", post(memory::add_memory))
@@ -57,6 +58,7 @@ pub async fn create_router(memory_manager: Arc<MemoryManager>) -> ServerResult<R
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
         // Add shared state
         .layer(Extension(memory_manager))
+        .layer(Extension(db_pool))
         // Add middleware
         .layer(TraceLayer::new_for_http())
         .layer(CorsLayer::permissive());
