@@ -40,6 +40,7 @@ pub trait Repository<T> {
 }
 
 /// Organization repository
+#[derive(Clone)]
 pub struct OrganizationRepository {
     pool: PgPool,
 }
