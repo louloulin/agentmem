@@ -17,7 +17,7 @@ def read_requirements():
 
 setup(
     name="agentmem",
-    version="6.0.0",
+    version="7.0.0",
     author="AgentMem Team",
     author_email="support@agentmem.dev",
     description="Official Python SDK for AgentMem - Enterprise-grade memory management for AI agents",
