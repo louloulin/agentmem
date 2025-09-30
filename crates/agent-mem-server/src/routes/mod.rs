@@ -8,8 +8,10 @@ pub mod organizations;
 pub mod users;
 
 use crate::error::ServerResult;
+use crate::middleware::{audit_logging_middleware, quota_middleware};
 use crate::routes::memory::MemoryManager;
 use axum::{
+    middleware as axum_middleware,
     routing::{delete, get, post, put},
     Extension, Router,
 };
@@ -59,7 +61,9 @@ pub async fn create_router(memory_manager: Arc<MemoryManager>, db_pool: PgPool) 
         // Add shared state
         .layer(Extension(memory_manager))
         .layer(Extension(db_pool))
-        // Add middleware
+        // Add middleware (order matters: last added = first executed)
+        .layer(axum_middleware::from_fn(audit_logging_middleware))
+        .layer(axum_middleware::from_fn(quota_middleware))
         .layer(TraceLayer::new_for_http())
         .layer(CorsLayer::permissive());
 
