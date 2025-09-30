@@ -33,6 +33,8 @@ pub mod retrieval;
 pub mod search;
 pub mod security;
 pub mod storage;
+/// Temporal graph memory with time-aware knowledge graphs
+pub mod temporal_graph;
 pub mod tenant;
 pub mod types;
 
