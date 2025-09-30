@@ -7,7 +7,7 @@ use sqlx::{postgres::PgPoolOptions, PgPool, Row};
 use std::collections::HashMap;
 use std::time::Instant;
 
-use super::{HealthStatus, PostgresConfig, StorageBackend, StorageStatistics};
+use super::{migrations, HealthStatus, PostgresConfig, StorageBackend, StorageStatistics};
 use crate::hierarchy::{HierarchicalMemory, MemoryLevel, MemoryScope};
 use crate::{types::*, CoreError, CoreResult};
 
@@ -31,72 +31,25 @@ impl PostgresStorage {
         Ok(Self { pool, config })
     }
 
+    /// Get a reference to the connection pool
+    pub fn pool(&self) -> &PgPool {
+        &self.pool
+    }
+
     /// Run database migrations
+    ///
+    /// This now uses the comprehensive migration system that creates all tables:
+    /// - organizations
+    /// - users
+    /// - agents
+    /// - messages
+    /// - blocks
+    /// - tools
+    /// - memories (enhanced with foreign keys)
+    /// - junction tables (blocks_agents, tools_agents)
+    /// - all necessary indexes
     pub async fn migrate(&self) -> CoreResult<()> {
-        // Create memories table
-        sqlx::query(
-            r#"
-            CREATE TABLE IF NOT EXISTS memories (
-                id VARCHAR(255) PRIMARY KEY,
-                content TEXT NOT NULL,
-                hash VARCHAR(64),
-                metadata JSONB NOT NULL DEFAULT '{}',
-                score REAL,
-                memory_type VARCHAR(50) NOT NULL,
-                scope VARCHAR(50) NOT NULL,
-                level VARCHAR(50) NOT NULL,
-                importance REAL NOT NULL DEFAULT 0.0,
-                access_count BIGINT NOT NULL DEFAULT 0,
-                last_accessed TIMESTAMPTZ,
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            )
-            "#,
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| CoreError::DatabaseError(format!("Failed to create memories table: {}", e)))?;
-
-        // Create indexes for better performance
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_memories_scope ON memories(scope)")
-            .execute(&self.pool)
-            .await
-            .map_err(|e| {
-                CoreError::DatabaseError(format!("Failed to create scope index: {}", e))
-            })?;
-
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_memories_level ON memories(level)")
-            .execute(&self.pool)
-            .await
-            .map_err(|e| {
-                CoreError::DatabaseError(format!("Failed to create level index: {}", e))
-            })?;
-
-        sqlx::query(
-            "CREATE INDEX IF NOT EXISTS idx_memories_importance ON memories(importance DESC)",
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| {
-            CoreError::DatabaseError(format!("Failed to create importance index: {}", e))
-        })?;
-
-        sqlx::query(
-            "CREATE INDEX IF NOT EXISTS idx_memories_created_at ON memories(created_at DESC)",
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| {
-            CoreError::DatabaseError(format!("Failed to create created_at index: {}", e))
-        })?;
-
-        // Create full-text search index
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_memories_content_fts ON memories USING gin(to_tsvector('english', content))")
-            .execute(&self.pool)
-            .await
-            .map_err(|e| CoreError::DatabaseError(format!("Failed to create full-text search index: {}", e)))?;
-
-        Ok(())
+        migrations::run_migrations(&self.pool).await
     }
 
     /// Convert database row to HierarchicalMemory

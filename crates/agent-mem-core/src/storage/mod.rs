@@ -1,10 +1,16 @@
 // Storage module for AgentMem
 // Provides different storage backends for persistent memory storage
 
+pub mod agent_repository;
+pub mod block_repository;
 pub mod hybrid_manager;
+pub mod message_repository;
 pub mod migration;
+pub mod migrations;
+pub mod models;
 pub mod postgres;
 pub mod redis;
+pub mod repository;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
