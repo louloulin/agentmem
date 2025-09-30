@@ -88,7 +88,7 @@ pub use agent_mem_traits::{
 };
 
 /// Core error types
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum CoreError {
     /// Storage error
     #[error("Storage error: {0}")]
