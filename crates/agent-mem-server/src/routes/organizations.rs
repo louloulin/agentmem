@@ -8,7 +8,11 @@
 //! - Manage organization settings
 
 use crate::error::{ServerError, ServerResult};
-use crate::middleware::AuthUser;
+use crate::middleware::{log_security_event, AuthUser, SecurityEvent};
+use agent_mem_core::storage::{
+    models::Organization,
+    repository::{OrganizationRepository, Repository},
+};
 use axum::{
     extract::{Extension, Path, Query},
     http::StatusCode,
@@ -16,6 +20,7 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
+use sqlx::PgPool;
 use utoipa::{IntoParams, ToSchema};
 use validator::Validate;
 
@@ -89,6 +94,7 @@ pub struct ListOrganizationsQuery {
     )
 )]
 pub async fn create_organization(
+    Extension(db_pool): Extension<PgPool>,
     Extension(auth_user): Extension<AuthUser>,
     Json(request): Json<CreateOrganizationRequest>,
 ) -> ServerResult<impl IntoResponse> {
@@ -97,14 +103,29 @@ pub async fn create_organization(
         .validate()
         .map_err(|e| ServerError::BadRequest(format!("Validation error: {}", e)))?;
 
-    // TODO: Save organization to database
-    // For now, return mock data
-    let org_id = uuid::Uuid::new_v4().to_string();
-    let now = chrono::Utc::now().timestamp();
+    // Create organization repository
+    let org_repo = OrganizationRepository::new(db_pool);
 
-    let organization = OrganizationResponse {
-        id: org_id,
-        name: request.name,
+    // Create organization in database
+    let org_id = uuid::Uuid::new_v4().to_string();
+    let now = chrono::Utc::now();
+
+    let org = Organization {
+        id: org_id.clone(),
+        name: request.name.clone(),
+        created_at: now,
+        updated_at: now,
+        is_deleted: false,
+    };
+
+    let created_org = org_repo
+        .create(&org)
+        .await
+        .map_err(|e| ServerError::Internal(format!("Failed to create organization: {}", e)))?;
+
+    let response = OrganizationResponse {
+        id: created_org.id,
+        name: created_org.name,
         description: request.description,
         settings: OrganizationSettings {
             max_users: Some(100),
@@ -112,11 +133,11 @@ pub async fn create_organization(
             max_memories: Some(10000),
             retention_days: Some(365),
         },
-        created_at: now,
-        updated_at: now,
+        created_at: created_org.created_at.timestamp(),
+        updated_at: created_org.updated_at.timestamp(),
     };
 
-    Ok((StatusCode::CREATED, Json(organization)))
+    Ok((StatusCode::CREATED, Json(response)))
 }
 
 /// Get organization by ID
@@ -138,6 +159,7 @@ pub async fn create_organization(
     )
 )]
 pub async fn get_organization(
+    Extension(db_pool): Extension<PgPool>,
     Extension(auth_user): Extension<AuthUser>,
     Path(org_id): Path<String>,
 ) -> ServerResult<impl IntoResponse> {
@@ -148,23 +170,31 @@ pub async fn get_organization(
         ));
     }
 
-    // TODO: Fetch organization from database
-    // For now, return mock data
-    let organization = OrganizationResponse {
-        id: org_id,
-        name: "Test Organization".to_string(),
-        description: Some("A test organization".to_string()),
+    // Create organization repository
+    let org_repo = OrganizationRepository::new(db_pool);
+
+    // Fetch organization from database
+    let org = org_repo
+        .read(&org_id)
+        .await
+        .map_err(|e| ServerError::Internal(format!("Database error: {}", e)))?
+        .ok_or_else(|| ServerError::NotFound("Organization not found".to_string()))?;
+
+    let response = OrganizationResponse {
+        id: org.id,
+        name: org.name,
+        description: None, // TODO: Add description field to Organization model
         settings: OrganizationSettings {
             max_users: Some(100),
             max_agents: Some(50),
             max_memories: Some(10000),
             retention_days: Some(365),
         },
-        created_at: chrono::Utc::now().timestamp(),
-        updated_at: chrono::Utc::now().timestamp(),
+        created_at: org.created_at.timestamp(),
+        updated_at: org.updated_at.timestamp(),
     };
 
-    Ok(Json(organization))
+    Ok(Json(response))
 }
 
 /// Update organization
@@ -188,6 +218,7 @@ pub async fn get_organization(
     )
 )]
 pub async fn update_organization(
+    Extension(db_pool): Extension<PgPool>,
     Extension(auth_user): Extension<AuthUser>,
     Path(org_id): Path<String>,
     Json(request): Json<UpdateOrganizationRequest>,
@@ -204,11 +235,31 @@ pub async fn update_organization(
         .validate()
         .map_err(|e| ServerError::BadRequest(format!("Validation error: {}", e)))?;
 
-    // TODO: Update organization in database
-    // For now, return mock data
-    let organization = OrganizationResponse {
-        id: org_id,
-        name: request.name.unwrap_or_else(|| "Test Organization".to_string()),
+    // Create organization repository
+    let org_repo = OrganizationRepository::new(db_pool);
+
+    // Fetch existing organization
+    let mut org = org_repo
+        .read(&org_id)
+        .await
+        .map_err(|e| ServerError::Internal(format!("Database error: {}", e)))?
+        .ok_or_else(|| ServerError::NotFound("Organization not found".to_string()))?;
+
+    // Update fields
+    if let Some(name) = request.name {
+        org.name = name;
+    }
+    org.updated_at = chrono::Utc::now();
+
+    // Update in database
+    let updated_org = org_repo
+        .update(&org)
+        .await
+        .map_err(|e| ServerError::Internal(format!("Failed to update organization: {}", e)))?;
+
+    let response = OrganizationResponse {
+        id: updated_org.id,
+        name: updated_org.name,
         description: request.description,
         settings: request.settings.unwrap_or(OrganizationSettings {
             max_users: Some(100),
@@ -216,11 +267,11 @@ pub async fn update_organization(
             max_memories: Some(10000),
             retention_days: Some(365),
         }),
-        created_at: chrono::Utc::now().timestamp(),
-        updated_at: chrono::Utc::now().timestamp(),
+        created_at: updated_org.created_at.timestamp(),
+        updated_at: updated_org.updated_at.timestamp(),
     };
 
-    Ok(Json(organization))
+    Ok(Json(response))
 }
 
 /// List organization members
@@ -243,9 +294,10 @@ pub async fn update_organization(
     )
 )]
 pub async fn list_organization_members(
+    Extension(db_pool): Extension<PgPool>,
     Extension(auth_user): Extension<AuthUser>,
     Path(org_id): Path<String>,
-    Query(query): Query<ListOrganizationsQuery>,
+    Query(_query): Query<ListOrganizationsQuery>,
 ) -> ServerResult<impl IntoResponse> {
     // Check if user belongs to the organization
     if auth_user.org_id != org_id && !auth_user.roles.contains(&"admin".to_string()) {
@@ -254,17 +306,25 @@ pub async fn list_organization_members(
         ));
     }
 
-    // TODO: Fetch members from database
-    // For now, return mock data
-    let members = vec![
-        OrganizationMemberResponse {
-            user_id: auth_user.user_id.clone(),
-            email: "user@example.com".to_string(),
-            name: "Test User".to_string(),
-            roles: auth_user.roles.clone(),
-            joined_at: chrono::Utc::now().timestamp(),
-        },
-    ];
+    // Create user repository
+    let user_repo = agent_mem_core::storage::user_repository::UserRepository::new(db_pool);
+
+    // Fetch members from database
+    let users = user_repo
+        .list_by_organization(&org_id)
+        .await
+        .map_err(|e| ServerError::Internal(format!("Database error: {}", e)))?;
+
+    let members: Vec<OrganizationMemberResponse> = users
+        .into_iter()
+        .map(|user| OrganizationMemberResponse {
+            user_id: user.id,
+            email: user.email,
+            name: user.name,
+            roles: user.roles,
+            joined_at: user.created_at.timestamp(),
+        })
+        .collect();
 
     Ok(Json(members))
 }
@@ -288,6 +348,7 @@ pub async fn list_organization_members(
     )
 )]
 pub async fn delete_organization(
+    Extension(db_pool): Extension<PgPool>,
     Extension(auth_user): Extension<AuthUser>,
     Path(org_id): Path<String>,
 ) -> ServerResult<impl IntoResponse> {
@@ -296,8 +357,18 @@ pub async fn delete_organization(
         return Err(ServerError::Forbidden("Admin role required".to_string()));
     }
 
-    // TODO: Delete organization from database (soft delete)
-    // For now, just return success
+    // Create organization repository
+    let org_repo = OrganizationRepository::new(db_pool);
+
+    // Delete organization from database (soft delete)
+    let deleted = org_repo
+        .delete(&org_id)
+        .await
+        .map_err(|e| ServerError::Internal(format!("Failed to delete organization: {}", e)))?;
+
+    if !deleted {
+        return Err(ServerError::NotFound("Organization not found".to_string()));
+    }
 
     Ok(StatusCode::NO_CONTENT)
 }
