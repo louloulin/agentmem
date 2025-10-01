@@ -207,12 +207,12 @@ impl SandboxManager {
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
             .spawn()
-            .map_err(|e| ToolError::ExecutionFailed(format!("Failed to spawn process: {}", e)))?;
+            .map_err(|e| ToolError::ExecutionFailed(format!("Failed to spawn process: {e}")))?;
 
         let output = timeout(timeout_duration, child.wait_with_output())
             .await
             .map_err(|_| ToolError::Timeout)?
-            .map_err(|e| ToolError::ExecutionFailed(format!("Process execution failed: {}", e)))?;
+            .map_err(|e| ToolError::ExecutionFailed(format!("Process execution failed: {e}")))?;
 
         Ok(CommandOutput {
             stdout: String::from_utf8_lossy(&output.stdout).to_string(),
@@ -238,8 +238,7 @@ impl SandboxManager {
         }
 
         Err(ToolError::PermissionDenied(format!(
-            "Access to path {:?} is not allowed",
-            path
+            "Access to path {path:?} is not allowed"
         )))
     }
 }

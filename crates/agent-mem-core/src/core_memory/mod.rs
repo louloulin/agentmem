@@ -6,15 +6,15 @@
 //! - 自动重写机制（LLM 驱动）
 //! - Core Memory 编译器
 
-pub mod block_manager;
-pub mod template_engine;
 pub mod auto_rewriter;
+pub mod block_manager;
 pub mod compiler;
+pub mod template_engine;
 
-pub use block_manager::{BlockManager, BlockManagerConfig};
-pub use template_engine::{TemplateEngine, TemplateContext};
 pub use auto_rewriter::{AutoRewriter, AutoRewriterConfig, RewriteStrategy};
-pub use compiler::{CoreMemoryCompiler, CompilerConfig};
+pub use block_manager::{BlockManager, BlockManagerConfig};
+pub use compiler::{CompilerConfig, CoreMemoryCompiler};
+pub use template_engine::{TemplateContext, TemplateEngine};
 
 use agent_mem_traits::Result;
 use serde::{Deserialize, Serialize};
@@ -152,4 +152,3 @@ mod tests {
         assert_eq!(stats.blocks_needing_rewrite, 0);
     }
 }
-

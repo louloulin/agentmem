@@ -22,8 +22,9 @@ use chrono::Utc;
 
 /// Helper function to get test database URL
 fn get_test_db_url() -> String {
-    std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://agentmem:password@localhost:5432/agentmem_test".to_string())
+    std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        "postgresql://agentmem:password@localhost:5432/agentmem_test".to_string()
+    })
 }
 
 /// Helper function to create test PostgreSQL storage
@@ -55,7 +56,10 @@ async fn test_organization_crud() {
 
     // Create organization
     let org = Organization::new("Test Organization".to_string());
-    let created_org = repo.create(&org).await.expect("Failed to create organization");
+    let created_org = repo
+        .create(&org)
+        .await
+        .expect("Failed to create organization");
 
     assert_eq!(created_org.name, "Test Organization");
     assert!(!created_org.is_deleted);
@@ -73,12 +77,18 @@ async fn test_organization_crud() {
     // Update organization
     let mut updated_org = read_org.clone();
     updated_org.name = "Updated Organization".to_string();
-    let updated_org = repo.update(&updated_org).await.expect("Failed to update organization");
+    let updated_org = repo
+        .update(&updated_org)
+        .await
+        .expect("Failed to update organization");
 
     assert_eq!(updated_org.name, "Updated Organization");
 
     // List organizations
-    let orgs = repo.list(Some(10), Some(0)).await.expect("Failed to list organizations");
+    let orgs = repo
+        .list(Some(10), Some(0))
+        .await
+        .expect("Failed to list organizations");
     assert!(!orgs.is_empty());
 
     // Count organizations
@@ -86,15 +96,24 @@ async fn test_organization_crud() {
     assert!(count > 0);
 
     // Delete organization (soft delete)
-    let deleted = repo.delete(&created_org.id).await.expect("Failed to delete organization");
+    let deleted = repo
+        .delete(&created_org.id)
+        .await
+        .expect("Failed to delete organization");
     assert!(deleted);
 
     // Verify soft delete
-    let deleted_org = repo.read(&created_org.id).await.expect("Failed to read organization");
+    let deleted_org = repo
+        .read(&created_org.id)
+        .await
+        .expect("Failed to read organization");
     assert!(deleted_org.is_none());
 
     // Hard delete
-    let hard_deleted = repo.hard_delete(&created_org.id).await.expect("Failed to hard delete organization");
+    let hard_deleted = repo
+        .hard_delete(&created_org.id)
+        .await
+        .expect("Failed to hard delete organization");
     assert!(hard_deleted);
 }
 
@@ -108,11 +127,17 @@ async fn test_user_crud() {
 
     // Create organization first
     let org = Organization::new("Test Org".to_string());
-    let org = org_repo.create(&org).await.expect("Failed to create organization");
+    let org = org_repo
+        .create(&org)
+        .await
+        .expect("Failed to create organization");
 
     // Create user
     let user = User::new(org.id.clone(), "Test User".to_string(), "UTC".to_string());
-    let created_user = user_repo.create(&user).await.expect("Failed to create user");
+    let created_user = user_repo
+        .create(&user)
+        .await
+        .expect("Failed to create user");
 
     assert_eq!(created_user.name, "Test User");
     assert_eq!(created_user.organization_id, org.id);
@@ -152,14 +177,23 @@ async fn test_agent_crud_with_blocks() {
 
     // Create organization and user
     let org = Organization::new("Test Org".to_string());
-    let org = org_repo.create(&org).await.expect("Failed to create organization");
+    let org = org_repo
+        .create(&org)
+        .await
+        .expect("Failed to create organization");
 
     let user = User::new(org.id.clone(), "Test User".to_string(), "UTC".to_string());
-    let user = user_repo.create(&user).await.expect("Failed to create user");
+    let user = user_repo
+        .create(&user)
+        .await
+        .expect("Failed to create user");
 
     // Create agent
     let agent = Agent::new(org.id.clone(), Some("Test Agent".to_string()));
-    let created_agent = agent_repo.create(&agent).await.expect("Failed to create agent");
+    let created_agent = agent_repo
+        .create(&agent)
+        .await
+        .expect("Failed to create agent");
 
     assert_eq!(created_agent.name, Some("Test Agent".to_string()));
     assert_eq!(created_agent.organization_id, org.id);
@@ -172,7 +206,10 @@ async fn test_agent_crud_with_blocks() {
         "User is a software engineer".to_string(),
         2000,
     );
-    let human_block = block_repo.create_validated(&human_block).await.expect("Failed to create human block");
+    let human_block = block_repo
+        .create_validated(&human_block)
+        .await
+        .expect("Failed to create human block");
 
     let persona_block = Block::new(
         org.id.clone(),
@@ -181,7 +218,10 @@ async fn test_agent_crud_with_blocks() {
         "I am a helpful AI assistant".to_string(),
         2000,
     );
-    let persona_block = block_repo.create_validated(&persona_block).await.expect("Failed to create persona block");
+    let persona_block = block_repo
+        .create_validated(&persona_block)
+        .await
+        .expect("Failed to create persona block");
 
     // Link blocks to agent
     agent_repo
@@ -229,13 +269,22 @@ async fn test_message_crud() {
 
     // Create organization, user, and agent
     let org = Organization::new("Test Org".to_string());
-    let org = org_repo.create(&org).await.expect("Failed to create organization");
+    let org = org_repo
+        .create(&org)
+        .await
+        .expect("Failed to create organization");
 
     let user = User::new(org.id.clone(), "Test User".to_string(), "UTC".to_string());
-    let user = user_repo.create(&user).await.expect("Failed to create user");
+    let user = user_repo
+        .create(&user)
+        .await
+        .expect("Failed to create user");
 
     let agent = Agent::new(org.id.clone(), Some("Test Agent".to_string()));
-    let agent = agent_repo.create(&agent).await.expect("Failed to create agent");
+    let agent = agent_repo
+        .create(&agent)
+        .await
+        .expect("Failed to create agent");
 
     // Create messages
     let msg1 = Message::new(
@@ -245,7 +294,10 @@ async fn test_message_crud() {
         "user".to_string(),
         Some("Hello, how are you?".to_string()),
     );
-    let msg1 = message_repo.create(&msg1).await.expect("Failed to create message 1");
+    let msg1 = message_repo
+        .create(&msg1)
+        .await
+        .expect("Failed to create message 1");
 
     let msg2 = Message::new(
         org.id.clone(),
@@ -254,7 +306,10 @@ async fn test_message_crud() {
         "assistant".to_string(),
         Some("I'm doing well, thank you!".to_string()),
     );
-    let msg2 = message_repo.create(&msg2).await.expect("Failed to create message 2");
+    let msg2 = message_repo
+        .create(&msg2)
+        .await
+        .expect("Failed to create message 2");
 
     // List messages by agent
     let messages = message_repo
@@ -302,10 +357,16 @@ async fn test_block_validation() {
 
     // Create organization and user
     let org = Organization::new("Test Org".to_string());
-    let org = org_repo.create(&org).await.expect("Failed to create organization");
+    let org = org_repo
+        .create(&org)
+        .await
+        .expect("Failed to create organization");
 
     let user = User::new(org.id.clone(), "Test User".to_string(), "UTC".to_string());
-    let user = user_repo.create(&user).await.expect("Failed to create user");
+    let user = user_repo
+        .create(&user)
+        .await
+        .expect("Failed to create user");
 
     // Create block with value exceeding limit
     let long_value = "a".repeat(3000); // Exceeds default limit of 2000
@@ -325,4 +386,3 @@ async fn test_block_validation() {
     user_repo.hard_delete(&user.id).await.ok();
     org_repo.hard_delete(&org.id).await.ok();
 }
-

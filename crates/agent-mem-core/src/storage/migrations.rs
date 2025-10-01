@@ -269,10 +269,12 @@ async fn create_junction_tables(pool: &PgPool) -> CoreResult<()> {
 /// Create indexes for better query performance
 async fn create_indexes(pool: &PgPool) -> CoreResult<()> {
     // Organizations indexes
-    sqlx::query("CREATE INDEX IF NOT EXISTS idx_organizations_created_at ON organizations(created_at DESC)")
-        .execute(pool)
-        .await
-        .map_err(|e| CoreError::Database(format!("Failed to create index: {}", e)))?;
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_organizations_created_at ON organizations(created_at DESC)",
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| CoreError::Database(format!("Failed to create index: {}", e)))?;
 
     // Users indexes
     sqlx::query("CREATE INDEX IF NOT EXISTS idx_users_organization_id ON users(organization_id)")
@@ -297,10 +299,12 @@ async fn create_indexes(pool: &PgPool) -> CoreResult<()> {
         .await
         .map_err(|e| CoreError::Database(format!("Failed to create index: {}", e)))?;
 
-    sqlx::query("CREATE INDEX IF NOT EXISTS idx_messages_created_at_id ON messages(created_at, id)")
-        .execute(pool)
-        .await
-        .map_err(|e| CoreError::Database(format!("Failed to create index: {}", e)))?;
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_messages_created_at_id ON messages(created_at, id)",
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| CoreError::Database(format!("Failed to create index: {}", e)))?;
 
     // Memories indexes
     sqlx::query("CREATE INDEX IF NOT EXISTS idx_memories_agent_id ON memories(agent_id)")
@@ -341,4 +345,3 @@ async fn create_indexes(pool: &PgPool) -> CoreResult<()> {
 
     Ok(())
 }
-

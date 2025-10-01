@@ -86,7 +86,11 @@ impl HybridSearchEngine {
         vector_engine: Arc<VectorSearchEngine>,
         fulltext_engine: Arc<FullTextSearchEngine>,
     ) -> Self {
-        Self::new(vector_engine, fulltext_engine, HybridSearchConfig::default())
+        Self::new(
+            vector_engine,
+            fulltext_engine,
+            HybridSearchConfig::default(),
+        )
     }
 
     /// 执行混合搜索
@@ -107,11 +111,12 @@ impl HybridSearchEngine {
         let start = Instant::now();
 
         // 执行向量搜索和全文搜索
-        let (vector_results, fulltext_results, vector_time, fulltext_time) = if self.config.enable_parallel {
-            self.parallel_search(query_vector, query).await?
-        } else {
-            self.sequential_search(query_vector, query).await?
-        };
+        let (vector_results, fulltext_results, vector_time, fulltext_time) =
+            if self.config.enable_parallel {
+                self.parallel_search(query_vector, query).await?
+            } else {
+                self.sequential_search(query_vector, query).await?
+            };
 
         // 融合搜索结果
         let fusion_start = Instant::now();
@@ -119,7 +124,8 @@ impl HybridSearchEngine {
         let fusion_time = fusion_start.elapsed().as_millis() as u64;
 
         // 限制结果数量
-        let final_results: Vec<SearchResult> = fused_results.into_iter().take(query.limit).collect();
+        let final_results: Vec<SearchResult> =
+            fused_results.into_iter().take(query.limit).collect();
 
         // 构建统计信息
         let stats = SearchStats {
@@ -180,7 +186,8 @@ impl HybridSearchEngine {
     ) -> Result<Vec<SearchResult>> {
         // 使用 RRF 算法融合结果
         let weights = vec![self.config.vector_weight, self.config.fulltext_weight];
-        self.ranker.fuse(vec![vector_results, fulltext_results], weights)
+        self.ranker
+            .fuse(vec![vector_results, fulltext_results], weights)
     }
 
     /// 更新搜索配置
@@ -249,4 +256,3 @@ mod tests {
         assert_eq!(hybrid_result.stats.fulltext_results_count, 3);
     }
 }
-

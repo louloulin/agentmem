@@ -29,11 +29,7 @@ pub trait Repository<T> {
     async fn hard_delete(&self, id: &str) -> CoreResult<bool>;
 
     /// List entities with pagination
-    async fn list(
-        &self,
-        limit: Option<i64>,
-        offset: Option<i64>,
-    ) -> CoreResult<Vec<T>>;
+    async fn list(&self, limit: Option<i64>, offset: Option<i64>) -> CoreResult<Vec<T>>;
 
     /// Count total entities
     async fn count(&self) -> CoreResult<i64>;
@@ -138,11 +134,7 @@ impl Repository<Organization> for OrganizationRepository {
         Ok(result.rows_affected() > 0)
     }
 
-    async fn list(
-        &self,
-        limit: Option<i64>,
-        offset: Option<i64>,
-    ) -> CoreResult<Vec<Organization>> {
+    async fn list(&self, limit: Option<i64>, offset: Option<i64>) -> CoreResult<Vec<Organization>> {
         let limit = limit.unwrap_or(50);
         let offset = offset.unwrap_or(0);
 
@@ -317,11 +309,7 @@ impl Repository<User> for UserRepository {
         Ok(result.rows_affected() > 0)
     }
 
-    async fn list(
-        &self,
-        limit: Option<i64>,
-        offset: Option<i64>,
-    ) -> CoreResult<Vec<User>> {
+    async fn list(&self, limit: Option<i64>, offset: Option<i64>) -> CoreResult<Vec<User>> {
         let limit = limit.unwrap_or(50);
         let offset = offset.unwrap_or(0);
 
@@ -356,4 +344,3 @@ impl Repository<User> for UserRepository {
         Ok(result.get("count"))
     }
 }
-

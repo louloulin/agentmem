@@ -197,14 +197,20 @@ async fn main() -> Result<()> {
     );
 
     let structured = Messages::Structured(Message::user("Test structured"));
-    info!("Structured message content: {}", structured.to_content_string());
+    info!(
+        "Structured message content: {}",
+        structured.to_content_string()
+    );
     info!(
         "Structured message list length: {}",
         structured.to_message_list().len()
     );
 
     let multiple = Messages::Multiple(vec![Message::user("First"), Message::user("Second")]);
-    info!("Multiple messages content: {}", multiple.to_content_string());
+    info!(
+        "Multiple messages content: {}",
+        multiple.to_content_string()
+    );
     info!(
         "Multiple messages list length: {}",
         multiple.to_message_list().len()

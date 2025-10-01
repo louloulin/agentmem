@@ -7,15 +7,11 @@
 
 use crate::error::{ServerError, ServerResult};
 use crate::middleware::AuthUser;
-use axum::{
-    extract::Request,
-    middleware::Next,
-    response::Response,
-};
+use axum::{extract::Request, middleware::Next, response::Response};
+use chrono::{DateTime, Duration, Utc};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use chrono::{DateTime, Utc, Duration};
 
 /// Quota limits for an organization
 #[derive(Debug, Clone)]
@@ -100,19 +96,13 @@ impl QuotaManager {
     /// Get quota limits for an organization
     pub async fn get_limits(&self, org_id: &str) -> QuotaLimits {
         let limits_map = self.limits.read().await;
-        limits_map
-            .get(org_id)
-            .cloned()
-            .unwrap_or_default()
+        limits_map.get(org_id).cloned().unwrap_or_default()
     }
 
     /// Get usage stats for an organization
     pub async fn get_usage(&self, org_id: &str) -> UsageStats {
         let usage_map = self.usage.read().await;
-        usage_map
-            .get(org_id)
-            .cloned()
-            .unwrap_or_default()
+        usage_map.get(org_id).cloned().unwrap_or_default()
     }
 
     /// Check if request is within quota
@@ -244,15 +234,9 @@ impl Default for QuotaManager {
 }
 
 /// Quota checking middleware
-pub async fn quota_middleware(
-    request: Request,
-    next: Next,
-) -> Result<Response, ServerError> {
+pub async fn quota_middleware(request: Request, next: Next) -> Result<Response, ServerError> {
     // Extract authenticated user
-    let auth_user = request
-        .extensions()
-        .get::<AuthUser>()
-        .cloned();
+    let auth_user = request.extensions().get::<AuthUser>().cloned();
 
     if let Some(user) = auth_user {
         // Get quota manager from extensions
@@ -304,7 +288,9 @@ mod tests {
         manager.update_resource_count("org123", "user", 2).await;
 
         // Check quota (should fail)
-        assert!(manager.check_resource_quota("org123", "user").await.is_err());
+        assert!(manager
+            .check_resource_quota("org123", "user")
+            .await
+            .is_err());
     }
 }
-

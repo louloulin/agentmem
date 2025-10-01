@@ -79,16 +79,19 @@ impl AutoRewriter {
         // 根据策略选择重写方法
         match &self.config.strategy {
             RewriteStrategy::PreserveImportant => {
-                self.rewrite_preserve_important(content, target_length).await
+                self.rewrite_preserve_important(content, target_length)
+                    .await
             }
             RewriteStrategy::Summarize => {
-                self.rewrite_summarize(content, target_length, context).await
+                self.rewrite_summarize(content, target_length, context)
+                    .await
             }
             RewriteStrategy::PreserveRecent => {
                 self.rewrite_preserve_recent(content, target_length).await
             }
             RewriteStrategy::Custom(prompt) => {
-                self.rewrite_custom(content, target_length, prompt, context).await
+                self.rewrite_custom(content, target_length, prompt, context)
+                    .await
             }
         }
     }
@@ -146,11 +149,7 @@ impl AutoRewriter {
     }
 
     /// 保留最近的信息
-    async fn rewrite_preserve_recent(
-        &self,
-        content: &str,
-        target_length: usize,
-    ) -> Result<String> {
+    async fn rewrite_preserve_recent(&self, content: &str, target_length: usize) -> Result<String> {
         // 简单实现：从末尾截取
         if content.len() <= target_length {
             return Ok(content.to_string());
@@ -181,7 +180,9 @@ impl AutoRewriter {
             custom_prompt,
             content,
             target_length,
-            context.map(|c| format!("Context: {}", c)).unwrap_or_default()
+            context
+                .map(|c| format!("Context: {}", c))
+                .unwrap_or_default()
         );
 
         // 调用 LLM
@@ -230,7 +231,12 @@ impl AutoRewriter {
     }
 
     /// 验证重写结果
-    pub fn validate_rewrite(&self, original: &str, rewritten: &str, target_length: usize) -> Result<()> {
+    pub fn validate_rewrite(
+        &self,
+        original: &str,
+        rewritten: &str,
+        target_length: usize,
+    ) -> Result<()> {
         // 检查长度
         if rewritten.len() > target_length {
             return Err(AgentMemError::validation_error(format!(
@@ -260,8 +266,7 @@ impl AutoRewriter {
         let length_ratio = rewritten.len() as f32 / original.len() as f32;
 
         // 计算内容保留率（简单的单词重叠）
-        let original_words: std::collections::HashSet<&str> =
-            original.split_whitespace().collect();
+        let original_words: std::collections::HashSet<&str> = original.split_whitespace().collect();
         let rewritten_words: std::collections::HashSet<&str> =
             rewritten.split_whitespace().collect();
 
@@ -284,10 +289,14 @@ mod tests {
     #[tokio::test]
     async fn test_rewrite_preserve_important() {
         let rewriter = AutoRewriter::with_default_config();
-        let content = "Short line\nThis is a much longer line with more information\nMedium line here";
+        let content =
+            "Short line\nThis is a much longer line with more information\nMedium line here";
         let target_length = 50;
 
-        let result = rewriter.rewrite(content, target_length, None).await.unwrap();
+        let result = rewriter
+            .rewrite(content, target_length, None)
+            .await
+            .unwrap();
 
         assert!(result.len() <= target_length);
         assert!(result.contains("much longer line"));
@@ -302,7 +311,10 @@ mod tests {
         let content = "Old information at the start. Recent information at the end.";
         let target_length = 30;
 
-        let result = rewriter.rewrite(content, target_length, None).await.unwrap();
+        let result = rewriter
+            .rewrite(content, target_length, None)
+            .await
+            .unwrap();
 
         assert!(result.len() <= target_length);
         assert!(result.contains("end"));
@@ -329,4 +341,3 @@ mod tests {
         assert!(score > 0.0 && score <= 1.0);
     }
 }
-

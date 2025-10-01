@@ -185,11 +185,7 @@ impl MemoryRepository {
     }
 
     /// Get most important memories
-    pub async fn get_most_important(
-        &self,
-        agent_id: &str,
-        limit: i64,
-    ) -> CoreResult<Vec<Memory>> {
+    pub async fn get_most_important(&self, agent_id: &str, limit: i64) -> CoreResult<Vec<Memory>> {
         let results = sqlx::query_as::<_, Memory>(
             r#"
             SELECT * FROM memories
@@ -202,7 +198,9 @@ impl MemoryRepository {
         .bind(limit)
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| CoreError::Database(format!("Failed to get most important memories: {}", e)))?;
+        .map_err(|e| {
+            CoreError::Database(format!("Failed to get most important memories: {}", e))
+        })?;
 
         Ok(results)
     }
@@ -225,7 +223,9 @@ impl MemoryRepository {
         .bind(limit)
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| CoreError::Database(format!("Failed to get recently accessed memories: {}", e)))?;
+        .map_err(|e| {
+            CoreError::Database(format!("Failed to get recently accessed memories: {}", e))
+        })?;
 
         Ok(results)
     }
@@ -263,11 +263,7 @@ impl MemoryRepository {
     }
 
     /// Delete old memories (keep only N most recent)
-    pub async fn delete_old_memories(
-        &self,
-        agent_id: &str,
-        keep_count: i64,
-    ) -> CoreResult<i64> {
+    pub async fn delete_old_memories(&self, agent_id: &str, keep_count: i64) -> CoreResult<i64> {
         // Get IDs of memories to keep
         let keep_ids: Vec<String> = sqlx::query_scalar(
             r#"
@@ -439,11 +435,7 @@ impl Repository<Memory> for MemoryRepository {
         Ok(result.rows_affected() > 0)
     }
 
-    async fn list(
-        &self,
-        limit: Option<i64>,
-        offset: Option<i64>,
-    ) -> CoreResult<Vec<Memory>> {
+    async fn list(&self, limit: Option<i64>, offset: Option<i64>) -> CoreResult<Vec<Memory>> {
         let limit = limit.unwrap_or(50);
         let offset = offset.unwrap_or(0);
 
@@ -478,4 +470,3 @@ impl Repository<Memory> for MemoryRepository {
         Ok(result.try_get("count").unwrap_or(0))
     }
 }
-

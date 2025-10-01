@@ -250,13 +250,15 @@ impl DeepSeekProvider {
 
     /// 从 LLMConfig 创建 DeepSeekProvider
     pub fn from_config(config: LLMConfig) -> Result<Self> {
-        let api_key = config.api_key.ok_or_else(|| {
-            AgentMemError::config_error("DeepSeek provider requires api_key")
-        })?;
+        let api_key = config
+            .api_key
+            .ok_or_else(|| AgentMemError::config_error("DeepSeek provider requires api_key"))?;
 
         let deepseek_config = DeepSeekConfig {
             api_key,
-            base_url: config.base_url.unwrap_or_else(|| "https://api.deepseek.com/v1".to_string()),
+            base_url: config
+                .base_url
+                .unwrap_or_else(|| "https://api.deepseek.com/v1".to_string()),
             model: config.model,
             temperature: config.temperature.unwrap_or(0.7),
             max_tokens: config.max_tokens.unwrap_or(4096),

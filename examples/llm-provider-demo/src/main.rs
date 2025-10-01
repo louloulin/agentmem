@@ -1,5 +1,5 @@
 //! AgentMem 6.0 LLM 提供商真实化演示程序
-//! 
+//!
 //! 这个演示程序展示了 AgentMem 6.0 中 LLM 提供商的真实实现，
 //! 包括本地测试提供商和真实 API 提供商的功能验证。
 
@@ -49,13 +49,23 @@ async fn demo_local_test_provider() -> Result<(), Box<dyn std::error::Error>> {
 
     // 测试模型信息获取
     let model_info = provider.get_model_info();
-    info!("   模型信息: {} ({})", model_info.model, model_info.provider);
+    info!(
+        "   模型信息: {} ({})",
+        model_info.model, model_info.provider
+    );
     info!("   最大 tokens: {}", model_info.max_tokens);
     info!("   支持函数调用: {}", model_info.supports_functions);
 
     // 测试健康检查
     let is_healthy = provider.health_check().await?;
-    info!("   健康状态: {}", if is_healthy { "✅ 正常" } else { "❌ 异常" });
+    info!(
+        "   健康状态: {}",
+        if is_healthy {
+            "✅ 正常"
+        } else {
+            "❌ 异常"
+        }
+    );
 
     // 测试基本对话
     let messages = vec![
@@ -81,9 +91,12 @@ async fn demo_local_test_provider() -> Result<(), Box<dyn std::error::Error>> {
     // 测试带元数据的生成
     let (response_with_meta, metadata) = provider.generate_with_metadata(&messages).await?;
     info!("   元数据响应长度: {}", response_with_meta.len());
-    
+
     if let Some(usage) = metadata.get("usage") {
-        info!("   Token 使用情况: {}", serde_json::to_string_pretty(usage)?);
+        info!(
+            "   Token 使用情况: {}",
+            serde_json::to_string_pretty(usage)?
+        );
     }
 
     info!("✅ 本地测试 LLM 提供商测试完成");
@@ -101,7 +114,7 @@ async fn demo_ollama_provider() -> Result<(), Box<dyn std::error::Error>> {
     match OllamaProvider::new(config) {
         Ok(provider) => {
             info!("   Ollama 提供商创建成功");
-            
+
             // 测试基本功能（Ollama 没有 health_check 方法）
             info!("   Ollama 提供商创建成功，尝试基本对话...");
 
@@ -152,11 +165,11 @@ async fn demo_performance_testing() -> Result<(), Box<dyn std::error::Error>> {
                 content: format!("这是第 {} 个并发请求", i + 1),
                 timestamp: Some(Utc::now()),
             }];
-            
+
             let start = Instant::now();
             let result = provider_clone.generate(&messages).await;
             let duration = start.elapsed();
-            
+
             (i, result, duration)
         });
         handles.push(handle);
@@ -168,7 +181,7 @@ async fn demo_performance_testing() -> Result<(), Box<dyn std::error::Error>> {
     for handle in handles {
         let (request_id, result, duration) = handle.await?;
         total_duration += duration;
-        
+
         match result {
             Ok(_) => {
                 successful_requests += 1;
@@ -202,7 +215,7 @@ async fn demo_multi_turn_conversation() -> Result<(), Box<dyn std::error::Error>
     let provider = LocalTestProvider::new(config)?;
 
     let mut conversation = Vec::new();
-    
+
     // 系统消息
     conversation.push(Message {
         role: MessageRole::System,
@@ -254,9 +267,12 @@ async fn demo_multi_turn_conversation() -> Result<(), Box<dyn std::error::Error>
     let (response3, metadata) = provider.generate_with_metadata(&conversation).await?;
     info!("   用户: 请总结一下我们的对话");
     info!("   助手: {}", response3);
-    
+
     if let Some(usage) = metadata.get("usage") {
-        info!("   对话 Token 统计: {}", serde_json::to_string_pretty(usage)?);
+        info!(
+            "   对话 Token 统计: {}",
+            serde_json::to_string_pretty(usage)?
+        );
     }
 
     info!("✅ 多轮对话测试完成");

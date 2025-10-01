@@ -260,8 +260,9 @@ impl LocalEmbedder {
 
         // TODO: 实现真实的 ONNX 模型加载
         // 目前只加载分词器用于演示
-        let tokenizer = Tokenizer::from_file(tokenizer_path)
-            .map_err(|e| AgentMemError::embedding_error(format!("Failed to load tokenizer: {}", e)))?;
+        let tokenizer = Tokenizer::from_file(tokenizer_path).map_err(|e| {
+            AgentMemError::embedding_error(format!("Failed to load tokenizer: {}", e))
+        })?;
 
         self.onnx_tokenizer = Some(Arc::new(tokenizer));
         warn!("ONNX model loading not fully implemented, using deterministic embedding");
@@ -333,9 +334,9 @@ impl LocalEmbedder {
     #[cfg(feature = "local")]
     async fn generate_candle_embedding(&self, text: &str) -> Result<Vec<f32>> {
         if let (Some(model), Some(tokenizer), Some(device)) =
-            (&self.candle_model, &self.candle_tokenizer, &self.device) {
-
-            use candle_core::{Tensor, DType};
+            (&self.candle_model, &self.candle_tokenizer, &self.device)
+        {
+            use candle_core::{DType, Tensor};
 
             // 分词
             let encoding = tokenizer.encode(text, true).map_err(|e| {
@@ -347,14 +348,9 @@ impl LocalEmbedder {
 
             // 限制序列长度
             let max_length = 512;
-            let input_ids: Vec<u32> = input_ids.iter()
-                .take(max_length)
-                .cloned()
-                .collect();
-            let attention_mask: Vec<u32> = attention_mask.iter()
-                .take(max_length)
-                .cloned()
-                .collect();
+            let input_ids: Vec<u32> = input_ids.iter().take(max_length).cloned().collect();
+            let attention_mask: Vec<u32> =
+                attention_mask.iter().take(max_length).cloned().collect();
 
             // 填充到固定长度
             let mut padded_input_ids = input_ids;
@@ -366,25 +362,23 @@ impl LocalEmbedder {
             }
 
             // 创建张量
-            let input_ids_tensor = Tensor::from_vec(
-                padded_input_ids,
-                (1, max_length),
-                device
-            ).map_err(|e| {
-                AgentMemError::embedding_error(format!("Failed to create input tensor: {}", e))
-            })?;
+            let input_ids_tensor = Tensor::from_vec(padded_input_ids, (1, max_length), device)
+                .map_err(|e| {
+                    AgentMemError::embedding_error(format!("Failed to create input tensor: {}", e))
+                })?;
 
-            let attention_mask_tensor = Tensor::from_vec(
-                padded_attention_mask,
-                (1, max_length),
-                device
-            ).map_err(|e| {
-                AgentMemError::embedding_error(format!("Failed to create attention mask: {}", e))
-            })?;
+            let attention_mask_tensor =
+                Tensor::from_vec(padded_attention_mask, (1, max_length), device).map_err(|e| {
+                    AgentMemError::embedding_error(format!(
+                        "Failed to create attention mask: {}",
+                        e
+                    ))
+                })?;
 
             // 运行模型推理
             let model = model.lock().await;
-            let outputs = model.forward(&input_ids_tensor, &attention_mask_tensor)
+            let outputs = model
+                .forward(&input_ids_tensor, &attention_mask_tensor)
                 .map_err(|e| {
                     AgentMemError::embedding_error(format!("Model forward failed: {}", e))
                 })?;
@@ -392,35 +386,49 @@ impl LocalEmbedder {
             // 提取嵌入向量并进行池化
             let embeddings = if outputs.dims().len() == 3 {
                 // [batch_size, seq_len, hidden_size] -> 平均池化
-                let attention_mask_f32 = attention_mask_tensor.to_dtype(DType::F32)
-                    .map_err(|e| AgentMemError::embedding_error(format!("Dtype conversion failed: {}", e)))?;
+                let attention_mask_f32 =
+                    attention_mask_tensor.to_dtype(DType::F32).map_err(|e| {
+                        AgentMemError::embedding_error(format!("Dtype conversion failed: {}", e))
+                    })?;
 
                 // 扩展 attention_mask 维度以匹配 embeddings
-                let attention_mask_expanded = attention_mask_f32.unsqueeze(2)
-                    .map_err(|e| AgentMemError::embedding_error(format!("Unsqueeze failed: {}", e)))?
+                let attention_mask_expanded = attention_mask_f32
+                    .unsqueeze(2)
+                    .map_err(|e| {
+                        AgentMemError::embedding_error(format!("Unsqueeze failed: {}", e))
+                    })?
                     .broadcast_as(outputs.shape())
-                    .map_err(|e| AgentMemError::embedding_error(format!("Broadcast failed: {}", e)))?;
+                    .map_err(|e| {
+                        AgentMemError::embedding_error(format!("Broadcast failed: {}", e))
+                    })?;
 
                 // 应用 attention mask
-                let masked_embeddings = (&outputs * &attention_mask_expanded)
-                    .map_err(|e| AgentMemError::embedding_error(format!("Masking failed: {}", e)))?;
+                let masked_embeddings = (&outputs * &attention_mask_expanded).map_err(|e| {
+                    AgentMemError::embedding_error(format!("Masking failed: {}", e))
+                })?;
 
                 // 计算平均值
-                let sum_embeddings = masked_embeddings.sum(1)
+                let sum_embeddings = masked_embeddings
+                    .sum(1)
                     .map_err(|e| AgentMemError::embedding_error(format!("Sum failed: {}", e)))?;
-                let sum_mask = attention_mask_f32.sum(1)
+                let sum_mask = attention_mask_f32
+                    .sum(1)
                     .map_err(|e| AgentMemError::embedding_error(format!("Mask sum failed: {}", e)))?
                     .unsqueeze(1)
-                    .map_err(|e| AgentMemError::embedding_error(format!("Unsqueeze failed: {}", e)))?;
+                    .map_err(|e| {
+                        AgentMemError::embedding_error(format!("Unsqueeze failed: {}", e))
+                    })?;
 
-                (&sum_embeddings / &sum_mask)
-                    .map_err(|e| AgentMemError::embedding_error(format!("Division failed: {}", e)))?
+                (&sum_embeddings / &sum_mask).map_err(|e| {
+                    AgentMemError::embedding_error(format!("Division failed: {}", e))
+                })?
             } else {
                 outputs
             };
 
             // 转换为 Vec<f32>
-            let embedding_vec: Vec<f32> = embeddings.flatten_all()
+            let embedding_vec: Vec<f32> = embeddings
+                .flatten_all()
                 .map_err(|e| AgentMemError::embedding_error(format!("Flatten failed: {}", e)))?
                 .to_vec1()
                 .map_err(|e| AgentMemError::embedding_error(format!("To vec failed: {}", e)))?;
@@ -433,7 +441,10 @@ impl LocalEmbedder {
                 embedding_vec
             };
 
-            info!("Generated Candle embedding with {} dimensions", normalized.len());
+            info!(
+                "Generated Candle embedding with {} dimensions",
+                normalized.len()
+            );
             Ok(normalized)
         } else {
             warn!("Candle model not fully loaded, using deterministic embedding");
@@ -445,9 +456,9 @@ impl LocalEmbedder {
     async fn generate_onnx_embedding(&self, text: &str) -> Result<Vec<f32>> {
         if let (Some(_session), Some(tokenizer)) = (&self.onnx_session, &self.onnx_tokenizer) {
             // 分词
-            let _encoding = tokenizer
-                .encode(text, true)
-                .map_err(|e| AgentMemError::embedding_error(format!("Tokenization failed: {}", e)))?;
+            let _encoding = tokenizer.encode(text, true).map_err(|e| {
+                AgentMemError::embedding_error(format!("Tokenization failed: {}", e))
+            })?;
 
             // TODO: 实现真实的 ONNX 推理
             // 目前使用确定性嵌入作为占位符

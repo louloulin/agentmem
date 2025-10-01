@@ -121,19 +121,15 @@ impl CoreMemoryCompiler {
 
         // 添加 human blocks
         if !human_blocks.is_empty() {
-            let human_values: Vec<String> = human_blocks
-                .iter()
-                .map(|b| self.format_block(b))
-                .collect();
+            let human_values: Vec<String> =
+                human_blocks.iter().map(|b| self.format_block(b)).collect();
             context.set_list("human_blocks".to_string(), human_values);
         }
 
         // 添加 system blocks
         if !system_blocks.is_empty() {
-            let system_values: Vec<String> = system_blocks
-                .iter()
-                .map(|b| self.format_block(b))
-                .collect();
+            let system_values: Vec<String> =
+                system_blocks.iter().map(|b| self.format_block(b)).collect();
             context.set_list("system_blocks".to_string(), system_values);
         }
 
@@ -247,12 +243,14 @@ impl CoreMemoryCompiler {
     }
 
     /// 验证编译结果
-    pub fn validate_compilation(&self, result: &CompilationResult, max_length: Option<usize>) -> Result<()> {
+    pub fn validate_compilation(
+        &self,
+        result: &CompilationResult,
+        max_length: Option<usize>,
+    ) -> Result<()> {
         // 检查是否为空
         if result.prompt.is_empty() {
-            return Err(AgentMemError::validation_error(
-                "Compiled prompt is empty",
-            ));
+            return Err(AgentMemError::validation_error("Compiled prompt is empty"));
         }
 
         // 检查长度限制
@@ -369,4 +367,3 @@ mod tests {
         assert_eq!(stats.system_blocks, 1);
     }
 }
-

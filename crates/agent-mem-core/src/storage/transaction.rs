@@ -65,7 +65,7 @@ impl TransactionManager {
                             max_delay_ms,
                             backoff_factor,
                         );
-                        
+
                         tracing::warn!(
                             "Database operation failed (attempt {}/{}), retrying in {}ms: {}",
                             attempt + 1,
@@ -95,9 +95,9 @@ impl TransactionManager {
 
         match operation(tx).await {
             Ok((tx, result)) => {
-                tx.commit()
-                    .await
-                    .map_err(|e| CoreError::Database(format!("Failed to commit transaction: {}", e)))?;
+                tx.commit().await.map_err(|e| {
+                    CoreError::Database(format!("Failed to commit transaction: {}", e))
+                })?;
                 Ok(result)
             }
             Err(e) => {
@@ -160,7 +160,12 @@ impl Default for RetryConfig {
 
 impl RetryConfig {
     /// Create a new retry configuration
-    pub fn new(max_retries: u32, base_delay_ms: u64, max_delay_ms: u64, backoff_factor: f64) -> Self {
+    pub fn new(
+        max_retries: u32,
+        base_delay_ms: u64,
+        max_delay_ms: u64,
+        backoff_factor: f64,
+    ) -> Self {
         Self {
             max_retries,
             base_delay_ms,
@@ -232,9 +237,8 @@ where
         }
     }
 
-    Err(last_error.unwrap_or_else(|| {
-        CoreError::Database("Operation failed after all retries".to_string())
-    }))
+    Err(last_error
+        .unwrap_or_else(|| CoreError::Database("Operation failed after all retries".to_string())))
 }
 
 /// Macro to retry a database operation with default configuration
@@ -269,7 +273,7 @@ mod tests {
         assert_eq!(calculate_backoff_delay(2, 100, 2000, 2.0), 400);
         assert_eq!(calculate_backoff_delay(3, 100, 2000, 2.0), 800);
         assert_eq!(calculate_backoff_delay(4, 100, 2000, 2.0), 1600);
-        
+
         // Test max delay cap
         assert_eq!(calculate_backoff_delay(5, 100, 2000, 2.0), 2000);
         assert_eq!(calculate_backoff_delay(10, 100, 2000, 2.0), 2000);
@@ -312,4 +316,3 @@ mod tests {
         assert_eq!(conservative_config.base_delay_ms, 200);
     }
 }
-

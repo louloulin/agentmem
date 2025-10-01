@@ -158,6 +158,45 @@ pub struct ErrorResponse {
     pub timestamp: DateTime<Utc>,
 }
 
+/// Generic API response wrapper
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ApiResponse<T> {
+    /// Response data
+    pub data: T,
+
+    /// Success status
+    #[serde(default = "default_true")]
+    pub success: bool,
+
+    /// Optional message
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+impl<T> ApiResponse<T> {
+    /// Create a successful response
+    pub fn success(data: T) -> Self {
+        Self {
+            data,
+            success: true,
+            message: None,
+        }
+    }
+
+    /// Create a successful response with a message
+    pub fn success_with_message(data: T, message: String) -> Self {
+        Self {
+            data,
+            success: true,
+            message: Some(message),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

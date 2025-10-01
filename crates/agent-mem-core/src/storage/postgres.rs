@@ -24,9 +24,7 @@ impl PostgresStorage {
             .max_connections(config.max_connections)
             .connect(&config.url)
             .await
-            .map_err(|e| {
-                CoreError::Database(format!("Failed to connect to PostgreSQL: {}", e))
-            })?;
+            .map_err(|e| CoreError::Database(format!("Failed to connect to PostgreSQL: {}", e)))?;
 
         Ok(Self { pool, config })
     }
@@ -110,9 +108,9 @@ impl PostgresStorage {
             content: row
                 .try_get("content")
                 .map_err(|e| CoreError::Database(format!("Failed to get content: {}", e)))?,
-            importance: row.try_get("importance").map_err(|e| {
-                CoreError::Database(format!("Failed to get importance: {}", e))
-            })?,
+            importance: row
+                .try_get("importance")
+                .map_err(|e| CoreError::Database(format!("Failed to get importance: {}", e)))?,
             embedding: None, // TODO: Store embedding in DB
             created_at: created_at.timestamp(),
             last_accessed_at: last_accessed
@@ -348,9 +346,10 @@ impl StorageBackend for PostgresStorage {
             query_builder = query_builder.bind(limit as i64);
         }
 
-        let rows = query_builder.fetch_all(&self.pool).await.map_err(|e| {
-            CoreError::Database(format!("Failed to get memories by scope: {}", e))
-        })?;
+        let rows = query_builder
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| CoreError::Database(format!("Failed to get memories by scope: {}", e)))?;
 
         let mut memories = Vec::new();
         for row in rows {
@@ -379,9 +378,10 @@ impl StorageBackend for PostgresStorage {
             query_builder = query_builder.bind(limit as i64);
         }
 
-        let rows = query_builder.fetch_all(&self.pool).await.map_err(|e| {
-            CoreError::Database(format!("Failed to get memories by level: {}", e))
-        })?;
+        let rows = query_builder
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| CoreError::Database(format!("Failed to get memories by level: {}", e)))?;
 
         let mut memories = Vec::new();
         for row in rows {
@@ -400,9 +400,9 @@ impl StorageBackend for PostgresStorage {
         .await
         .map_err(|e| CoreError::Database(format!("Failed to get total statistics: {}", e)))?;
 
-        let total_memories: i64 = total_row.try_get("total_memories").map_err(|e| {
-            CoreError::Database(format!("Failed to get total_memories: {}", e))
-        })?;
+        let total_memories: i64 = total_row
+            .try_get("total_memories")
+            .map_err(|e| CoreError::Database(format!("Failed to get total_memories: {}", e)))?;
         let storage_size: i64 = total_row
             .try_get("storage_size")
             .map_err(|e| CoreError::Database(format!("Failed to get storage_size: {}", e)))?;

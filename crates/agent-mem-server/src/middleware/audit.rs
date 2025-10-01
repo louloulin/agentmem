@@ -6,11 +6,7 @@
 //! - Security event logging
 
 use crate::middleware::AuthUser;
-use axum::{
-    extract::Request,
-    middleware::Next,
-    response::Response,
-};
+use axum::{extract::Request, middleware::Next, response::Response};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
@@ -35,10 +31,7 @@ pub struct AuditLog {
 }
 
 /// Audit logging middleware
-pub async fn audit_logging_middleware(
-    request: Request,
-    next: Next,
-) -> Response {
+pub async fn audit_logging_middleware(request: Request, next: Next) -> Response {
     let start = Instant::now();
     let timestamp = Utc::now().timestamp();
 
@@ -81,7 +74,7 @@ pub async fn audit_logging_middleware(
         ip_address: None, // TODO: Extract from request
         user_agent,
         error: if status_code >= 400 {
-            Some(format!("HTTP {}", status_code))
+            Some(format!("HTTP {status_code}"))
         } else {
             None
         },
@@ -98,11 +91,7 @@ fn parse_path(path: &str, method: &str) -> (String, String, Option<String>) {
     let parts: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
 
     if parts.len() < 3 {
-        return (
-            method.to_lowercase(),
-            "unknown".to_string(),
-            None,
-        );
+        return (method.to_lowercase(), "unknown".to_string(), None);
     }
 
     // Expected format: /api/v1/{resource_type}/{resource_id}
@@ -119,7 +108,13 @@ fn parse_path(path: &str, method: &str) -> (String, String, Option<String>) {
     };
 
     let action = match method {
-        "GET" => if resource_id.is_some() { "read" } else { "list" },
+        "GET" => {
+            if resource_id.is_some() {
+                "read"
+            } else {
+                "list"
+            }
+        }
         "POST" => "create",
         "PUT" | "PATCH" => "update",
         "DELETE" => "delete",
@@ -132,13 +127,13 @@ fn parse_path(path: &str, method: &str) -> (String, String, Option<String>) {
 /// Log audit entry
 fn log_audit_entry(audit_log: &AuditLog) {
     let user_info = if let Some(user_id) = &audit_log.user_id {
-        format!("user={}", user_id)
+        format!("user={user_id}")
     } else {
         "user=anonymous".to_string()
     };
 
     let org_info = if let Some(org_id) = &audit_log.organization_id {
-        format!("org={}", org_id)
+        format!("org={org_id}")
     } else {
         String::new()
     };
@@ -214,13 +209,20 @@ pub enum SecurityEvent {
 /// Log security event
 pub fn log_security_event(event: SecurityEvent) {
     match event {
-        SecurityEvent::LoginSuccess { user_id, ip_address } => {
+        SecurityEvent::LoginSuccess {
+            user_id,
+            ip_address,
+        } => {
             info!(
                 "SECURITY: Login successful - user={} ip={:?}",
                 user_id, ip_address
             );
         }
-        SecurityEvent::LoginFailure { email, ip_address, reason } => {
+        SecurityEvent::LoginFailure {
+            email,
+            ip_address,
+            reason,
+        } => {
             warn!(
                 "SECURITY: Login failed - email={} ip={:?} reason={}",
                 email, ip_address, reason
@@ -247,7 +249,11 @@ pub fn log_security_event(event: SecurityEvent) {
                 path, ip_address
             );
         }
-        SecurityEvent::PermissionDenied { user_id, resource, action } => {
+        SecurityEvent::PermissionDenied {
+            user_id,
+            resource,
+            action,
+        } => {
             warn!(
                 "SECURITY: Permission denied - user={} resource={} action={}",
                 user_id, resource, action
@@ -280,4 +286,3 @@ mod tests {
         assert_eq!(resource_id, None);
     }
 }
-

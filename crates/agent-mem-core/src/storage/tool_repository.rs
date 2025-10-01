@@ -94,8 +94,9 @@ impl ToolRepository {
             "#
         };
 
-        let tags_json = serde_json::to_value(tags)
-            .map_err(|e| CoreError::SerializationError(format!("Failed to serialize tags: {}", e)))?;
+        let tags_json = serde_json::to_value(tags).map_err(|e| {
+            CoreError::SerializationError(format!("Failed to serialize tags: {}", e))
+        })?;
 
         let results = sqlx::query_as::<_, Tool>(query)
             .bind(organization_id)
@@ -283,11 +284,7 @@ impl Repository<Tool> for ToolRepository {
         Ok(result.rows_affected() > 0)
     }
 
-    async fn list(
-        &self,
-        limit: Option<i64>,
-        offset: Option<i64>,
-    ) -> CoreResult<Vec<Tool>> {
+    async fn list(&self, limit: Option<i64>, offset: Option<i64>) -> CoreResult<Vec<Tool>> {
         let limit = limit.unwrap_or(50);
         let offset = offset.unwrap_or(0);
 
@@ -322,4 +319,3 @@ impl Repository<Tool> for ToolRepository {
         Ok(result.try_get("count").unwrap_or(0))
     }
 }
-

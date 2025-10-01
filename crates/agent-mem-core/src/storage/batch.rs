@@ -254,7 +254,9 @@ impl BatchOperations {
                     .bind(&block.last_updated_by_id)
                     .execute(&pool)
                     .await
-                    .map_err(|e| CoreError::Database(format!("Failed to batch insert block: {}", e)))?;
+                    .map_err(|e| {
+                        CoreError::Database(format!("Failed to batch insert block: {}", e))
+                    })?;
 
                     inserted += result.rows_affected();
                 }
@@ -309,7 +311,9 @@ impl BatchOperations {
                     .bind(&tool.last_updated_by_id)
                     .execute(&pool)
                     .await
-                    .map_err(|e| CoreError::Database(format!("Failed to batch insert tool: {}", e)))?;
+                    .map_err(|e| {
+                        CoreError::Database(format!("Failed to batch insert tool: {}", e))
+                    })?;
 
                     inserted += result.rows_affected();
                 }
@@ -321,11 +325,7 @@ impl BatchOperations {
     }
 
     /// Batch delete by IDs (soft delete)
-    pub async fn batch_soft_delete(
-        &self,
-        table: &str,
-        ids: &[String],
-    ) -> CoreResult<u64> {
+    pub async fn batch_soft_delete(&self, table: &str, ids: &[String]) -> CoreResult<u64> {
         if ids.is_empty() {
             return Ok(0);
         }
@@ -357,4 +357,3 @@ impl BatchOperations {
         .await
     }
 }
-

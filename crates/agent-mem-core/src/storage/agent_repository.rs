@@ -72,7 +72,12 @@ impl AgentRepository {
     }
 
     /// Add a block to an agent
-    pub async fn add_block(&self, agent_id: &str, block_id: &str, block_label: &str) -> CoreResult<()> {
+    pub async fn add_block(
+        &self,
+        agent_id: &str,
+        block_id: &str,
+        block_label: &str,
+    ) -> CoreResult<()> {
         sqlx::query(
             r#"
             INSERT INTO blocks_agents (block_id, block_label, agent_id)
@@ -91,7 +96,12 @@ impl AgentRepository {
     }
 
     /// Remove a block from an agent
-    pub async fn remove_block(&self, agent_id: &str, block_id: &str, block_label: &str) -> CoreResult<bool> {
+    pub async fn remove_block(
+        &self,
+        agent_id: &str,
+        block_id: &str,
+        block_label: &str,
+    ) -> CoreResult<bool> {
         let result = sqlx::query(
             r#"
             DELETE FROM blocks_agents
@@ -230,11 +240,7 @@ impl Repository<Agent> for AgentRepository {
         Ok(result.rows_affected() > 0)
     }
 
-    async fn list(
-        &self,
-        limit: Option<i64>,
-        offset: Option<i64>,
-    ) -> CoreResult<Vec<Agent>> {
+    async fn list(&self, limit: Option<i64>, offset: Option<i64>) -> CoreResult<Vec<Agent>> {
         let limit = limit.unwrap_or(50);
         let offset = offset.unwrap_or(0);
 
@@ -269,4 +275,3 @@ impl Repository<Agent> for AgentRepository {
         Ok(result.try_get("count").unwrap_or(0))
     }
 }
-

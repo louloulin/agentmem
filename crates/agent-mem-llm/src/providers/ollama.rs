@@ -300,7 +300,7 @@ impl LLMProvider for OllamaProvider {
             provider: "ollama".to_string(),
             model: self.config.model.clone(),
             max_tokens: self.config.max_tokens.unwrap_or(2048),
-            supports_streaming: true, // 现在支持流式处理
+            supports_streaming: true,  // 现在支持流式处理
             supports_functions: false, // 大多数本地模型不支持函数调用
         }
     }

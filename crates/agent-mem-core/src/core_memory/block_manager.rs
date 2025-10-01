@@ -107,11 +107,7 @@ impl BlockManager {
     }
 
     /// 更新 Block 内容
-    pub async fn update_block_value(
-        &self,
-        block_id: &str,
-        new_value: String,
-    ) -> Result<Block> {
+    pub async fn update_block_value(&self, block_id: &str, new_value: String) -> Result<Block> {
         // 获取现有 Block
         let mut block = self
             .repository
@@ -143,11 +139,7 @@ impl BlockManager {
     }
 
     /// 追加内容到 Block
-    pub async fn append_to_block(
-        &self,
-        block_id: &str,
-        additional_content: &str,
-    ) -> Result<Block> {
+    pub async fn append_to_block(&self, block_id: &str, additional_content: &str) -> Result<Block> {
         // 获取现有 Block
         let block = self
             .repository
@@ -280,9 +272,7 @@ impl BlockManager {
             .ok_or_else(|| AgentMemError::not_found("Template not found"))?;
 
         if !template.is_template {
-            return Err(AgentMemError::validation_error(
-                "Block is not a template",
-            ));
+            return Err(AgentMemError::validation_error("Block is not a template"));
         }
 
         // 渲染模板
@@ -355,8 +345,7 @@ impl BlockManager {
     /// 解析 Block 元数据
     fn parse_metadata(&self, block: &Block) -> Result<BlockMetadata> {
         if let Some(ref metadata_value) = block.metadata_ {
-            Ok(serde_json::from_value(metadata_value.clone())
-                .unwrap_or_default())
+            Ok(serde_json::from_value(metadata_value.clone()).unwrap_or_default())
         } else {
             Ok(BlockMetadata::default())
         }
@@ -378,4 +367,3 @@ impl BlockManager {
         Ok(rendered)
     }
 }
-

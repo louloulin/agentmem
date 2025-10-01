@@ -7,15 +7,15 @@
 //! - 搜索结果重排序
 //! - 搜索性能优化
 
+pub mod fulltext_search;
 pub mod hybrid;
 pub mod ranker;
 pub mod vector_search;
-pub mod fulltext_search;
 
-pub use hybrid::{HybridSearchEngine, HybridSearchConfig, HybridSearchResult};
+pub use fulltext_search::FullTextSearchEngine;
+pub use hybrid::{HybridSearchConfig, HybridSearchEngine, HybridSearchResult};
 pub use ranker::{RRFRanker, SearchResultRanker};
 pub use vector_search::VectorSearchEngine;
-pub use fulltext_search::FullTextSearchEngine;
 
 use agent_mem_traits::Result;
 use serde::{Deserialize, Serialize};
@@ -130,4 +130,3 @@ mod tests {
         assert_eq!(result.score, 0.9);
     }
 }
-

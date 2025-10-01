@@ -16,8 +16,9 @@ use std::time::Instant;
 
 /// Helper function to get test database URL
 fn get_test_db_url() -> String {
-    std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://agentmem:password@localhost:5432/agentmem_test".to_string())
+    std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        "postgresql://agentmem:password@localhost:5432/agentmem_test".to_string()
+    })
 }
 
 /// Helper function to create test PostgreSQL storage
@@ -74,12 +75,16 @@ impl BenchmarkResult {
 
     fn check_threshold(&self, max_avg_ms: f64) -> bool {
         if self.avg_time_ms > max_avg_ms {
-            println!("❌ FAILED: {} exceeded threshold ({}ms > {}ms)", 
-                self.name, self.avg_time_ms, max_avg_ms);
+            println!(
+                "❌ FAILED: {} exceeded threshold ({}ms > {}ms)",
+                self.name, self.avg_time_ms, max_avg_ms
+            );
             false
         } else {
-            println!("✅ PASSED: {} within threshold ({}ms <= {}ms)", 
-                self.name, self.avg_time_ms, max_avg_ms);
+            println!(
+                "✅ PASSED: {} within threshold ({}ms <= {}ms)",
+                self.name, self.avg_time_ms, max_avg_ms
+            );
             true
         }
     }
@@ -100,8 +105,15 @@ async fn benchmark_crud_operations() {
     let org = Organization::new("Benchmark Org".to_string());
     let org = org_repo.create(&org).await.expect("Failed to create org");
 
-    let user = User::new(org.id.clone(), "Benchmark User".to_string(), "UTC".to_string());
-    let user = user_repo.create(&user).await.expect("Failed to create user");
+    let user = User::new(
+        org.id.clone(),
+        "Benchmark User".to_string(),
+        "UTC".to_string(),
+    );
+    let user = user_repo
+        .create(&user)
+        .await
+        .expect("Failed to create user");
 
     // Benchmark: Create agents
     let num_agents = 100;
@@ -109,7 +121,10 @@ async fn benchmark_crud_operations() {
 
     for i in 0..num_agents {
         let agent = Agent::new(org.id.clone(), Some(format!("Agent {}", i)));
-        agent_repo.create(&agent).await.expect("Failed to create agent");
+        agent_repo
+            .create(&agent)
+            .await
+            .expect("Failed to create agent");
     }
 
     let result = BenchmarkResult::new("Create Agent", num_agents, start.elapsed().as_millis());
@@ -149,8 +164,15 @@ async fn benchmark_batch_operations() {
     let org = Organization::new("Benchmark Org".to_string());
     let org = org_repo.create(&org).await.expect("Failed to create org");
 
-    let user = User::new(org.id.clone(), "Benchmark User".to_string(), "UTC".to_string());
-    let user = user_repo.create(&user).await.expect("Failed to create user");
+    let user = User::new(
+        org.id.clone(),
+        "Benchmark User".to_string(),
+        "UTC".to_string(),
+    );
+    let user = user_repo
+        .create(&user)
+        .await
+        .expect("Failed to create user");
 
     // Benchmark: Batch insert agents
     let batch_size = 100;
@@ -164,7 +186,11 @@ async fn benchmark_batch_operations() {
         .await
         .expect("Failed to batch insert");
 
-    let result = BenchmarkResult::new("Batch Insert Agents", batch_size, start.elapsed().as_millis());
+    let result = BenchmarkResult::new(
+        "Batch Insert Agents",
+        batch_size,
+        start.elapsed().as_millis(),
+    );
     result.print();
     assert!(result.check_threshold(10.0), "Batch insert too slow");
 
@@ -188,11 +214,21 @@ async fn benchmark_memory_operations() {
     let org = Organization::new("Benchmark Org".to_string());
     let org = org_repo.create(&org).await.expect("Failed to create org");
 
-    let user = User::new(org.id.clone(), "Benchmark User".to_string(), "UTC".to_string());
-    let user = user_repo.create(&user).await.expect("Failed to create user");
+    let user = User::new(
+        org.id.clone(),
+        "Benchmark User".to_string(),
+        "UTC".to_string(),
+    );
+    let user = user_repo
+        .create(&user)
+        .await
+        .expect("Failed to create user");
 
     let agent = Agent::new(org.id.clone(), Some("Benchmark Agent".to_string()));
-    let agent = agent_repo.create(&agent).await.expect("Failed to create agent");
+    let agent = agent_repo
+        .create(&agent)
+        .await
+        .expect("Failed to create agent");
 
     // Benchmark: Create memories
     let num_memories = 100;
@@ -221,7 +257,10 @@ async fn benchmark_memory_operations() {
             last_updated_by_id: None,
         };
 
-        memory_repo.create(&memory).await.expect("Failed to create memory");
+        memory_repo
+            .create(&memory)
+            .await
+            .expect("Failed to create memory");
     }
 
     let result = BenchmarkResult::new("Create Memory", num_memories, start.elapsed().as_millis());
@@ -239,7 +278,11 @@ async fn benchmark_memory_operations() {
             .expect("Failed to search");
     }
 
-    let result = BenchmarkResult::new("Full-text Search", num_searches, start.elapsed().as_millis());
+    let result = BenchmarkResult::new(
+        "Full-text Search",
+        num_searches,
+        start.elapsed().as_millis(),
+    );
     result.print();
     assert!(result.check_threshold(100.0), "Search too slow");
 
@@ -280,7 +323,11 @@ async fn benchmark_concurrent_operations() {
         handle.await.expect("Task failed");
     }
 
-    let result = BenchmarkResult::new("Concurrent Reads", num_concurrent, start.elapsed().as_millis());
+    let result = BenchmarkResult::new(
+        "Concurrent Reads",
+        num_concurrent,
+        start.elapsed().as_millis(),
+    );
     result.print();
     assert!(result.check_threshold(20.0), "Concurrent reads too slow");
 
@@ -299,4 +346,3 @@ async fn benchmark_summary() {
     println!("  - Concurrent operations: < 20ms per operation");
     println!("\nRun individual benchmarks to see detailed results.");
 }
-

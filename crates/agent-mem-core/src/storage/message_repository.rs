@@ -87,11 +87,7 @@ impl MessageRepository {
     }
 
     /// Delete old messages for an agent (for context window management)
-    pub async fn delete_old_messages(
-        &self,
-        agent_id: &str,
-        keep_count: i64,
-    ) -> CoreResult<i64> {
+    pub async fn delete_old_messages(&self, agent_id: &str, keep_count: i64) -> CoreResult<i64> {
         // Get IDs of messages to keep
         let keep_ids: Vec<String> = sqlx::query_scalar(
             r#"
@@ -256,11 +252,7 @@ impl Repository<Message> for MessageRepository {
         Ok(result.rows_affected() > 0)
     }
 
-    async fn list(
-        &self,
-        limit: Option<i64>,
-        offset: Option<i64>,
-    ) -> CoreResult<Vec<Message>> {
+    async fn list(&self, limit: Option<i64>, offset: Option<i64>) -> CoreResult<Vec<Message>> {
         let limit = limit.unwrap_or(50);
         let offset = offset.unwrap_or(0);
 
@@ -295,4 +287,3 @@ impl Repository<Message> for MessageRepository {
         Ok(result.try_get("count").unwrap_or(0))
     }
 }
-

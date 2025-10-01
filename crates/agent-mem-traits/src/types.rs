@@ -229,13 +229,13 @@ pub enum MemoryType {
     #[default]
     Episodic, // 情节性记忆 - specific events and experiences
     Procedural, // 程序性记忆 - skills and procedures
-    Semantic, // 语义记忆 - facts and general knowledge
-    Working, // 工作记忆 - temporary information processing
+    Semantic,   // 语义记忆 - facts and general knowledge
+    Working,    // 工作记忆 - temporary information processing
 
     // Advanced cognitive memories (AgentMem 7.0)
-    Core, // 核心记忆 - persistent identity and preferences
-    Resource, // 资源记忆 - multimedia content and documents
-    Knowledge, // 知识记忆 - structured knowledge graphs
+    Core,       // 核心记忆 - persistent identity and preferences
+    Resource,   // 资源记忆 - multimedia content and documents
+    Knowledge,  // 知识记忆 - structured knowledge graphs
     Contextual, // 上下文记忆 - environment-aware information
 }
 

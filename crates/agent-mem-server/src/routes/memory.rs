@@ -9,7 +9,7 @@ use crate::{
 };
 use agent_mem_core::{
     manager::MemoryManager as CoreMemoryManager,
-    types::{Memory, MemoryQuery},
+    types::MemoryQuery,
 };
 use agent_mem_traits::MemoryType;
 use std::sync::Arc;
@@ -18,6 +18,12 @@ use tokio::sync::RwLock;
 /// Server-side memory manager wrapper
 pub struct MemoryManager {
     core_manager: Arc<RwLock<CoreMemoryManager>>,
+}
+
+impl Default for MemoryManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl MemoryManager {
@@ -522,7 +528,7 @@ pub async fn batch_delete_memories(
     for id in &ids {
         match memory_manager.delete_memory(id).await {
             Ok(_) => successful += 1,
-            Err(e) => errors.push(format!("Failed to delete {}: {}", id, e)),
+            Err(e) => errors.push(format!("Failed to delete {id}: {e}")),
         }
     }
 

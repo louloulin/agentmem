@@ -2,13 +2,13 @@
 
 #[cfg(feature = "azure")]
 use crate::providers::AzureProvider;
+use crate::providers::DeepSeekProvider;
 #[cfg(feature = "gemini")]
 use crate::providers::GeminiProvider;
 use crate::providers::LiteLLMProvider;
 use crate::providers::OllamaProvider; // 移除条件编译，确保总是可用
 use crate::providers::{AnthropicProvider, OpenAIProvider};
 use crate::providers::{ClaudeProvider, CohereProvider, MistralProvider, PerplexityProvider};
-use crate::providers::DeepSeekProvider;
 
 use agent_mem_traits::{AgentMemError, LLMConfig, LLMProvider, Message, ModelInfo, Result};
 use async_trait::async_trait;

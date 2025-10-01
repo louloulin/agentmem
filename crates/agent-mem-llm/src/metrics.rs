@@ -195,7 +195,11 @@ impl LLMMonitor {
 
         debug!(
             "📊 LLM Metrics: provider={}, model={}, latency={}ms, tokens={}, success={}",
-            metrics.provider, metrics.model, metrics.latency_ms, metrics.total_tokens, metrics.success
+            metrics.provider,
+            metrics.model,
+            metrics.latency_ms,
+            metrics.total_tokens,
+            metrics.success
         );
 
         let mut history = self.metrics_history.lock().unwrap();
@@ -282,13 +286,30 @@ impl LLMMonitor {
         let stats = self.get_stats();
         info!("📊 LLM Performance Statistics:");
         info!("  Total Requests: {}", stats.total_requests);
-        info!("  Successful: {} ({:.2}%)", stats.successful_requests, (stats.successful_requests as f64 / stats.total_requests as f64) * 100.0);
-        info!("  Failed: {} ({:.2}%)", stats.failed_requests, stats.error_rate * 100.0);
-        info!("  Latency: avg={:.2}ms, min={}ms, max={}ms", stats.avg_latency_ms, stats.min_latency_ms, stats.max_latency_ms);
-        info!("  Latency Percentiles: P50={}ms, P95={}ms, P99={}ms", stats.p50_latency_ms, stats.p95_latency_ms, stats.p99_latency_ms);
-        info!("  Tokens: input={}, output={}, total={}", stats.total_input_tokens, stats.total_output_tokens, stats.total_tokens);
+        info!(
+            "  Successful: {} ({:.2}%)",
+            stats.successful_requests,
+            (stats.successful_requests as f64 / stats.total_requests as f64) * 100.0
+        );
+        info!(
+            "  Failed: {} ({:.2}%)",
+            stats.failed_requests,
+            stats.error_rate * 100.0
+        );
+        info!(
+            "  Latency: avg={:.2}ms, min={}ms, max={}ms",
+            stats.avg_latency_ms, stats.min_latency_ms, stats.max_latency_ms
+        );
+        info!(
+            "  Latency Percentiles: P50={}ms, P95={}ms, P99={}ms",
+            stats.p50_latency_ms, stats.p95_latency_ms, stats.p99_latency_ms
+        );
+        info!(
+            "  Tokens: input={}, output={}, total={}",
+            stats.total_input_tokens, stats.total_output_tokens, stats.total_tokens
+        );
         info!("  Estimated Cost: ${:.4}", stats.total_cost);
-        
+
         if !stats.errors_by_type.is_empty() {
             info!("  Errors by Type:");
             for (error_type, count) in &stats.errors_by_type {
@@ -351,8 +372,8 @@ mod tests {
 
     #[test]
     fn test_cost_estimation() {
-        let metrics = LLMMetrics::new("openai".to_string(), "gpt-4".to_string())
-            .with_tokens(1000, 2000);
+        let metrics =
+            LLMMetrics::new("openai".to_string(), "gpt-4".to_string()).with_tokens(1000, 2000);
 
         let cost = metrics.estimated_cost();
         assert!(cost > 0.0);
@@ -383,4 +404,3 @@ mod tests {
         assert_eq!(stats.error_rate, 0.5);
     }
 }
-

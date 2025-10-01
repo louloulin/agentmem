@@ -2,7 +2,7 @@
 //!
 //! 测试向量搜索 + 全文搜索的混合搜索功能
 
-use agent_mem_core::search::{HybridSearchConfig, SearchQuery, SearchFilters};
+use agent_mem_core::search::{HybridSearchConfig, SearchFilters, SearchQuery};
 
 /// 测试混合搜索配置
 #[test]
@@ -67,7 +67,10 @@ fn test_search_filters() {
     assert_eq!(filters.user_id, Some("user456".to_string()));
     assert_eq!(filters.organization_id, Some("org789".to_string()));
     assert_eq!(filters.agent_id, Some("agent123".to_string()));
-    assert_eq!(filters.tags, Some(vec!["important".to_string(), "urgent".to_string()]));
+    assert_eq!(
+        filters.tags,
+        Some(vec!["important".to_string(), "urgent".to_string()])
+    );
 }
 
 /// 测试权重归一化

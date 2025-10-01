@@ -70,14 +70,14 @@ impl AuthService {
         };
 
         encode(&Header::default(), &claims, &self.encoding_key)
-            .map_err(|e| ServerError::Unauthorized(format!("Token generation failed: {}", e)))
+            .map_err(|e| ServerError::Unauthorized(format!("Token generation failed: {e}")))
     }
 
     /// Validate a JWT token
     pub fn validate_token(&self, token: &str) -> ServerResult<Claims> {
         decode::<Claims>(token, &self.decoding_key, &Validation::default())
             .map(|data| data.claims)
-            .map_err(|e| ServerError::Unauthorized(format!("Token validation failed: {}", e)))
+            .map_err(|e| ServerError::Unauthorized(format!("Token validation failed: {e}")))
     }
 
     /// Extract token from Authorization header
@@ -162,13 +162,13 @@ impl PasswordService {
         argon2
             .hash_password(password.as_bytes(), &salt)
             .map(|hash| hash.to_string())
-            .map_err(|e| ServerError::Internal(format!("Password hashing failed: {}", e)))
+            .map_err(|e| ServerError::Internal(format!("Password hashing failed: {e}")))
     }
 
     /// Verify a password against a hash
     pub fn verify_password(password: &str, hash: &str) -> ServerResult<bool> {
         let parsed_hash = PasswordHash::new(hash)
-            .map_err(|e| ServerError::Internal(format!("Invalid password hash: {}", e)))?;
+            .map_err(|e| ServerError::Internal(format!("Invalid password hash: {e}")))?;
 
         let argon2 = Argon2::default();
 
@@ -195,7 +195,12 @@ pub struct ApiKey {
 
 impl ApiKey {
     /// Generate a new API key
-    pub fn generate(name: String, user_id: String, org_id: String, scopes: HashSet<String>) -> Self {
+    pub fn generate(
+        name: String,
+        user_id: String,
+        org_id: String,
+        scopes: HashSet<String>,
+    ) -> Self {
         let id = Uuid::new_v4().to_string();
         let key = format!("agm_{}", Uuid::new_v4().to_string().replace('-', ""));
 

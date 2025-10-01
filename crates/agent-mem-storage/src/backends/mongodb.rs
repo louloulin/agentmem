@@ -15,8 +15,6 @@ use futures::stream::StreamExt;
 #[cfg(feature = "mongodb")]
 use mongodb::{Client, Collection, Database};
 
-
-
 /// MongoDB 存储配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MongoDBConfig {

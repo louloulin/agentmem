@@ -31,11 +31,11 @@ impl Default for RetryConfig {
     fn default() -> Self {
         Self {
             max_retries: 3,
-            base_delay_ms: 1000,      // 1 秒
-            max_delay_ms: 60000,      // 60 秒
-            backoff_factor: 2.0,      // 指数退避因子
-            enable_jitter: true,      // 启用抖动
-            timeout_seconds: 60,      // 60 秒超时
+            base_delay_ms: 1000, // 1 秒
+            max_delay_ms: 60000, // 60 秒
+            backoff_factor: 2.0, // 指数退避因子
+            enable_jitter: true, // 启用抖动
+            timeout_seconds: 60, // 60 秒超时
         }
     }
 }
@@ -208,7 +208,11 @@ impl RetryExecutor {
         let mut last_error = None;
 
         for attempt in 0..=self.config.max_retries {
-            debug!("Executing operation (attempt {}/{})", attempt + 1, self.config.max_retries + 1);
+            debug!(
+                "Executing operation (attempt {}/{})",
+                attempt + 1,
+                self.config.max_retries + 1
+            );
 
             // 执行操作（带超时）
             let result = tokio::time::timeout(
@@ -269,17 +273,11 @@ impl RetryExecutor {
         }
 
         // 所有重试都失败了
-        Err(last_error.unwrap_or_else(|| {
-            AgentMemError::llm_error("All retry attempts failed")
-        }))
+        Err(last_error.unwrap_or_else(|| AgentMemError::llm_error("All retry attempts failed")))
     }
 
     /// 执行带重试的异步操作（带上下文）
-    pub async fn execute_with_context<F, Fut, T>(
-        &self,
-        operation: F,
-        context: &str,
-    ) -> Result<T>
+    pub async fn execute_with_context<F, Fut, T>(&self, operation: F, context: &str) -> Result<T>
     where
         F: Fn() -> Fut,
         Fut: std::future::Future<Output = Result<T>>,
@@ -305,11 +303,17 @@ mod tests {
         assert!(ErrorType::Network.is_retryable());
 
         let auth_error = AgentMemError::AuthError("Invalid token".to_string());
-        assert_eq!(ErrorType::from_error(&auth_error), ErrorType::Authentication);
+        assert_eq!(
+            ErrorType::from_error(&auth_error),
+            ErrorType::Authentication
+        );
         assert!(!ErrorType::Authentication.is_retryable());
 
         let rate_limit_error = AgentMemError::RateLimitError("Too many requests".to_string());
-        assert_eq!(ErrorType::from_error(&rate_limit_error), ErrorType::RateLimit);
+        assert_eq!(
+            ErrorType::from_error(&rate_limit_error),
+            ErrorType::RateLimit
+        );
         assert!(ErrorType::RateLimit.is_retryable());
     }
 
@@ -328,4 +332,3 @@ mod tests {
         assert!(aggressive_config.base_delay_ms < default_config.base_delay_ms);
     }
 }
-

@@ -47,11 +47,7 @@ impl BlockRepository {
     }
 
     /// List blocks by label (human, persona, system)
-    pub async fn list_by_label(
-        &self,
-        user_id: &str,
-        label: &str,
-    ) -> CoreResult<Vec<Block>> {
+    pub async fn list_by_label(&self, user_id: &str, label: &str) -> CoreResult<Vec<Block>> {
         let results = sqlx::query_as::<_, Block>(
             r#"
             SELECT * FROM blocks
@@ -85,10 +81,7 @@ impl BlockRepository {
     }
 
     /// Get blocks by template name
-    pub async fn list_by_template(
-        &self,
-        template_name: &str,
-    ) -> CoreResult<Vec<Block>> {
+    pub async fn list_by_template(&self, template_name: &str) -> CoreResult<Vec<Block>> {
         let results = sqlx::query_as::<_, Block>(
             r#"
             SELECT * FROM blocks
@@ -264,11 +257,7 @@ impl Repository<Block> for BlockRepository {
         Ok(result.rows_affected() > 0)
     }
 
-    async fn list(
-        &self,
-        limit: Option<i64>,
-        offset: Option<i64>,
-    ) -> CoreResult<Vec<Block>> {
+    async fn list(&self, limit: Option<i64>, offset: Option<i64>) -> CoreResult<Vec<Block>> {
         let limit = limit.unwrap_or(50);
         let offset = offset.unwrap_or(0);
 
@@ -303,4 +292,3 @@ impl Repository<Block> for BlockRepository {
         Ok(result.try_get("count").unwrap_or(0))
     }
 }
-

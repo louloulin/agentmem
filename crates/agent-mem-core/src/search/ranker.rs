@@ -18,7 +18,11 @@ pub trait SearchResultRanker {
     /// # Returns
     ///
     /// 返回融合后的搜索结果列表
-    fn fuse(&self, results_lists: Vec<Vec<SearchResult>>, weights: Vec<f32>) -> Result<Vec<SearchResult>>;
+    fn fuse(
+        &self,
+        results_lists: Vec<Vec<SearchResult>>,
+        weights: Vec<f32>,
+    ) -> Result<Vec<SearchResult>>;
 }
 
 /// RRF (Reciprocal Rank Fusion) 排序器
@@ -61,7 +65,11 @@ impl RRFRanker {
 }
 
 impl SearchResultRanker for RRFRanker {
-    fn fuse(&self, results_lists: Vec<Vec<SearchResult>>, weights: Vec<f32>) -> Result<Vec<SearchResult>> {
+    fn fuse(
+        &self,
+        results_lists: Vec<Vec<SearchResult>>,
+        weights: Vec<f32>,
+    ) -> Result<Vec<SearchResult>> {
         if results_lists.is_empty() {
             return Ok(Vec::new());
         }
@@ -127,7 +135,11 @@ impl Default for WeightedAverageRanker {
 }
 
 impl SearchResultRanker for WeightedAverageRanker {
-    fn fuse(&self, results_lists: Vec<Vec<SearchResult>>, weights: Vec<f32>) -> Result<Vec<SearchResult>> {
+    fn fuse(
+        &self,
+        results_lists: Vec<Vec<SearchResult>>,
+        weights: Vec<f32>,
+    ) -> Result<Vec<SearchResult>> {
         if results_lists.is_empty() {
             return Ok(Vec::new());
         }
@@ -251,4 +263,3 @@ mod tests {
         assert!((score1 - 1.0 / 61.0).abs() < 0.001);
     }
 }
-

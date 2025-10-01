@@ -52,7 +52,7 @@ async fn demo_deterministic_embedding() -> Result<()> {
     let embedder = LocalEmbedder::new(config).await?;
 
     let test_text = "This is a test sentence for deterministic embedding.";
-    
+
     // 生成多次嵌入，验证一致性
     let embedding1 = embedder.embed(test_text).await?;
     let embedding2 = embedder.embed(test_text).await?;
@@ -62,11 +62,11 @@ async fn demo_deterministic_embedding() -> Result<()> {
     if embedding1 == embedding2 && embedding2 == embedding3 {
         info!("✅ 确定性嵌入一致性验证通过");
         info!("   嵌入维度: {}", embedding1.len());
-        
+
         // 计算 L2 范数
         let norm: f32 = embedding1.iter().map(|x| x * x).sum::<f32>().sqrt();
         info!("   L2 范数: {:.6}", norm);
-        
+
         // 验证范数接近 1（归一化）
         if (norm - 1.0).abs() < 0.01 {
             info!("🎯 嵌入向量已正确归一化");
@@ -80,7 +80,7 @@ async fn demo_deterministic_embedding() -> Result<()> {
     // 验证不同文本产生不同嵌入
     let different_text = "This is a completely different sentence.";
     let different_embedding = embedder.embed(different_text).await?;
-    
+
     if embedding1 != different_embedding {
         info!("✅ 不同文本产生不同嵌入验证通过");
     } else {
@@ -164,23 +164,42 @@ async fn demo_performance_test() -> Result<()> {
         let embedding = embedder.embed(text).await?;
         let duration = start.elapsed();
 
-        info!("   {}: {:?} ({}字符, {}维度)", 
-              name, duration, text.len(), embedding.len());
+        info!(
+            "   {}: {:?} ({}字符, {}维度)",
+            name,
+            duration,
+            text.len(),
+            embedding.len()
+        );
     }
 
     // 批量性能测试
     let batch_texts: Vec<String> = (0..50)
-        .map(|i| format!("This is test sentence number {} for batch performance testing.", i))
+        .map(|i| {
+            format!(
+                "This is test sentence number {} for batch performance testing.",
+                i
+            )
+        })
         .collect();
 
     let start = Instant::now();
     let batch_embeddings = embedder.embed_batch(&batch_texts).await?;
     let batch_duration = start.elapsed();
 
-    info!("   批量处理 {} 个文本: {:?}", batch_texts.len(), batch_duration);
-    info!("   平均每个: {:?}", batch_duration / batch_texts.len() as u32);
-    info!("   吞吐量: {:.2} 文本/秒", 
-          batch_texts.len() as f64 / batch_duration.as_secs_f64());
+    info!(
+        "   批量处理 {} 个文本: {:?}",
+        batch_texts.len(),
+        batch_duration
+    );
+    info!(
+        "   平均每个: {:?}",
+        batch_duration / batch_texts.len() as u32
+    );
+    info!(
+        "   吞吐量: {:.2} 文本/秒",
+        batch_texts.len() as f64 / batch_duration.as_secs_f64()
+    );
 
     Ok(())
 }
@@ -217,7 +236,7 @@ async fn demo_multilingual_support() -> Result<()> {
         let duration = start.elapsed();
 
         info!("   {}: {:?} ({}维度)", language, duration, embedding.len());
-        
+
         // 验证嵌入质量
         let norm: f32 = embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
         if (norm - 1.0).abs() < 0.01 {
@@ -262,33 +281,33 @@ async fn demo_embedding_quality() -> Result<()> {
     ];
 
     info!("   测试语义相似性...");
-    
+
     for (word1, word2) in similar_pairs {
         let emb1 = embedder.embed(word1).await?;
         let emb2 = embedder.embed(word2).await?;
-        
+
         // 计算余弦相似度
         let dot_product: f32 = emb1.iter().zip(emb2.iter()).map(|(a, b)| a * b).sum();
         let similarity = dot_product; // 由于向量已归一化，点积即为余弦相似度
-        
+
         info!("     '{}' vs '{}': 相似度 {:.4}", word1, word2, similarity);
     }
 
     info!("   测试语义差异性...");
-    
+
     for (word1, word2) in dissimilar_pairs {
         let emb1 = embedder.embed(word1).await?;
         let emb2 = embedder.embed(word2).await?;
-        
+
         let dot_product: f32 = emb1.iter().zip(emb2.iter()).map(|(a, b)| a * b).sum();
         let similarity = dot_product;
-        
+
         info!("     '{}' vs '{}': 相似度 {:.4}", word1, word2, similarity);
     }
 
     // 测试空文本和特殊情况
     info!("   测试特殊情况...");
-    
+
     let special_cases = vec![
         ("空文本", ""),
         ("空格", "   "),

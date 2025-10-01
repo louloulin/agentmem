@@ -8,7 +8,7 @@
 //! - Manage organization settings
 
 use crate::error::{ServerError, ServerResult};
-use crate::middleware::{log_security_event, AuthUser, SecurityEvent};
+use crate::middleware::AuthUser;
 use agent_mem_core::storage::{
     models::Organization,
     repository::{OrganizationRepository, Repository},
@@ -101,7 +101,7 @@ pub async fn create_organization(
     // Validate request
     request
         .validate()
-        .map_err(|e| ServerError::BadRequest(format!("Validation error: {}", e)))?;
+        .map_err(|e| ServerError::BadRequest(format!("Validation error: {e}")))?;
 
     // Create organization repository
     let org_repo = OrganizationRepository::new(db_pool);
@@ -121,7 +121,7 @@ pub async fn create_organization(
     let created_org = org_repo
         .create(&org)
         .await
-        .map_err(|e| ServerError::Internal(format!("Failed to create organization: {}", e)))?;
+        .map_err(|e| ServerError::Internal(format!("Failed to create organization: {e}")))?;
 
     let response = OrganizationResponse {
         id: created_org.id,
@@ -177,7 +177,7 @@ pub async fn get_organization(
     let org = org_repo
         .read(&org_id)
         .await
-        .map_err(|e| ServerError::Internal(format!("Database error: {}", e)))?
+        .map_err(|e| ServerError::Internal(format!("Database error: {e}")))?
         .ok_or_else(|| ServerError::NotFound("Organization not found".to_string()))?;
 
     let response = OrganizationResponse {
@@ -233,7 +233,7 @@ pub async fn update_organization(
     // Validate request
     request
         .validate()
-        .map_err(|e| ServerError::BadRequest(format!("Validation error: {}", e)))?;
+        .map_err(|e| ServerError::BadRequest(format!("Validation error: {e}")))?;
 
     // Create organization repository
     let org_repo = OrganizationRepository::new(db_pool);
@@ -242,7 +242,7 @@ pub async fn update_organization(
     let mut org = org_repo
         .read(&org_id)
         .await
-        .map_err(|e| ServerError::Internal(format!("Database error: {}", e)))?
+        .map_err(|e| ServerError::Internal(format!("Database error: {e}")))?
         .ok_or_else(|| ServerError::NotFound("Organization not found".to_string()))?;
 
     // Update fields
@@ -255,7 +255,7 @@ pub async fn update_organization(
     let updated_org = org_repo
         .update(&org)
         .await
-        .map_err(|e| ServerError::Internal(format!("Failed to update organization: {}", e)))?;
+        .map_err(|e| ServerError::Internal(format!("Failed to update organization: {e}")))?;
 
     let response = OrganizationResponse {
         id: updated_org.id,
@@ -313,7 +313,7 @@ pub async fn list_organization_members(
     let users = user_repo
         .list_by_organization(&org_id)
         .await
-        .map_err(|e| ServerError::Internal(format!("Database error: {}", e)))?;
+        .map_err(|e| ServerError::Internal(format!("Database error: {e}")))?;
 
     let members: Vec<OrganizationMemberResponse> = users
         .into_iter()
@@ -364,7 +364,7 @@ pub async fn delete_organization(
     let deleted = org_repo
         .delete(&org_id)
         .await
-        .map_err(|e| ServerError::Internal(format!("Failed to delete organization: {}", e)))?;
+        .map_err(|e| ServerError::Internal(format!("Failed to delete organization: {e}")))?;
 
     if !deleted {
         return Err(ServerError::NotFound("Organization not found".to_string()));
@@ -372,4 +372,3 @@ pub async fn delete_organization(
 
     Ok(StatusCode::NO_CONTENT)
 }
-

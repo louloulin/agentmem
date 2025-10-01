@@ -47,8 +47,8 @@ impl Default for PoolConfig {
             min_connections: 2,
             max_connections: 10,
             connect_timeout: 30,
-            idle_timeout: 600,      // 10 minutes
-            max_lifetime: 1800,     // 30 minutes
+            idle_timeout: 600,  // 10 minutes
+            max_lifetime: 1800, // 30 minutes
             acquire_timeout: 30,
             log_statements: false,
             log_slow_statements: true,
@@ -176,10 +176,7 @@ impl PoolManager {
 
     /// Check pool health
     pub async fn health_check(&self) -> CoreResult<bool> {
-        match sqlx::query("SELECT 1")
-            .fetch_one(&self.pool)
-            .await
-        {
+        match sqlx::query("SELECT 1").fetch_one(&self.pool).await {
             Ok(_) => Ok(true),
             Err(e) => {
                 tracing::error!("Pool health check failed: {}", e);
@@ -202,7 +199,8 @@ impl PoolManager {
             total_released: stats.total_released,
             total_timeouts: stats.total_timeouts,
             total_errors: stats.total_errors,
-            utilization: (stats.active_connections as f64 / self.config.max_connections as f64) * 100.0,
+            utilization: (stats.active_connections as f64 / self.config.max_connections as f64)
+                * 100.0,
         }
     }
 
@@ -235,7 +233,10 @@ impl PoolManager {
                     stats.total_timeouts += 1;
                 }
 
-                Err(CoreError::Database(format!("Failed to acquire connection: {}", e)))
+                Err(CoreError::Database(format!(
+                    "Failed to acquire connection: {}",
+                    e
+                )))
             }
         }
     }
@@ -316,4 +317,3 @@ impl PoolMetrics {
         }
     }
 }
-

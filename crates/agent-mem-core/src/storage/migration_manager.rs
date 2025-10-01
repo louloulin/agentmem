@@ -139,10 +139,7 @@ impl MigrationManager {
         let current = self.current_version().await?.unwrap_or(0);
         let all_versions = self.all_migration_versions();
 
-        let pending: Vec<i32> = all_versions
-            .into_iter()
-            .filter(|v| *v > current)
-            .collect();
+        let pending: Vec<i32> = all_versions.into_iter().filter(|v| *v > current).collect();
 
         Ok(pending)
     }
@@ -176,8 +173,13 @@ impl MigrationManager {
         let execution_time = start.elapsed().as_millis() as i64;
         let checksum = self.calculate_checksum(version);
 
-        self.record_migration(version, &self.migration_name(version), &checksum, execution_time)
-            .await?;
+        self.record_migration(
+            version,
+            &self.migration_name(version),
+            &checksum,
+            execution_time,
+        )
+        .await?;
 
         tracing::info!(
             "Migration {} applied successfully in {}ms",
@@ -311,4 +313,3 @@ impl MigrationManager {
         Ok(())
     }
 }
-

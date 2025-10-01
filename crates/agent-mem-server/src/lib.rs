@@ -11,7 +11,9 @@ pub mod middleware;
 pub mod models;
 pub mod routes;
 pub mod server;
+pub mod sse;
 pub mod telemetry;
+pub mod websocket;
 
 pub use config::ServerConfig;
 pub use error::{ServerError, ServerResult};

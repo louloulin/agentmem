@@ -62,9 +62,7 @@ pub struct TemplateEngine {
 impl TemplateEngine {
     /// 创建新的模板引擎
     pub fn new() -> Self {
-        Self {
-            strict_mode: false,
-        }
+        Self { strict_mode: false }
     }
 
     /// 启用严格模式
@@ -138,8 +136,8 @@ impl TemplateEngine {
         let mut result = template.to_string();
         let if_pattern = regex::Regex::new(r"(?s)\{%\s*if\s+([^%]+)\s*%\}(.*?)\{%\s*endif\s*%\}")
             .map_err(|e| {
-                AgentMemError::internal_error(format!("Failed to compile regex: {}", e))
-            })?;
+            AgentMemError::internal_error(format!("Failed to compile regex: {}", e))
+        })?;
 
         for cap in if_pattern.captures_iter(template) {
             let full_match = &cap[0];
@@ -167,8 +165,8 @@ impl TemplateEngine {
         let for_pattern =
             regex::Regex::new(r"(?s)\{%\s*for\s+(\w+)\s+in\s+(\w+)\s*%\}(.*?)\{%\s*endfor\s*%\}")
                 .map_err(|e| {
-                    AgentMemError::internal_error(format!("Failed to compile regex: {}", e))
-                })?;
+                AgentMemError::internal_error(format!("Failed to compile regex: {}", e))
+            })?;
 
         for cap in for_pattern.captures_iter(template) {
             let full_match = &cap[0];
@@ -296,7 +294,11 @@ mod tests {
         let mut context = TemplateContext::new();
         context.set_list(
             "items".to_string(),
-            vec!["apple".to_string(), "banana".to_string(), "cherry".to_string()],
+            vec![
+                "apple".to_string(),
+                "banana".to_string(),
+                "cherry".to_string(),
+            ],
         );
 
         let template = "{% for item in items %}{{item}}, {% endfor %}";
@@ -316,4 +318,3 @@ mod tests {
         assert!(result.is_err());
     }
 }
-

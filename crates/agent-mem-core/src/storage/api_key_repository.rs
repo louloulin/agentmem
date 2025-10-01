@@ -129,7 +129,10 @@ impl ApiKeyRepository {
     }
 
     /// List API keys by organization
-    pub async fn list_by_organization(&self, organization_id: &str) -> CoreResult<Vec<ApiKeyModel>> {
+    pub async fn list_by_organization(
+        &self,
+        organization_id: &str,
+    ) -> CoreResult<Vec<ApiKeyModel>> {
         let api_keys = sqlx::query_as::<_, ApiKeyModel>(
             r#"
             SELECT * FROM api_keys
@@ -176,7 +179,10 @@ impl ApiKeyRepository {
         }
 
         query.push_str(&updates.join(","));
-        query.push_str(&format!(" WHERE id = ${} AND is_deleted = false RETURNING *", param_count));
+        query.push_str(&format!(
+            " WHERE id = ${} AND is_deleted = false RETURNING *",
+            param_count
+        ));
 
         let mut q = sqlx::query_as::<_, ApiKeyModel>(&query);
 
@@ -285,4 +291,3 @@ mod tests {
         // Placeholder for integration tests
     }
 }
-

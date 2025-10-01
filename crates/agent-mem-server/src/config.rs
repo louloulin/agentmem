@@ -83,8 +83,9 @@ impl Default for ServerConfig {
                 .unwrap_or_else(|_| "100".to_string())
                 .parse()
                 .unwrap_or(100),
-            database_url: env::var("DATABASE_URL")
-                .unwrap_or_else(|_| "postgresql://agentmem:password@localhost:5432/agentmem".to_string()),
+            database_url: env::var("DATABASE_URL").unwrap_or_else(|_| {
+                "postgresql://agentmem:password@localhost:5432/agentmem".to_string()
+            }),
         }
     }
 }

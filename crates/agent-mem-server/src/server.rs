@@ -30,9 +30,9 @@ impl MemoryServer {
 
         // Create database connection pool
         info!("Connecting to database: {}", config.database_url);
-        let db_pool = PgPool::connect(&config.database_url)
-            .await
-            .map_err(|e| ServerError::ServerError(format!("Failed to connect to database: {}", e)))?;
+        let db_pool = PgPool::connect(&config.database_url).await.map_err(|e| {
+            ServerError::ServerError(format!("Failed to connect to database: {e}"))
+        })?;
 
         info!("Database connection established");
 

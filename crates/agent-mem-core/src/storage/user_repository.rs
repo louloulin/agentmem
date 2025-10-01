@@ -6,8 +6,8 @@
 //! - Role management
 //! - Multi-tenancy support
 
-use crate::{CoreError, CoreResult};
 use crate::storage::models::User;
+use crate::{CoreError, CoreResult};
 use chrono::Utc;
 use sqlx::PgPool;
 
@@ -189,7 +189,10 @@ impl UserRepository {
             param_count += 1;
         }
 
-        query.push_str(&format!(" WHERE id = ${} AND is_deleted = false RETURNING *", param_count));
+        query.push_str(&format!(
+            " WHERE id = ${} AND is_deleted = false RETURNING *",
+            param_count
+        ));
 
         // Execute query with dynamic parameters
         let mut q = sqlx::query_as::<_, UserAuth>(&query)
@@ -310,4 +313,3 @@ mod tests {
         // Actual tests would require database setup
     }
 }
-

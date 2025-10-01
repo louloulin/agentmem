@@ -66,11 +66,17 @@ impl VectorSearchEngine {
             .into_iter()
             .map(|vr| SearchResult {
                 id: vr.id,
-                content: vr.metadata.get("content").map(|s| s.clone()).unwrap_or_default(),
+                content: vr
+                    .metadata
+                    .get("content")
+                    .map(|s| s.clone())
+                    .unwrap_or_default(),
                 score: vr.similarity,
                 vector_score: Some(vr.similarity),
                 fulltext_score: None,
-                metadata: Some(serde_json::to_value(&vr.metadata).unwrap_or(serde_json::Value::Null)),
+                metadata: Some(
+                    serde_json::to_value(&vr.metadata).unwrap_or(serde_json::Value::Null),
+                ),
             })
             .collect();
 
@@ -147,8 +153,11 @@ mod tests {
 
         // 添加测试向量
         let mut metadata = HashMap::new();
-        metadata.insert("content".to_string(), serde_json::Value::String("test content".to_string()));
-        
+        metadata.insert(
+            "content".to_string(),
+            serde_json::Value::String("test content".to_string()),
+        );
+
         let vectors = vec![VectorData {
             id: "test-1".to_string(),
             vector: vec![0.1; 128],
@@ -192,8 +201,11 @@ mod tests {
 
         // 添加向量
         let mut metadata = HashMap::new();
-        metadata.insert("content".to_string(), serde_json::Value::String("test".to_string()));
-        
+        metadata.insert(
+            "content".to_string(),
+            serde_json::Value::String("test".to_string()),
+        );
+
         let vectors = vec![VectorData {
             id: "test-1".to_string(),
             vector: vec![0.1; 128],
@@ -207,4 +219,3 @@ mod tests {
         assert!(result.is_ok());
     }
 }
-

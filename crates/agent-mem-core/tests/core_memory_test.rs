@@ -1,8 +1,8 @@
 //! Core Memory 系统集成测试
 
 use agent_mem_core::core_memory::{
-    AutoRewriter, AutoRewriterConfig, BlockManager, BlockManagerConfig, BlockType,
-    CoreMemoryCompiler, CompilerConfig, RewriteStrategy, TemplateContext, TemplateEngine,
+    AutoRewriter, AutoRewriterConfig, BlockManager, BlockManagerConfig, BlockType, CompilerConfig,
+    CoreMemoryCompiler, RewriteStrategy, TemplateContext, TemplateEngine,
 };
 use agent_mem_core::storage::models::Block;
 
@@ -87,7 +87,10 @@ async fn test_auto_rewriter_preserve_important() {
     let content = "Short line\nThis is a much longer line with more information\nMedium line here";
     let target_length = 50;
 
-    let result = rewriter.rewrite(content, target_length, None).await.unwrap();
+    let result = rewriter
+        .rewrite(content, target_length, None)
+        .await
+        .unwrap();
 
     assert!(result.len() <= target_length);
     assert!(result.contains("much longer line"));
@@ -102,7 +105,10 @@ async fn test_auto_rewriter_preserve_recent() {
     let content = "Old information at the start. Recent information at the end.";
     let target_length = 30;
 
-    let result = rewriter.rewrite(content, target_length, None).await.unwrap();
+    let result = rewriter
+        .rewrite(content, target_length, None)
+        .await
+        .unwrap();
 
     assert!(result.len() <= target_length);
     assert!(result.contains("end"));
@@ -290,7 +296,10 @@ fn test_end_to_end_workflow() {
     // 1. Create blocks
     let blocks = vec![
         create_test_block("persona", "I am a helpful AI assistant named Claude."),
-        create_test_block("human", "User is a software developer who prefers concise answers."),
+        create_test_block(
+            "human",
+            "User is a software developer who prefers concise answers.",
+        ),
         create_test_block("system", "Always be respectful and professional."),
     ];
 
@@ -312,4 +321,3 @@ fn test_end_to_end_workflow() {
     assert_eq!(stats.human_blocks, 1);
     assert_eq!(stats.system_blocks, 1);
 }
-

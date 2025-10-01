@@ -6,11 +6,11 @@
 use agent_mem_compat::client::Mem0Client;
 use agent_mem_compat::types::{AddMemoryRequest, MemoryFilter, SearchMemoryRequest};
 use agent_mem_embeddings::factory::EmbeddingFactory;
+use agent_mem_embeddings::EmbeddingConfig;
 use agent_mem_llm::factory::LLMFactory;
 use agent_mem_performance::{PerformanceConfig, PerformanceMonitor};
 use agent_mem_storage::factory::StorageFactory;
-use agent_mem_traits::{LLMConfig, VectorStoreConfig, Message, MessageRole};
-use agent_mem_embeddings::EmbeddingConfig;
+use agent_mem_traits::{LLMConfig, Message, MessageRole, VectorStoreConfig};
 use std::collections::HashMap;
 use tracing::{error, info, warn};
 
@@ -161,7 +161,10 @@ async fn demo_real_storage_backends() -> anyhow::Result<()> {
                 metadata: {
                     let mut meta = HashMap::new();
                     meta.insert("test_type".to_string(), "real_implementation".to_string());
-                    meta.insert("timestamp".to_string(), chrono::Utc::now().timestamp().to_string());
+                    meta.insert(
+                        "timestamp".to_string(),
+                        chrono::Utc::now().timestamp().to_string(),
+                    );
                     meta
                 },
             };
@@ -242,7 +245,10 @@ async fn demo_real_mem0_compatibility() -> anyhow::Result<()> {
                         filters: Some(MemoryFilter {
                             metadata: {
                                 let mut meta = HashMap::new();
-                                meta.insert("category".to_string(), serde_json::Value::String("preference".to_string()));
+                                meta.insert(
+                                    "category".to_string(),
+                                    serde_json::Value::String("preference".to_string()),
+                                );
                                 meta
                             },
                             limit: Some(10),
@@ -257,8 +263,7 @@ async fn demo_real_mem0_compatibility() -> anyhow::Result<()> {
 
                             if !results.memories.is_empty() {
                                 let memory = &results.memories[0];
-                                if memory.memory.contains("Mock")
-                                    || memory.memory.contains("mock")
+                                if memory.memory.contains("Mock") || memory.memory.contains("mock")
                                 {
                                     warn!("⚠️  记忆内容可能包含 Mock 数据");
                                 } else {

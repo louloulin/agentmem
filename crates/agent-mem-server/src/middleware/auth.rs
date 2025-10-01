@@ -5,12 +5,7 @@
 use crate::auth::AuthService;
 use crate::error::{ServerError, ServerResult};
 use agent_mem_core::storage::api_key_repository::ApiKeyRepository;
-use axum::{
-    extract::Request,
-    http::header,
-    middleware::Next,
-    response::Response,
-};
+use axum::{extract::Request, http::header, middleware::Next, response::Response};
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
 
@@ -72,7 +67,9 @@ pub async fn api_key_auth_middleware(
 
     // Check format
     if !api_key.starts_with("agm_") {
-        return Err(ServerError::Unauthorized("Invalid API key format".to_string()));
+        return Err(ServerError::Unauthorized(
+            "Invalid API key format".to_string(),
+        ));
     }
 
     // Get ApiKeyRepository from extensions (added by router)
@@ -88,7 +85,7 @@ pub async fn api_key_auth_middleware(
     let api_key_model = api_key_repo
         .validate(&key_hash)
         .await
-        .map_err(|e| ServerError::Internal(format!("API key validation failed: {}", e)))?
+        .map_err(|e| ServerError::Internal(format!("API key validation failed: {e}")))?
         .ok_or_else(|| ServerError::Unauthorized("Invalid or expired API key".to_string()))?;
 
     // Extract user info from API key
@@ -111,10 +108,7 @@ fn hash_api_key(api_key: &str) -> String {
 }
 
 /// Optional authentication middleware (allows unauthenticated requests)
-pub async fn optional_auth_middleware(
-    mut request: Request,
-    next: Next,
-) -> Response {
+pub async fn optional_auth_middleware(mut request: Request, next: Next) -> Response {
     // Try to extract and validate token
     if let Some(auth_header) = request
         .headers()
@@ -161,9 +155,7 @@ pub fn is_admin(auth_user: &AuthUser) -> bool {
 /// Require admin role
 pub fn require_admin(auth_user: &AuthUser) -> ServerResult<()> {
     if !is_admin(auth_user) {
-        return Err(ServerError::Forbidden(
-            "Admin role required".to_string(),
-        ));
+        return Err(ServerError::Forbidden("Admin role required".to_string()));
     }
     Ok(())
 }
@@ -171,10 +163,7 @@ pub fn require_admin(auth_user: &AuthUser) -> ServerResult<()> {
 /// Require specific role
 pub fn require_role(auth_user: &AuthUser, role: &str) -> ServerResult<()> {
     if !has_role(auth_user, role) {
-        return Err(ServerError::Forbidden(format!(
-            "Role '{}' required",
-            role
-        )));
+        return Err(ServerError::Forbidden(format!("Role '{role}' required")));
     }
     Ok(())
 }
@@ -258,4 +247,3 @@ mod tests {
         assert!(require_role(&auth_user, "admin").is_err());
     }
 }
-

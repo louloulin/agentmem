@@ -94,7 +94,7 @@ pub async fn register_user(
     // Validate request
     request
         .validate()
-        .map_err(|e| ServerError::BadRequest(format!("Validation error: {}", e)))?;
+        .map_err(|e| ServerError::BadRequest(format!("Validation error: {e}")))?;
 
     // Create user repository
     let user_repo = agent_mem_core::storage::user_repository::UserRepository::new(db_pool);
@@ -103,7 +103,7 @@ pub async fn register_user(
     let exists = user_repo
         .email_exists(&request.email, &request.organization_id)
         .await
-        .map_err(|e| ServerError::Internal(format!("Database error: {}", e)))?;
+        .map_err(|e| ServerError::Internal(format!("Database error: {e}")))?;
 
     if exists {
         return Err(ServerError::BadRequest(format!(
@@ -126,7 +126,7 @@ pub async fn register_user(
             None,
         )
         .await
-        .map_err(|e| ServerError::Internal(format!("Failed to create user: {}", e)))?;
+        .map_err(|e| ServerError::Internal(format!("Failed to create user: {e}")))?;
 
     // Log security event
     log_security_event(SecurityEvent::LoginSuccess {
@@ -164,7 +164,7 @@ pub async fn login_user(
     // Validate request
     request
         .validate()
-        .map_err(|e| ServerError::BadRequest(format!("Validation error: {}", e)))?;
+        .map_err(|e| ServerError::BadRequest(format!("Validation error: {e}")))?;
 
     // Create user repository
     let user_repo = agent_mem_core::storage::user_repository::UserRepository::new(db_pool);
@@ -173,7 +173,7 @@ pub async fn login_user(
     let user = user_repo
         .find_by_email(&request.email)
         .await
-        .map_err(|e| ServerError::Internal(format!("Database error: {}", e)))?
+        .map_err(|e| ServerError::Internal(format!("Database error: {e}")))?
         .ok_or_else(|| {
             log_security_event(SecurityEvent::LoginFailure {
                 email: request.email.clone(),
@@ -250,7 +250,7 @@ pub async fn get_current_user(
     let user = user_repo
         .find_by_id(&auth_user.user_id)
         .await
-        .map_err(|e| ServerError::Internal(format!("Database error: {}", e)))?
+        .map_err(|e| ServerError::Internal(format!("Database error: {e}")))?
         .ok_or_else(|| ServerError::NotFound("User not found".to_string()))?;
 
     let response = UserResponse {
@@ -288,7 +288,7 @@ pub async fn update_current_user(
     // Validate request
     request
         .validate()
-        .map_err(|e| ServerError::BadRequest(format!("Validation error: {}", e)))?;
+        .map_err(|e| ServerError::BadRequest(format!("Validation error: {e}")))?;
 
     // Create user repository
     let user_repo = agent_mem_core::storage::user_repository::UserRepository::new(db_pool);
@@ -304,7 +304,7 @@ pub async fn update_current_user(
             Some(&auth_user.user_id),
         )
         .await
-        .map_err(|e| ServerError::Internal(format!("Failed to update user: {}", e)))?;
+        .map_err(|e| ServerError::Internal(format!("Failed to update user: {e}")))?;
 
     let response = UserResponse {
         id: user.id,
@@ -341,7 +341,7 @@ pub async fn change_password(
     // Validate request
     request
         .validate()
-        .map_err(|e| ServerError::BadRequest(format!("Validation error: {}", e)))?;
+        .map_err(|e| ServerError::BadRequest(format!("Validation error: {e}")))?;
 
     // Create user repository
     let user_repo = agent_mem_core::storage::user_repository::UserRepository::new(db_pool);
@@ -350,7 +350,7 @@ pub async fn change_password(
     let user = user_repo
         .find_by_id(&auth_user.user_id)
         .await
-        .map_err(|e| ServerError::Internal(format!("Database error: {}", e)))?
+        .map_err(|e| ServerError::Internal(format!("Database error: {e}")))?
         .ok_or_else(|| ServerError::NotFound("User not found".to_string()))?;
 
     // Verify current password
@@ -366,9 +366,13 @@ pub async fn change_password(
 
     // Update password in database
     user_repo
-        .update_password(&auth_user.user_id, &new_password_hash, Some(&auth_user.user_id))
+        .update_password(
+            &auth_user.user_id,
+            &new_password_hash,
+            Some(&auth_user.user_id),
+        )
         .await
-        .map_err(|e| ServerError::Internal(format!("Failed to update password: {}", e)))?;
+        .map_err(|e| ServerError::Internal(format!("Failed to update password: {e}")))?;
 
     // Log security event
     log_security_event(SecurityEvent::PasswordChanged {
@@ -423,4 +427,3 @@ pub async fn get_user_by_id(
 
     Ok(Json(user))
 }
-

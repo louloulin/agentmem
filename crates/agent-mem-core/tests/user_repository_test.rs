@@ -7,8 +7,9 @@ use sqlx::PgPool;
 
 /// Helper function to create a test database pool
 async fn create_test_pool() -> PgPool {
-    let database_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://agentmem:password@localhost:5432/agentmem_test".to_string());
+    let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        "postgresql://agentmem:password@localhost:5432/agentmem_test".to_string()
+    });
 
     PgPool::connect(&database_url)
         .await
@@ -251,7 +252,10 @@ async fn test_user_repository_soft_delete() {
         .await
         .expect("Failed to query user");
 
-    assert!(found_user.is_none(), "Soft deleted user should not be found");
+    assert!(
+        found_user.is_none(),
+        "Soft deleted user should not be found"
+    );
 
     // Cleanup after test
     repo.hard_delete(&user.id)
@@ -300,4 +304,3 @@ async fn test_user_repository_email_exists() {
     // Cleanup after test
     cleanup_test_data(&pool, test_email).await;
 }
-

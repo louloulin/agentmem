@@ -69,8 +69,8 @@ fn test_password_hashing_and_verification() {
     assert_ne!(hash, password); // Hash should be different from password
 
     // Verify correct password
-    let is_valid = PasswordService::verify_password(password, &hash)
-        .expect("Failed to verify password");
+    let is_valid =
+        PasswordService::verify_password(password, &hash).expect("Failed to verify password");
     assert!(is_valid);
 
     // Verify incorrect password
@@ -101,10 +101,7 @@ fn test_api_key_generation() {
         "Production API Key".to_string(),
         "user123".to_string(),
         "org456".to_string(),
-        HashSet::from([
-            "read:memories".to_string(),
-            "write:memories".to_string(),
-        ]),
+        HashSet::from(["read:memories".to_string(), "write:memories".to_string()]),
     );
 
     assert!(api_key.key.starts_with("agm_"));
@@ -121,10 +118,7 @@ fn test_api_key_scopes() {
         "Test Key".to_string(),
         "user123".to_string(),
         "org456".to_string(),
-        HashSet::from([
-            "read:memories".to_string(),
-            "write:memories".to_string(),
-        ]),
+        HashSet::from(["read:memories".to_string(), "write:memories".to_string()]),
     );
 
     assert!(api_key.has_scope("read:memories"));
@@ -249,8 +243,8 @@ fn test_role_hierarchy() {
 #[test]
 fn test_extract_token_from_header() {
     let valid_header = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0";
-    let token = AuthService::extract_token_from_header(valid_header)
-        .expect("Failed to extract token");
+    let token =
+        AuthService::extract_token_from_header(valid_header).expect("Failed to extract token");
 
     assert_eq!(
         token,
@@ -292,4 +286,3 @@ fn test_multiple_roles() {
     assert!(claims.roles.contains(&"editor".to_string()));
     assert!(claims.roles.contains(&"reviewer".to_string()));
 }
-

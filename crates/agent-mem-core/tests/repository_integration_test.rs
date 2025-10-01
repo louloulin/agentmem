@@ -17,8 +17,9 @@ use agent_mem_core::storage::{
 
 /// Helper function to get test database URL
 fn get_test_db_url() -> String {
-    std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://agentmem:password@localhost:5432/agentmem_test".to_string())
+    std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        "postgresql://agentmem:password@localhost:5432/agentmem_test".to_string()
+    })
 }
 
 /// Helper function to create test PostgreSQL storage
@@ -50,7 +51,10 @@ async fn test_tool_repository() {
 
     // Create organization
     let org = Organization::new("Test Org".to_string());
-    let org = org_repo.create(&org).await.expect("Failed to create organization");
+    let org = org_repo
+        .create(&org)
+        .await
+        .expect("Failed to create organization");
 
     // Create tool
     let tool = Tool {
@@ -76,7 +80,10 @@ async fn test_tool_repository() {
         last_updated_by_id: None,
     };
 
-    let created_tool = tool_repo.create(&tool).await.expect("Failed to create tool");
+    let created_tool = tool_repo
+        .create(&tool)
+        .await
+        .expect("Failed to create tool");
     assert_eq!(created_tool.name, "test_function");
 
     // Find by name
@@ -111,13 +118,22 @@ async fn test_memory_repository() {
 
     // Create organization, user, and agent
     let org = Organization::new("Test Org".to_string());
-    let org = org_repo.create(&org).await.expect("Failed to create organization");
+    let org = org_repo
+        .create(&org)
+        .await
+        .expect("Failed to create organization");
 
     let user = User::new(org.id.clone(), "Test User".to_string(), "UTC".to_string());
-    let user = user_repo.create(&user).await.expect("Failed to create user");
+    let user = user_repo
+        .create(&user)
+        .await
+        .expect("Failed to create user");
 
     let agent = Agent::new(org.id.clone(), Some("Test Agent".to_string()));
-    let agent = agent_repo.create(&agent).await.expect("Failed to create agent");
+    let agent = agent_repo
+        .create(&agent)
+        .await
+        .expect("Failed to create agent");
 
     // Create memory
     let memory = Memory {
@@ -142,7 +158,10 @@ async fn test_memory_repository() {
         last_updated_by_id: None,
     };
 
-    let created_memory = memory_repo.create(&memory).await.expect("Failed to create memory");
+    let created_memory = memory_repo
+        .create(&memory)
+        .await
+        .expect("Failed to create memory");
     assert_eq!(created_memory.content, "The user likes pizza");
 
     // List by agent
@@ -190,10 +209,16 @@ async fn test_batch_operations() {
 
     // Create organization and user
     let org = Organization::new("Test Org".to_string());
-    let org = org_repo.create(&org).await.expect("Failed to create organization");
+    let org = org_repo
+        .create(&org)
+        .await
+        .expect("Failed to create organization");
 
     let user = User::new(org.id.clone(), "Test User".to_string(), "UTC".to_string());
-    let user = user_repo.create(&user).await.expect("Failed to create user");
+    let user = user_repo
+        .create(&user)
+        .await
+        .expect("Failed to create user");
 
     // Batch insert agents
     let agents: Vec<Agent> = (0..5)
@@ -248,10 +273,16 @@ async fn test_batch_operations() {
 
     // Clean up
     for agent in &agents {
-        batch_ops.batch_soft_delete("agents", &[agent.id.clone()]).await.ok();
+        batch_ops
+            .batch_soft_delete("agents", &[agent.id.clone()])
+            .await
+            .ok();
     }
     for memory in &memories {
-        batch_ops.batch_soft_delete("memories", &[memory.id.clone()]).await.ok();
+        batch_ops
+            .batch_soft_delete("memories", &[memory.id.clone()])
+            .await
+            .ok();
     }
     user_repo.hard_delete(&user.id).await.ok();
     org_repo.hard_delete(&org.id).await.ok();
@@ -298,4 +329,3 @@ async fn test_retry_config() {
     assert_eq!(conservative_config.max_retries, 2);
     assert_eq!(conservative_config.base_delay_ms, 200);
 }
-

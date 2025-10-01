@@ -52,6 +52,33 @@ pub enum ServerError {
 /// Server result type
 pub type ServerResult<T> = Result<T, ServerError>;
 
+impl ServerError {
+    /// Create a not found error
+    pub fn not_found(msg: impl Into<String>) -> Self {
+        ServerError::NotFound(msg.into())
+    }
+
+    /// Create a bad request error
+    pub fn bad_request(msg: impl Into<String>) -> Self {
+        ServerError::BadRequest(msg.into())
+    }
+
+    /// Create an unauthorized error
+    pub fn unauthorized(msg: impl Into<String>) -> Self {
+        ServerError::Unauthorized(msg.into())
+    }
+
+    /// Create a forbidden error
+    pub fn forbidden(msg: impl Into<String>) -> Self {
+        ServerError::Forbidden(msg.into())
+    }
+
+    /// Create an internal error
+    pub fn internal_error(msg: impl Into<String>) -> Self {
+        ServerError::Internal(msg.into())
+    }
+}
+
 impl IntoResponse for ServerError {
     fn into_response(self) -> Response {
         let (status, code, message) = match self {
@@ -62,7 +89,9 @@ impl IntoResponse for ServerError {
             ServerError::BadRequest(msg) => (StatusCode::BAD_REQUEST, "BAD_REQUEST", msg),
             ServerError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, "UNAUTHORIZED", msg),
             ServerError::Forbidden(msg) => (StatusCode::FORBIDDEN, "FORBIDDEN", msg),
-            ServerError::QuotaExceeded(msg) => (StatusCode::TOO_MANY_REQUESTS, "QUOTA_EXCEEDED", msg),
+            ServerError::QuotaExceeded(msg) => {
+                (StatusCode::TOO_MANY_REQUESTS, "QUOTA_EXCEEDED", msg)
+            }
             ServerError::ValidationError(msg) => (StatusCode::BAD_REQUEST, "VALIDATION_ERROR", msg),
             ServerError::BindError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, "BIND_ERROR", msg),
             ServerError::ServerError(msg) => {
@@ -98,13 +127,13 @@ impl From<agent_mem_traits::AgentMemError> for ServerError {
 
 impl From<serde_json::Error> for ServerError {
     fn from(err: serde_json::Error) -> Self {
-        ServerError::BadRequest(format!("JSON parsing error: {}", err))
+        ServerError::BadRequest(format!("JSON parsing error: {err}"))
     }
 }
 
 impl From<validator::ValidationErrors> for ServerError {
     fn from(err: validator::ValidationErrors) -> Self {
-        ServerError::ValidationError(format!("Validation failed: {}", err))
+        ServerError::ValidationError(format!("Validation failed: {err}"))
     }
 }
 

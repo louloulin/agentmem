@@ -1,15 +1,20 @@
 //! HTTP routes for the AgentMem API
 
+pub mod agents;
 pub mod docs;
 pub mod health;
 pub mod memory;
+pub mod messages;
 pub mod metrics;
 pub mod organizations;
+pub mod tools;
 pub mod users;
 
 use crate::error::ServerResult;
 use crate::middleware::{audit_logging_middleware, quota_middleware};
 use crate::routes::memory::MemoryManager;
+use crate::sse::SseManager;
+use crate::websocket::WebSocketManager;
 use axum::{
     middleware as axum_middleware,
     routing::{delete, get, post, put},
@@ -22,7 +27,14 @@ use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 /// Create the main router with all routes
-pub async fn create_router(memory_manager: Arc<MemoryManager>, db_pool: PgPool) -> ServerResult<Router> {
+pub async fn create_router(
+    memory_manager: Arc<MemoryManager>,
+    db_pool: PgPool,
+) -> ServerResult<Router> {
+    // Create WebSocket and SSE managers
+    let ws_manager = Arc::new(WebSocketManager::new());
+    let sse_manager = Arc::new(SseManager::new());
+
     let app = Router::new()
         // Memory management routes
         .route("/api/v1/memories", post(memory::add_memory))
@@ -48,19 +60,64 @@ pub async fn create_router(memory_manager: Arc<MemoryManager>, db_pool: PgPool) 
         .route("/api/v1/users/me/password", post(users::change_password))
         .route("/api/v1/users/:user_id", get(users::get_user_by_id))
         // Organization management routes
-        .route("/api/v1/organizations", post(organizations::create_organization))
-        .route("/api/v1/organizations/:org_id", get(organizations::get_organization))
-        .route("/api/v1/organizations/:org_id", put(organizations::update_organization))
-        .route("/api/v1/organizations/:org_id", delete(organizations::delete_organization))
-        .route("/api/v1/organizations/:org_id/members", get(organizations::list_organization_members))
+        .route(
+            "/api/v1/organizations",
+            post(organizations::create_organization),
+        )
+        .route(
+            "/api/v1/organizations/:org_id",
+            get(organizations::get_organization),
+        )
+        .route(
+            "/api/v1/organizations/:org_id",
+            put(organizations::update_organization),
+        )
+        .route(
+            "/api/v1/organizations/:org_id",
+            delete(organizations::delete_organization),
+        )
+        .route(
+            "/api/v1/organizations/:org_id/members",
+            get(organizations::list_organization_members),
+        )
+        // Agent management routes
+        .route("/api/v1/agents", post(agents::create_agent))
+        .route("/api/v1/agents/:id", get(agents::get_agent))
+        .route("/api/v1/agents/:id", put(agents::update_agent))
+        .route("/api/v1/agents/:id", delete(agents::delete_agent))
+        .route("/api/v1/agents", get(agents::list_agents))
+        .route(
+            "/api/v1/agents/:id/messages",
+            post(agents::send_message_to_agent),
+        )
+        // Message management routes
+        .route("/api/v1/messages", post(messages::create_message))
+        .route("/api/v1/messages/:id", get(messages::get_message))
+        .route("/api/v1/messages", get(messages::list_messages))
+        .route("/api/v1/messages/:id", delete(messages::delete_message))
+        // Tool management routes
+        .route("/api/v1/tools", post(tools::register_tool))
+        .route("/api/v1/tools/:id", get(tools::get_tool))
+        .route("/api/v1/tools", get(tools::list_tools))
+        .route("/api/v1/tools/:id", put(tools::update_tool))
+        .route("/api/v1/tools/:id", delete(tools::delete_tool))
+        .route("/api/v1/tools/:id/execute", post(tools::execute_tool))
+        // WebSocket endpoint
+        .route("/api/v1/ws", get(crate::websocket::websocket_handler))
+        // SSE endpoints
+        .route("/api/v1/sse", get(crate::sse::sse_handler))
+        .route("/api/v1/sse/llm", get(crate::sse::sse_stream_llm_response))
         // Health and monitoring
         .route("/health", get(health::health_check))
         .route("/metrics", get(metrics::get_metrics))
         // OpenAPI documentation
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
-        // Add shared state
+        // Add shared state via with_state
+        .with_state(db_pool)
+        // Add shared state via Extension
         .layer(Extension(memory_manager))
-        .layer(Extension(db_pool))
+        .layer(Extension(ws_manager))
+        .layer(Extension(sse_manager))
         // Add middleware (order matters: last added = first executed)
         .layer(axum_middleware::from_fn(audit_logging_middleware))
         .layer(axum_middleware::from_fn(quota_middleware))
@@ -93,6 +150,22 @@ pub async fn create_router(memory_manager: Arc<MemoryManager>, db_pool: PgPool) 
         organizations::update_organization,
         organizations::delete_organization,
         organizations::list_organization_members,
+        agents::create_agent,
+        agents::get_agent,
+        agents::update_agent,
+        agents::delete_agent,
+        agents::list_agents,
+        agents::send_message_to_agent,
+        messages::create_message,
+        messages::get_message,
+        messages::list_messages,
+        messages::delete_message,
+        tools::register_tool,
+        tools::get_tool,
+        tools::list_tools,
+        tools::update_tool,
+        tools::delete_tool,
+        tools::execute_tool,
         health::health_check,
         metrics::get_metrics,
     ),
@@ -117,6 +190,18 @@ pub async fn create_router(memory_manager: Arc<MemoryManager>, db_pool: PgPool) 
             organizations::CreateOrganizationRequest,
             organizations::UpdateOrganizationRequest,
             organizations::OrganizationMemberResponse,
+            agents::CreateAgentRequest,
+            agents::UpdateAgentRequest,
+            agents::AgentResponse,
+            agents::SendMessageRequest,
+            agents::SendMessageResponse,
+            messages::CreateMessageRequest,
+            messages::MessageResponse,
+            tools::RegisterToolRequest,
+            tools::UpdateToolRequest,
+            tools::ToolResponse,
+            tools::ExecuteToolRequest,
+            tools::ToolExecutionResponse,
         )
     ),
     tags(
@@ -124,6 +209,9 @@ pub async fn create_router(memory_manager: Arc<MemoryManager>, db_pool: PgPool) 
         (name = "batch", description = "Batch operations"),
         (name = "users", description = "User management operations"),
         (name = "organizations", description = "Organization management operations"),
+        (name = "agents", description = "Agent management operations"),
+        (name = "messages", description = "Message management operations"),
+        (name = "tools", description = "Tool management and execution operations"),
         (name = "health", description = "Health and monitoring"),
     ),
     info(

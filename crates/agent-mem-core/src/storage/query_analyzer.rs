@@ -75,10 +75,12 @@ impl QueryAnalyzer {
             .await
             .map_err(|e| CoreError::Database(format!("Failed to explain query: {}", e)))?;
 
-        let plan_json: serde_json::Value = row.try_get(0)
+        let plan_json: serde_json::Value = row
+            .try_get(0)
             .map_err(|e| CoreError::Database(format!("Failed to parse explain result: {}", e)))?;
 
-        let plan_array = plan_json.as_array()
+        let plan_array = plan_json
+            .as_array()
             .ok_or_else(|| CoreError::Database("Invalid explain result format".to_string()))?;
 
         let plan_obj = &plan_array[0];
@@ -142,11 +144,7 @@ impl QueryAnalyzer {
                 slow_queries.remove(0);
             }
 
-            tracing::warn!(
-                "Slow query detected ({}ms): {}",
-                execution_time_ms,
-                query
-            );
+            tracing::warn!("Slow query detected ({}ms): {}", execution_time_ms, query);
         }
     }
 
@@ -293,4 +291,3 @@ pub struct UnusedIndex {
     pub index_name: String,
     pub scans: i64,
 }
-
